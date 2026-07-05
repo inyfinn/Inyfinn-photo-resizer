@@ -1,0 +1,32 @@
+# Dystrybucja lokalna (binaria poza GitHub Releases)
+InyfinnPhotoResizer.exe
+InyfinnPhotoResizer.ico
+_internal/
+installer-output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Srodowisko i artefakty buildu
+dev/.venv/
+dev/build/
+dev/release/
+dev/tests/output/*
+!dev/tests/output/.gitkeep
+
+# Duze binaria narzedzi (pobierz lokalnie)
+dev/tools/libvips/
+dev/tools/pngquant/pngquant.exe
+dev/tools/gifsicle/
+
+# OS / logi
+.DS_Store
+Thumbs.db
+*.log
+
+# Zrzuty QA (generowane lokalnie)
+ui-complete/screenshots/

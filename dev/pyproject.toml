@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inyfinn-resizer"
+version = "1.0.0"
+description = "Native batch image converter and compressor — FastStone-style desktop app"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Inyfinn" }]
+dependencies = [
+    "PySide6>=6.6",
+    "pyvips>=2.2",
+    "Pillow>=10.0",
+    "watchdog>=4.0",
+    "piexif>=1.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.4"]
+
+[project.scripts]
+inyfinn-resizer = "inyfinn_resizer.main:main"
+
+[project.gui-scripts]
+inyfinn-photo-resizer = "inyfinn_resizer.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+inyfinn_resizer = ["app/themes/*.qss"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
