@@ -73,7 +73,7 @@ class FormatSettingsDialog(AppDialog):
         self._subsampling = QComboBox()
         self._subsampling.addItems(["RGB", "4:2:0 średnie", "4:2:0 silne"])
         fl.addRow("Przestrzeń kolorów:", self._subsampling)
-        self._jpeg_progressive = QCheckBox("Progressive")
+        self._jpeg_progressive = QCheckBox("Postępowy JPEG")
         self._jpeg_progressive.setChecked(self._opts.progressive)
         fl.addRow(self._jpeg_progressive)
         self._keep_meta = QCheckBox("Zachowaj dane EXIF / IPTC")

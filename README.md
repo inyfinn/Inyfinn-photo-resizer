@@ -101,6 +101,10 @@ build.bat                  # skrót do release
 
 - [GIF-COMPRESOR](https://github.com/inyfinn/GIF-COMPRESOR) - kompresja GIF (pipeline gifsicle)
 
+## Dokumentacja
+
+Szczegóły użytkownika: [docs/DOKUMENTACJA.md](docs/DOKUMENTACJA.md)
+
 ## Licencja
 
 MIT

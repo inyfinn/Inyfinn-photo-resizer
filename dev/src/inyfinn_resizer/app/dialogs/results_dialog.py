@@ -1,10 +1,13 @@
-"""Results dialog — FastStone-style conversion report."""
+"""Raport po konwersji — po polsku, spójny motyw."""
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
@@ -14,14 +17,22 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
 from inyfinn_resizer.core.job import JobResult, JobStatus
 
+_STATUS_PL = {
+    JobStatus.OK: "OK",
+    JobStatus.ERROR: "Błąd",
+    JobStatus.SKIPPED: "Pominięto",
+    JobStatus.PENDING: "Oczekuje",
+}
 
-class ResultsDialog(QDialog):
+
+class ResultsDialog(AppDialog):
     def __init__(self, results: list[JobResult], elapsed_sec: float, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Wyniki konwersji")
-        self.resize(900, 500)
+        self.resize(880, 460)
         self._results = results
         self._output_dir = None
         if results and results[0].job.output_path.parent:
@@ -40,6 +51,7 @@ class ResultsDialog(QDialog):
         layout.addLayout(header)
 
         self.table = QTableWidget(0, 7)
+        self.table.setObjectName("resultsTable")
         self.table.setHorizontalHeaderLabels(
             ["Lp.", "Plik wejściowy", "Plik wyjściowy", "Status", "Stary rozmiar", "Nowy rozmiar", "Stosunek (%)"]
         )
@@ -72,6 +84,7 @@ class ResultsDialog(QDialog):
         self.open_folder_cb.setChecked(False)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        polish_dialog_buttons(buttons)
         buttons.button(QDialogButtonBox.Ok).setText("Gotowe")
         buttons.accepted.connect(self._on_done)
         row = QHBoxLayout()
@@ -92,18 +105,15 @@ class ResultsDialog(QDialog):
             self.table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
             self.table.setItem(i, 1, QTableWidgetItem(r.job.input_path.name))
             self.table.setItem(i, 2, QTableWidgetItem(r.job.output_path.name))
-            self.table.setItem(i, 3, QTableWidgetItem(r.status.value))
+            self.table.setItem(i, 3, QTableWidgetItem(_STATUS_PL.get(r.status, str(r.status.value))))
             self.table.setItem(i, 4, QTableWidgetItem(f"{r.old_kb:.1f} KB"))
             self.table.setItem(i, 5, QTableWidgetItem(f"{r.new_kb:.1f} KB"))
             self.table.setItem(i, 6, QTableWidgetItem(f"{r.ratio_pct:.0f}%"))
 
     def _on_done(self) -> None:
         if self.open_folder_cb.isChecked() and self._output_dir:
-            import os
-            import sys
             if sys.platform == "win32":
                 os.startfile(str(self._output_dir))
             else:
-                import subprocess
                 subprocess.Popen(["xdg-open", str(self._output_dir)])
         self.accept()

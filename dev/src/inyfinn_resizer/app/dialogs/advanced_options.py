@@ -24,7 +24,7 @@ class AdvancedOptionsDialog(AppDialog):
     def __init__(self, resize: ResizeOptions, transforms: TransformOptions, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Opcje zaawansowane")
-        self.resize(520, 400)
+        self.setMinimumSize(480, 360)
         self._resize = resize
         self._transforms = transforms
 

@@ -62,8 +62,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Inyfinn Photo Resizer 1.0")
-        self.resize(980, 580)
-        self.setMinimumSize(880, 520)
+        self.resize(940, 520)
+        self.setMinimumSize(860, 480)
         self.setAcceptDrops(True)
 
         self._queue: list[Path] = []
@@ -87,8 +87,8 @@ class MainWindow(QMainWindow):
         frame.setObjectName(object_name)
         frame.setFrameShape(QFrame.StyledPanel)
         outer = QVBoxLayout(frame)
-        outer.setContentsMargins(16, 14, 16, 16)
-        outer.setSpacing(ROW_GAP)
+        outer.setContentsMargins(12, 10, 12, 12)
+        outer.setSpacing(6)
         lbl = QLabel(title)
         lbl.setObjectName("panelTitle")
         outer.addWidget(lbl)
@@ -114,8 +114,8 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(14, 10, 14, 10)
-        root.setSpacing(ROW_GAP)
+        root.setContentsMargins(10, 8, 10, 8)
+        root.setSpacing(6)
 
         header = QHBoxLayout()
         title = QLabel("Inyfinn Photo Resizer")
@@ -384,7 +384,7 @@ class MainWindow(QMainWindow):
                 return f"{kb / 1024:.1f} MB"
             return f"{kb:.0f} KB"
         except OSError:
-            return "—"
+            return "-"
 
     def _add_path_to_queue(self, path: Path) -> None:
         if path in self._queue:
