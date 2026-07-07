@@ -21,10 +21,16 @@ from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_but
 from inyfinn_resizer.core.job import JobResult, JobStatus
 
 _STATUS_PL = {
-    JobStatus.OK: "OK",
+    JobStatus.OK: "Sukces",
     JobStatus.ERROR: "Błąd",
     JobStatus.SKIPPED: "Pominięto",
     JobStatus.PENDING: "Oczekuje",
+}
+
+_PROFILE_PL = {
+    "xl": "XL (master)",
+    "sklep": "Sklep",
+    "standard": "Standard",
 }
 
 
@@ -109,6 +115,67 @@ class ResultsDialog(AppDialog):
             self.table.setItem(i, 4, QTableWidgetItem(f"{r.old_kb:.1f} KB"))
             self.table.setItem(i, 5, QTableWidgetItem(f"{r.new_kb:.1f} KB"))
             self.table.setItem(i, 6, QTableWidgetItem(f"{r.ratio_pct:.0f}%"))
+
+    def _on_done(self) -> None:
+        if self.open_folder_cb.isChecked() and self._output_dir:
+            if sys.platform == "win32":
+                os.startfile(str(self._output_dir))
+            else:
+                subprocess.Popen(["xdg-open", str(self._output_dir)])
+        self.accept()
+
+
+class WizResultsDialog(AppDialog):
+    def __init__(self, results, elapsed_sec: float, parent=None):
+        super().__init__(parent)
+        from inyfinn_resizer.core.wiz_sequence import WizFolderResult
+
+        self.setWindowTitle("Wyniki sekwencji wizek")
+        self.resize(900, 480)
+        self._results: list[WizFolderResult] = results
+        self._output_dir = results[0].folder if results else None
+
+        layout = QVBoxLayout(self)
+        ok = sum(1 for r in results if r.status == JobStatus.OK)
+        layout.addWidget(QLabel(f"Foldery: {ok}/{len(results)} zakończone pomyślnie — przetwarzanie in-place"))
+
+        self.table = QTableWidget(0, 6)
+        self.table.setObjectName("resultsTable")
+        self.table.setHorizontalHeaderLabels(
+            ["Folder", "Plik", "Profil", "Status", "Przed", "Po"]
+        )
+        self.table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.table)
+
+        row = 0
+        for folder_result in results:
+            for fr in folder_result.files:
+                self.table.insertRow(row)
+                self.table.setItem(row, 0, QTableWidgetItem(folder_result.folder.name))
+                self.table.setItem(row, 1, QTableWidgetItem(fr.name))
+                self.table.setItem(row, 2, QTableWidgetItem(_PROFILE_PL.get(fr.profile, fr.profile)))
+                self.table.setItem(row, 3, QTableWidgetItem(_STATUS_PL.get(fr.status, fr.status.value)))
+                self.table.setItem(row, 4, QTableWidgetItem(f"{fr.old_bytes // 1024} KB"))
+                self.table.setItem(row, 5, QTableWidgetItem(f"{fr.new_bytes // 1024} KB"))
+                row += 1
+
+        total_old = sum(r.old_bytes for r in results)
+        total_new = sum(r.new_bytes for r in results)
+        layout.addWidget(QLabel(
+            f"Razem: {total_old // 1024:,} KB → {total_new // 1024:,} KB  |  "
+            f"Czas: {int(elapsed_sec // 60):02d}:{int(elapsed_sec % 60):02d}"
+        ))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        polish_dialog_buttons(buttons)
+        buttons.button(QDialogButtonBox.Ok).setText("Gotowe")
+        self.open_folder_cb = QCheckBox("Otwórz pierwszy folder")
+        buttons.accepted.connect(self._on_done)
+        bottom = QHBoxLayout()
+        bottom.addWidget(self.open_folder_cb)
+        bottom.addStretch()
+        bottom.addWidget(buttons)
+        layout.addLayout(bottom)
 
     def _on_done(self) -> None:
         if self.open_folder_cb.isChecked() and self._output_dir:

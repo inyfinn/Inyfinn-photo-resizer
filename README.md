@@ -90,12 +90,14 @@ Skopiuj `pngquant.exe` do `dev/tools/pngquant/` lub ustaw zmienną `PNGQUANT`.
 ## Struktura repozytorium
 
 ```
-dev/src/inyfinn_resizer/   # kod źródłowy
-dev/tests/                 # testy pytest
-dev/installer/             # Inno Setup
-dev/scripts/               # build, zrzuty UI
-build.bat                  # skrót do release
+InyfinnPhotoResizer.exe   # uruchom ten plik
+InyfinnPhotoResizer.ico
+_internal/                # biblioteki (nie ruszaj)
+dev/                      # kod źródłowy + build.bat w korzeniu
+build.bat                 # przebudowa EXE po zmianach
 ```
+
+Po `build.bat` w korzeniu zostają tylko: **EXE**, **_internal**, **dev** (źródła), **.git**.
 
 ## Powiązane projekty
 

@@ -45,3 +45,22 @@
 - Ścieżki segregacji: `out/webp/photo.webp`, `out/jpg/photo.jpg`
 
 **Źródła:** EKSPORT WIZEK PS.jsx (multi-format), `dev/design-system/MASTER.md`
+
+---
+
+## 2026-07-06 — Instalator: dezinstalacja + podpisywanie
+
+**Komenda/Akcja:** Naprawa Inno Setup (uninstall), mutex aplikacji, build instalatora 1.0.1
+
+**Log/Status:**
+1. `inyfinn_resizer.iss` — `CloseApplications=force`, `AppMutex`, `taskkill` przed dezinstalacją, `[UninstallDelete]` dla `_internal`, `DelTree` w `usPostUninstall`
+2. `app_mutex.py` + `main.py` — jedna instancja, komunikat PL
+3. `sign_file.ps1` — opcjonalne podpisywanie Authenticode (`INYFINN_CODESIGN_PFX`)
+4. `build_installer.ps1` — ISCC + kopia do korzenia projektu
+5. Zbudowano `InyfinnPhotoResizer-1.0.1-setup.exe`
+
+**Efekt/Fix:** Dezinstalacja zamyka proces przed usuwaniem `_internal`; SmartScreen wymaga certyfikatu kodu (skrypt gotowy)
+
+**Test/Ewaluacja:** ISCC compile OK; silent install do `C:\InyfinnPhotoResizer` OK
+
+**Źródła:** Inno Setup docs [UninstallDelete], [CloseApplications]; Microsoft SmartScreen / Authenticode

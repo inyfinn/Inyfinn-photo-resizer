@@ -18,6 +18,31 @@ PNGQUANT_BANDS = [
 DEFAULT_TARGET_TOLERANCE = 0.2
 PNGQUANT_SPEED = 4
 MAX_TRIES = 6
+PQ_MARKER = ".pq."
+
+
+def cleanup_pngquant_artifacts_for(path: Path) -> None:
+    """Usuwa pliki tymczasowe pngquant powiązane z danym PNG."""
+    if not path.parent.is_dir():
+        return
+    prefix = f"{path.stem}.pq."
+    for candidate in path.parent.iterdir():
+        if candidate.is_file() and (
+            candidate.name.startswith(prefix) or PQ_MARKER in candidate.name and candidate.stem.startswith(path.stem)
+        ):
+            candidate.unlink(missing_ok=True)
+
+
+def cleanup_pngquant_artifacts_in_folder(folder: Path) -> int:
+    """Usuwa wszystkie pozostałości pngquant w folderze."""
+    if not folder.is_dir():
+        return 0
+    removed = 0
+    for candidate in folder.iterdir():
+        if candidate.is_file() and PQ_MARKER in candidate.name:
+            candidate.unlink(missing_ok=True)
+            removed += 1
+    return removed
 
 
 def target_bounds(target_kb: float, tolerance: float = DEFAULT_TARGET_TOLERANCE) -> tuple[int, int, int]:
@@ -119,27 +144,31 @@ def _apply_target_kb(
     bands = [b for b in PNGQUANT_BANDS if b[0] >= floor] + [b for b in PNGQUANT_BANDS if b[0] < floor]
     tmp = path.with_suffix(".pq.tmp.png")
     candidates = []
-    for qmin, qmax in bands[:12]:
-        if tmp.exists():
-            tmp.unlink()
-        sz = run_pngquant(pngquant, path, tmp, qmin, qmax)
-        if sz is not None and sz <= max_b:
-            staged = path.with_suffix(f".pq.staging.{qmin}-{qmax}.png")
-            shutil.copy2(tmp, staged)
-            candidates.append(((qmin, qmax), sz, staged))
-        if tmp.exists():
-            tmp.unlink()
-    pick = pick_calibrated_candidate(candidates, min_b, max_b, ideal_b)
-    if pick:
-        band, sz, staged = pick
-        shutil.move(str(staged), str(path))
+    try:
+        for qmin, qmax in bands[:12]:
+            if tmp.exists():
+                tmp.unlink()
+            sz = run_pngquant(pngquant, path, tmp, qmin, qmax)
+            if sz is not None and sz <= max_b:
+                staged = path.with_suffix(f".pq.staging.{qmin}-{qmax}.png")
+                shutil.copy2(tmp, staged)
+                candidates.append(((qmin, qmax), sz, staged))
+            if tmp.exists():
+                tmp.unlink()
+        pick = pick_calibrated_candidate(candidates, min_b, max_b, ideal_b)
+        if pick:
+            band, sz, staged = pick
+            shutil.move(str(staged), str(path))
+            for c in candidates:
+                if c[2] != staged and Path(c[2]).exists():
+                    Path(c[2]).unlink()
+            return True, f"pngquant {band[0]}-{band[1]} target {sz // 1024}KB"
         for c in candidates:
-            if c[2] != staged and Path(c[2]).exists():
-                Path(c[2]).unlink()
-        return True, f"pngquant {band[0]}-{band[1]} target {sz // 1024}KB"
-    for c in candidates:
-        Path(c[2]).unlink(missing_ok=True)
-    return False, "pngquant target not reached"
+            Path(c[2]).unlink(missing_ok=True)
+        return False, "pngquant target not reached"
+    finally:
+        tmp.unlink(missing_ok=True)
+        cleanup_pngquant_artifacts_for(path)
 
 
 def apply_pngquant(
@@ -159,59 +188,57 @@ def apply_pngquant(
     tmp = path.with_suffix(".pq.tmp.png")
     shutil.copy2(path, src_copy)
 
-    if target_kb is not None:
-        ok, msg = _apply_target_kb(pngquant, path, target_kb, quality_pct, target_tolerance)
-        src_copy.unlink(missing_ok=True)
-        return ok, msg
+    try:
+        if target_kb is not None:
+            ok, msg = _apply_target_kb(pngquant, path, target_kb, quality_pct, target_tolerance)
+            return ok, msg
 
-    if max_kb is not None:
-        max_bytes = int(max_kb * 1024)
-        for qmin, qmax in PNGQUANT_BANDS:
+        if max_kb is not None:
+            max_bytes = int(max_kb * 1024)
+            for qmin, qmax in PNGQUANT_BANDS:
+                if tmp.exists():
+                    tmp.unlink()
+                sz = run_pngquant(pngquant, src_copy, tmp, qmin, qmax)
+                if sz is not None and sz <= max_bytes:
+                    shutil.move(str(tmp), str(path))
+                    return True, f"pngquant {qmin}-{qmax} max_kb"
+            return False, "pngquant max_kb not reached"
+
+        bands = bands_for_quality(quality_pct)
+        results: list[tuple[tuple[int, int, int], int, Path]] = []
+
+        for band in bands:
             if tmp.exists():
                 tmp.unlink()
-            sz = run_pngquant(pngquant, src_copy, tmp, qmin, qmax)
-            if sz is not None and sz <= max_bytes:
-                shutil.move(str(tmp), str(path))
-                src_copy.unlink(missing_ok=True)
-                return True, f"pngquant {qmin}-{qmax} max_kb"
-        src_copy.unlink(missing_ok=True)
-        return False, "pngquant max_kb not reached"
-
-    bands = bands_for_quality(quality_pct)
-    results: list[tuple[tuple[int, int, int], int, Path]] = []
-
-    for band in bands:
-        if tmp.exists():
+            sz = run_pngquant(pngquant, src_copy, tmp, band[0], band[1], band[2])
+            if sz is None:
+                continue
+            staged = path.with_suffix(f".pq.staging.{band[0]}-{band[1]}.png")
+            shutil.copy2(tmp, staged)
+            results.append((band, sz, staged))
             tmp.unlink()
-        sz = run_pngquant(pngquant, src_copy, tmp, band[0], band[1], band[2])
-        if sz is None:
-            continue
-        staged = path.with_suffix(f".pq.staging.{band[0]}-{band[1]}.png")
-        shutil.copy2(tmp, staged)
-        results.append((band, sz, staged))
-        tmp.unlink()
 
-    src_copy.unlink(missing_ok=True)
-    if tmp.exists():
-        tmp.unlink()
+        valid = [r for r in results if r[1] < orig_size]
+        if not valid:
+            for r in results:
+                if r[2].exists():
+                    r[2].unlink()
+            return False, "pngquant no gain"
 
-    valid = [r for r in results if r[1] < orig_size]
-    if not valid:
+        primary = pngquant_params_for_quality(quality_pct)
+        primary_hit = next((r for r in valid if r[0] == primary), None)
+        best = primary_hit if primary_hit else valid[0]
+
         for r in results:
-            if r[2].exists():
+            if r[2] != best[2] and r[2].exists():
                 r[2].unlink()
-        return False, "pngquant no gain"
-
-    primary = pngquant_params_for_quality(quality_pct)
-    primary_hit = next((r for r in valid if r[0] == primary), None)
-    best = primary_hit if primary_hit else valid[0]
-
-    for r in results:
-        if r[2] != best[2] and r[2].exists():
-            r[2].unlink()
-    shutil.move(str(best[2]), str(path))
-    fold = round(orig_size / best[1], 1)
-    return True, (
-        f"pngquant {best[0][0]}-{best[0][1]} s{best[0][2]} "
-        f"{best[1] // 1024}KB ({fold}× mniej)"
-    )
+        shutil.move(str(best[2]), str(path))
+        fold = round(orig_size / best[1], 1)
+        return True, (
+            f"pngquant {best[0][0]}-{best[0][1]} s{best[0][2]} "
+            f"{best[1] // 1024}KB ({fold}× mniej)"
+        )
+    finally:
+        src_copy.unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
+        cleanup_pngquant_artifacts_for(path)

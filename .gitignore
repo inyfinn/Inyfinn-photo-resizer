@@ -2,7 +2,7 @@
 InyfinnPhotoResizer.exe
 InyfinnPhotoResizer.ico
 _internal/
-installer-output/
+dev/installer-output/
 
 # Python
 __pycache__/

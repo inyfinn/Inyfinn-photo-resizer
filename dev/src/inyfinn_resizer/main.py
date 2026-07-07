@@ -8,9 +8,12 @@ from pathlib import Path
 
 from PySide6.QtGui import QIcon, QFont
 from PySide6.QtWidgets import QApplication
+from inyfinn_resizer.app.dialogs.message_boxes import show_warning
 
+from inyfinn_resizer import __version__
 from inyfinn_resizer.app.main_window import MainWindow
 from inyfinn_resizer.app.themes import apply_theme
+from inyfinn_resizer.utils.app_mutex import acquire_app_mutex
 from inyfinn_resizer.utils.paths import bundle_dir, project_root
 
 
@@ -30,8 +33,16 @@ def _app_icon() -> QIcon | None:
 
 def main() -> int:
     app = QApplication(sys.argv)
+    if not acquire_app_mutex():
+        show_warning(
+            None,
+            "Inyfinn Photo Resizer",
+            "Aplikacja jest już uruchomiona.\nZamknij poprzednie okno przed ponownym startem.",
+        )
+        return 1
     app.setFont(QFont("Segoe UI", 9))
     app.setApplicationName("Inyfinn Photo Resizer")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("Inyfinn")
     icon = _app_icon()
     if icon is not None:

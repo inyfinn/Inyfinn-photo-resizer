@@ -1,10 +1,11 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Buduje program: EXE + ikona w korzeniu PHOTO RESIZER, zaleznosci w _internal/
+  Buduje EXE + _internal w korzeniu projektu. Instalator opcjonalnie (-Installer).
 #>
 param(
-    [switch]$Launch
+    [switch]$Launch,
+    [switch]$Installer
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,16 +56,29 @@ if (Test-Path $iconSrc) {
     Copy-Item $iconSrc $iconDst -Force
 }
 
-$dupRelease = Join-Path $AppRoot "release"
-if (Test-Path $dupRelease) {
-    Remove-Item $dupRelease -Recurse -Force -ErrorAction SilentlyContinue
+# Porzadek w korzeniu — tylko EXE, _internal, dev, git, build.bat, README
+@(
+    (Join-Path $AppRoot "installer-output"),
+    (Join-Path $AppRoot "release"),
+    (Join-Path $AppRoot "docs")
+) | ForEach-Object {
+    if (Test-Path $_) { Remove-Item $_ -Recurse -Force -ErrorAction SilentlyContinue }
 }
+Get-ChildItem $AppRoot -Filter "*-setup.exe" -ErrorAction SilentlyContinue | Remove-Item -Force
+
+& (Join-Path $DevRoot "scripts\sign_file.ps1") (Join-Path $AppRoot "InyfinnPhotoResizer.exe")
 
 Write-Host ""
-Write-Host "GOTOWE - uruchom:"
+Write-Host "GOTOWE v$( & $venvPy -c 'from inyfinn_resizer import __version__; print(__version__)' )"
 Write-Host "  $AppRoot\InyfinnPhotoResizer.exe"
+Write-Host "  $AppRoot\_internal\"
 Write-Host ""
 
 if ($Launch) {
     Start-Process (Join-Path $AppRoot "InyfinnPhotoResizer.exe")
+}
+
+if ($Installer) {
+    Write-Host "Budowanie instalatora (Inno Setup)..."
+    & (Join-Path $DevRoot "scripts\build_installer.ps1")
 }

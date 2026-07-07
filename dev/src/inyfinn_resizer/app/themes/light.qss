@@ -23,6 +23,13 @@ QLabel#appTitle {
     color: #0f172a;
 }
 
+QLabel#versionBadge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6366f1;
+    background: transparent;
+}
+
 QLabel#panelTitle {
     font-size: 15px;
     font-weight: 700;
@@ -392,17 +399,24 @@ QTabWidget#dialogTabs QTabBar::tab:selected {
 
 QGroupBox#moreOptions {
     border: 1px solid #cbd5e1;
-    border-radius: 6px;
+    border-radius: 4px;
     margin-top: 8px;
     padding-top: 8px;
     font-weight: 600;
     color: #334155;
+    background-color: #f8fafc;
 }
 
-QGroupBox#moreOptions::title {
-    subcontrol-origin: margin;
-    left: 10px;
-    padding: 0 6px;
+QFrame#moreOptions {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+}
+
+QCheckBox#moreToggle {
+    font-weight: 600;
+    color: #334155;
+    padding: 4px 0;
 }
 
 /* —— Listy rozwijane (czytelne) —— */
@@ -468,4 +482,29 @@ QHeaderView::section {
     border: none;
     border-bottom: 1px solid #cbd5e1;
     font-weight: 600;
+}
+
+QComboBox:disabled, QLineEdit:disabled, QPushButton:disabled, QCheckBox:disabled {
+    color: #94a3b8;
+    background-color: #e2e8f0;
+    border-color: #cbd5e1;
+}
+QMessageBox {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
+}
+
+QMessageBox QLabel {
+    color: #1e293b;
+    background: transparent;
+    font-size: 13px;
+    min-width: 320px;
+    padding: 8px 4px;
+}
+
+QMessageBox QPushButton {
+    min-width: 88px;
+    min-height: 36px;
 }

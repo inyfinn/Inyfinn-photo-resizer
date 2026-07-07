@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtGui import QMouseEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QComboBox, QListView
 
 from inyfinn_resizer.app.i18n_pl import FORMAT_LABEL_PL
@@ -19,7 +19,6 @@ class FormatMultiCombo(QComboBox):
         super().__init__(parent)
         self.setObjectName("formatMultiCombo")
         self._keys: list[str] = []
-        self._block = False
 
         model = QStandardItemModel(self)
         self.setModel(model)
@@ -35,6 +34,7 @@ class FormatMultiCombo(QComboBox):
         if le:
             le.setReadOnly(True)
             le.setPlaceholderText("Wybierz formaty…")
+            le.setCursor(Qt.PointingHandCursor)
 
         view.pressed.connect(self._on_item_pressed)
 
@@ -50,6 +50,14 @@ class FormatMultiCombo(QComboBox):
             self._keys.append(key)
 
         self.set_selected(["webp"])
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton:
+            self.setFocus()
+            self.showPopup()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def _on_item_pressed(self, index) -> None:
         item = self.model().itemFromIndex(index)

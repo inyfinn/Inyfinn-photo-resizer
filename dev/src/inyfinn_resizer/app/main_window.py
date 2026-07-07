@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -19,22 +20,31 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSlider,
     QSplitter,
     QTabWidget,
-    QGroupBox,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+from inyfinn_resizer.app.dialogs.message_boxes import (
+    ask_yes_no,
+    show_about,
+    show_critical,
+    show_info,
+    show_warning,
+)
 
+from inyfinn_resizer import __version__
 from inyfinn_resizer.app.dialogs.advanced_options import AdvancedOptionsDialog
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
-from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog
+from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
+from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.layout_helpers import (
     ROW_GAP,
@@ -56,14 +66,15 @@ from inyfinn_resizer.core.pipeline import build_output_path
 from inyfinn_resizer.core.presets import apply_preset, load_preset, save_preset, settings_to_dict
 from inyfinn_resizer.core.rename.templates import preview_rename
 from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
+from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Inyfinn Photo Resizer 1.0")
-        self.resize(940, 520)
-        self.setMinimumSize(860, 480)
+        self.setWindowTitle(f"Inyfinn Photo Resizer {__version__}")
+        self.resize(1020, 620)
+        self.setMinimumSize(960, 580)
         self.setAcceptDrops(True)
 
         self._queue: list[Path] = []
@@ -75,11 +86,13 @@ class MainWindow(QMainWindow):
         self._rename = RenameRule()
         self._batch = BatchSettings()
         self._batch_thread: BatchThread | None = None
+        self._wiz_thread: WizThread | None = None
+        self._folder_queue: list[Path] = []
         self._theme = "light"
 
         self._build_menu()
         self._build_ui()
-        self.statusBar().showMessage("Gotowe — przeciągnij zdjęcia na listę po lewej")
+        self.statusBar().showMessage(f"Inyfinn Photo Resizer {__version__} — przeciągnij zdjęcia na listę po lewej")
 
     @staticmethod
     def _make_panel(title: str, object_name: str = "panel") -> tuple[QFrame, QVBoxLayout]:
@@ -118,9 +131,15 @@ class MainWindow(QMainWindow):
         root.setSpacing(6)
 
         header = QHBoxLayout()
+        title_col = QVBoxLayout()
+        title_col.setSpacing(0)
         title = QLabel("Inyfinn Photo Resizer")
         title.setObjectName("appTitle")
-        header.addWidget(title)
+        version_lbl = QLabel(f"Wersja {__version__}")
+        version_lbl.setObjectName("versionBadge")
+        title_col.addWidget(title)
+        title_col.addWidget(version_lbl)
+        header.addLayout(title_col)
         header.addStretch()
         self.theme_btn = QPushButton("Ciemny motyw")
         self.theme_btn.setObjectName("themeToggle")
@@ -186,14 +205,29 @@ class MainWindow(QMainWindow):
 
         splitter.addWidget(left_box)
 
-        # —— Prawy panel: ustawienia (kompakt) ——
+        # —— Prawy panel: ustawienia ——
         right_shell, right_layout = self._make_panel("Ustawienia konwersji", "panel")
-        right_shell.setMinimumWidth(360)
+        right_shell.setMinimumWidth(380)
 
-        form = QGridLayout()
-        form.setHorizontalSpacing(10)
-        form.setVerticalSpacing(8)
+        scroll = QScrollArea()
+        scroll.setObjectName("settingsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setFocusPolicy(Qt.NoFocus)
+
+        settings_body = QWidget()
+        settings_body.setObjectName("settingsBody")
+        settings_layout = QVBoxLayout(settings_body)
+        settings_layout.setSpacing(8)
+        settings_layout.setContentsMargins(0, 0, 4, 0)
+
+        form_widget = QWidget()
+        form = QFormLayout(form_widget)
+        form.setSpacing(10)
         form.setContentsMargins(0, 0, 0, 0)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         self.format_combo = FormatMultiCombo()
         self.format_combo.selectionChanged.connect(self._on_formats_changed)
@@ -202,17 +236,31 @@ class MainWindow(QMainWindow):
         fmt_row.addWidget(self.format_combo, stretch=1)
         self.settings_btn = QPushButton("Ustawienia…")
         self.settings_btn.setObjectName("btnSecondary")
-        self.settings_btn.setFixedSize(108, 36)
+        self.settings_btn.setMinimumHeight(36)
+        self.settings_btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         self.settings_btn.clicked.connect(self._open_format_settings)
         fmt_row.addWidget(self.settings_btn)
         fmt_wrap = QWidget()
         fmt_wrap.setLayout(fmt_row)
-        add_form_row(form, 0, "Format:", fmt_wrap)
+        self.fmt_wrap = fmt_wrap
+        self.format_label = QLabel("Format:")
+        form.addRow(self.format_label, fmt_wrap)
+
+        self.wiz_sequence_cb = QCheckBox("Konwertuj na sekwencję wizek")
+        self.wiz_sequence_cb.setToolTip(
+            "Bootstrap + kompresja pakietu XL/L/S/SKLEP in-place w folderze źródłowym.\n"
+            "Format wyjściowy z listy jest ignorowany — eksport PNG/JPG wg skryptu wizek."
+        )
+        self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
+        form.addRow(self.wiz_sequence_cb)
 
         self.segregate_cb = QCheckBox("Segreguj do podfolderów (webp/, jpg/…)")
-        self.segregate_cb.setChecked(True)
-        self.segregate_cb.setEnabled(False)
-        form.addWidget(self.segregate_cb, 1, 1)
+        self.segregate_cb.setChecked(False)
+        self.segregate_cb.setToolTip(
+            "Przy eksporcie do wielu formatów zapisuje pliki w podfolderach "
+            "(np. webp/, jpg/). Przy jednym formacie opcja jest ignorowana."
+        )
+        form.addRow(self.segregate_cb)
 
         self.size_combo = QComboBox()
         self.size_combo.setMinimumHeight(36)
@@ -222,7 +270,7 @@ class MainWindow(QMainWindow):
             "Maks. 1200 px",
             "50%",
         ])
-        add_form_row(form, 2, "Rozmiar:", self.size_combo)
+        form.addRow("Rozmiar:", self.size_combo)
 
         qual_wrap = QWidget()
         qual_row = QHBoxLayout(qual_wrap)
@@ -234,47 +282,52 @@ class MainWindow(QMainWindow):
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         self.quality_label = QLabel("85")
         self.quality_label.setObjectName("qualityValue")
-        self.quality_label.setFixedWidth(28)
+        self.quality_label.setMinimumWidth(32)
         self.quality_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         qual_row.addWidget(self.quality_slider, stretch=1)
         qual_row.addWidget(self.quality_label)
-        add_form_row(form, 3, "Jakość:", qual_wrap)
+        form.addRow("Jakość:", qual_wrap)
 
         adv_row = QHBoxLayout()
         self.advanced_cb = QCheckBox("Opcje zaawansowane")
         adv_row.addWidget(self.advanced_cb)
         self.advanced_btn = QPushButton("Otwórz…")
         self.advanced_btn.setObjectName("btnSecondary")
-        self.advanced_btn.setFixedSize(88, 36)
+        self.advanced_btn.setMinimumHeight(36)
         self.advanced_btn.clicked.connect(self._open_advanced)
         adv_row.addWidget(self.advanced_btn)
         adv_wrap = QWidget()
         adv_wrap.setLayout(adv_row)
-        add_form_row(form, 4, "Zaawans.:", adv_wrap)
+        form.addRow("Zaawans.:", adv_wrap)
 
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_edit = QLineEdit()
-        self.output_dir_edit.setPlaceholderText("Folder docelowy…")
+        self.output_dir_edit.setPlaceholderText("Folder docelowy (pomijany przy sekwencji wizek)…")
         self.output_dir_edit.setMinimumHeight(36)
         browse_out = QPushButton("Przeglądaj…")
         browse_out.setObjectName("btnSecondary")
-        browse_out.setFixedSize(108, 36)
+        browse_out.setMinimumHeight(36)
         browse_out.clicked.connect(self._browse_output)
         out_row.addWidget(self.output_dir_edit, stretch=1)
         out_row.addWidget(browse_out)
         out_wrap = QWidget()
         out_wrap.setLayout(out_row)
-        add_form_row(form, 5, "Wyjście:", out_wrap)
+        form.addRow("Wyjście:", out_wrap)
 
-        right_layout.addLayout(form)
+        settings_layout.addWidget(form_widget)
 
-        more_box = QGroupBox("Więcej opcji")
-        more_box.setObjectName("moreOptions")
-        more_box.setCheckable(True)
-        more_box.setChecked(False)
-        more_lay = QVBoxLayout(more_box)
-        more_lay.setContentsMargins(10, 12, 10, 10)
+        self.more_toggle = QCheckBox("Więcej opcji")
+        self.more_toggle.setObjectName("moreToggle")
+        self.more_toggle.setChecked(False)
+        settings_layout.addWidget(self.more_toggle)
+
+        self.more_content = QFrame()
+        self.more_content.setObjectName("moreOptions")
+        self.more_content.setVisible(False)
+        self.more_content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        more_lay = QVBoxLayout(self.more_content)
+        more_lay.setContentsMargins(10, 8, 10, 8)
         more_lay.setSpacing(6)
         for text, attr, checked in [
             ("Zachowaj strukturę folderów", "preserve_cb", True),
@@ -286,12 +339,9 @@ class MainWindow(QMainWindow):
             cb.setChecked(checked)
             setattr(self, attr, cb)
             more_lay.addWidget(cb)
-        preview_row = QHBoxLayout()
-        self.preview_cb = QCheckBox("Podgląd")
+        self.preview_cb = QCheckBox("Podgląd miniatury")
         self.preview_cb.setChecked(True)
-        preview_row.addWidget(self.preview_cb)
-        preview_row.addStretch()
-        more_lay.addLayout(preview_row)
+        more_lay.addWidget(self.preview_cb)
         prev_row = QHBoxLayout()
         self.preview_label = QLabel()
         self.preview_label.setObjectName("previewBox")
@@ -303,7 +353,11 @@ class MainWindow(QMainWindow):
         prev_row.addWidget(self.preview_label)
         prev_row.addWidget(self.size_info, stretch=1)
         more_lay.addLayout(prev_row)
-        right_layout.addWidget(more_box)
+        self.more_toggle.toggled.connect(self.more_content.setVisible)
+        settings_layout.addWidget(self.more_content)
+
+        scroll.setWidget(settings_body)
+        right_layout.addWidget(scroll, stretch=1)
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
@@ -346,9 +400,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.rename_preview, stretch=1)
         preview_btn = QPushButton("Podgląd nazw")
         preview_btn.setObjectName("btnSecondary")
-        preview_btn.setFixedHeight(36)
+        preview_btn.setMinimumHeight(36)
+        preview_btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
         preview_btn.clicked.connect(self._preview_rename)
-        layout.addWidget(preview_btn, alignment=Qt.AlignLeft)
+        layout.addWidget(preview_btn)
         return w
 
     def _toggle_theme(self) -> None:
@@ -363,11 +418,24 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), theme)
         self.theme_btn.setText("Jasny motyw" if theme == "dark" else "Ciemny motyw")
 
-    def _on_formats_changed(self) -> None:
-        n = len(self.format_combo.selected_formats())
-        self.segregate_cb.setEnabled(n > 1)
-        if n <= 1:
+    def _on_wiz_mode_changed(self, enabled: bool) -> None:
+        self.format_combo.setEnabled(not enabled)
+        self.settings_btn.setEnabled(not enabled)
+        self.fmt_wrap.setEnabled(not enabled)
+        self.format_label.setEnabled(not enabled)
+        if enabled:
             self.segregate_cb.setChecked(False)
+            self.segregate_cb.setEnabled(False)
+            self.output_dir_edit.setEnabled(False)
+            self.convert_btn.setText("Konwertuj wizek")
+        else:
+            self.segregate_cb.setEnabled(True)
+            self.output_dir_edit.setEnabled(True)
+            self.convert_btn.setText("Konwertuj")
+
+    def _on_formats_changed(self) -> None:
+        """Odświeżenie UI po zmianie formatów — segregacja pozostaje klikalna."""
+        return
 
     def _selected_formats(self) -> list[str]:
         fmts = self.format_combo.selected_formats()
@@ -392,10 +460,25 @@ class MainWindow(QMainWindow):
         self._queue.append(path)
         item = QTreeWidgetItem([path.name, self._format_size(path)])
         item.setData(0, Qt.UserRole, str(path))
+        item.setData(0, Qt.UserRole + 1, "file")
         item.setToolTip(0, str(path))
         self.input_tree.addTopLevelItem(item)
         if self._base_root is None:
             self._base_root = path.parent
+        self._update_queue_label()
+
+    def _add_folder_to_queue(self, folder: Path) -> None:
+        folder = folder.resolve()
+        if folder in self._folder_queue:
+            return
+        self._folder_queue.append(folder)
+        item = QTreeWidgetItem([f"📁 {folder.name}", "folder"])
+        item.setData(0, Qt.UserRole, str(folder))
+        item.setData(0, Qt.UserRole + 1, "folder")
+        item.setToolTip(0, str(folder))
+        self.input_tree.addTopLevelItem(item)
+        if self._base_root is None:
+            self._base_root = folder
         self._update_queue_label()
 
     def _paths_from_items(self, items: list[QTreeWidgetItem]) -> list[Path]:
@@ -405,6 +488,10 @@ class MainWindow(QMainWindow):
             if data:
                 paths.append(Path(data))
         return paths
+
+    def _item_kind(self, item: QTreeWidgetItem) -> str:
+        kind = item.data(0, Qt.UserRole + 1)
+        return str(kind) if kind else "file"
 
     def _add_files_dialog(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
@@ -420,12 +507,16 @@ class MainWindow(QMainWindow):
 
     def _add_folder_dialog(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Wybierz folder ze zdjęciami")
-        if folder:
-            root = Path(folder)
-            self._base_root = root
-            for f in sorted(root.rglob("*")):
-                if f.is_file() and is_image_file(f):
-                    self._add_path_to_queue(f)
+        if not folder:
+            return
+        root = Path(folder)
+        if self.wiz_sequence_cb.isChecked():
+            self._add_folder_to_queue(root)
+            return
+        self._base_root = root
+        for f in sorted(root.rglob("*")):
+            if f.is_file() and is_image_file(f):
+                self._add_path_to_queue(f)
 
     def _browse_output(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Folder wyjściowy")
@@ -434,9 +525,12 @@ class MainWindow(QMainWindow):
 
     def _remove_selected(self) -> None:
         for item in self.input_tree.selectedItems():
-            for p in self._paths_from_items([item]):
-                if p in self._queue:
-                    self._queue.remove(p)
+            p = Path(item.data(0, Qt.UserRole))
+            if self._item_kind(item) == "folder":
+                if p in self._folder_queue:
+                    self._folder_queue.remove(p)
+            elif p in self._queue:
+                self._queue.remove(p)
             idx = self.input_tree.indexOfTopLevelItem(item)
             if idx >= 0:
                 self.input_tree.takeTopLevelItem(idx)
@@ -444,6 +538,7 @@ class MainWindow(QMainWindow):
 
     def _clear_queue(self) -> None:
         self._queue.clear()
+        self._folder_queue.clear()
         self.input_tree.clear()
         self._update_queue_label()
         self.preview_label.clear()
@@ -471,12 +566,23 @@ class MainWindow(QMainWindow):
             self._add_path_to_queue(path)
 
     def _update_queue_label(self) -> None:
-        n = len(self._queue)
-        word = "plik" if n == 1 else ("pliki" if 2 <= n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20) else "plików")
-        self.queue_label.setText(f"{n} {word}")
+        n_files = len(self._queue)
+        n_folders = len(self._folder_queue)
+        if n_folders and not n_files:
+            word = "folder" if n_folders == 1 else ("foldery" if 2 <= n_folders % 10 <= 4 else "folderów")
+            self.queue_label.setText(f"{n_folders} {word}")
+            return
+        word = "plik" if n_files == 1 else ("pliki" if 2 <= n_files % 10 <= 4 and (n_files % 100 < 10 or n_files % 100 >= 20) else "plików")
+        extra = f", {n_folders} folderów" if n_folders else ""
+        self.queue_label.setText(f"{n_files} {word}{extra}")
 
     def _on_selection_changed(self, current: QTreeWidgetItem | None, _previous) -> None:
         if not self.preview_cb.isChecked() or current is None:
+            return
+        if self._item_kind(current) == "folder":
+            path = Path(current.data(0, Qt.UserRole))
+            self.preview_label.clear()
+            self.size_info.setText(f"Folder wizek:\n{path}")
             return
         data = current.data(0, Qt.UserRole)
         if not data:
@@ -496,13 +602,16 @@ class MainWindow(QMainWindow):
     def dropEvent(self, event) -> None:
         for url in event.mimeData().urls():
             p = Path(url.toLocalFile())
-            if p.is_file() and is_image_file(p):
+            if p.is_dir():
+                if self.wiz_sequence_cb.isChecked():
+                    self._add_folder_to_queue(p)
+                else:
+                    self._base_root = p
+                    for f in sorted(p.rglob("*")):
+                        if f.is_file() and is_image_file(f):
+                            self._add_path_to_queue(f)
+            elif p.is_file() and is_image_file(p):
                 self._add_path_to_queue(p)
-            elif p.is_dir():
-                self._base_root = p
-                for f in sorted(p.rglob("*")):
-                    if f.is_file() and is_image_file(f):
-                        self._add_path_to_queue(f)
         event.acceptProposedAction()
 
     def _open_format_settings(self) -> None:
@@ -574,24 +683,25 @@ class MainWindow(QMainWindow):
         return jobs
 
     def _start_convert(self) -> None:
+        if self.wiz_sequence_cb.isChecked():
+            self._start_wiz_convert()
+            return
         if not self._queue:
-            QMessageBox.warning(self, "Konwersja", "Lista plików jest pusta.")
+            show_warning(self, "Konwersja", "Lista plików jest pusta.")
             return
         if not self.format_combo.selected_formats():
-            QMessageBox.warning(self, "Konwersja", "Zaznacz co najmniej jeden format wyjściowy.")
+            show_warning(self, "Konwersja", "Zaznacz co najmniej jeden format wyjściowy.")
             return
         jobs = self._build_jobs()
         overwrite = True
         if self.overwrite_cb.isChecked():
             existing = [j for j in jobs if j.output_path.exists()]
             if existing:
-                r = QMessageBox.question(
+                if not ask_yes_no(
                     self,
                     "Nadpisanie",
                     f"{len(existing)} plik(ów) już istnieje. Nadpisać?",
-                    QMessageBox.Yes | QMessageBox.No,
-                )
-                if r != QMessageBox.Yes:
+                ):
                     overwrite = False
 
         self.convert_btn.setEnabled(False)
@@ -604,8 +714,56 @@ class MainWindow(QMainWindow):
         self._batch_thread = BatchThread(worker)
         worker.progress.connect(self._on_progress)
         worker.finished.connect(self._on_finished)
-        worker.error.connect(lambda e: QMessageBox.critical(self, "Błąd", e))
+        worker.error.connect(lambda e: show_critical(self, "Błąd", e))
         self._batch_thread.start()
+
+    def _start_wiz_convert(self) -> None:
+        paths = list(self._folder_queue) + self._queue
+        if not paths:
+            show_warning(
+                self,
+                "Sekwencja wizek",
+                "Dodaj foldery (lub pliki w folderach docelowych) do listy.",
+            )
+            return
+        folders = discover_wiz_folders(paths)
+        if not folders:
+            show_warning(
+                self,
+                "Sekwencja wizek",
+                "Nie znaleziono folderów z plikami PNG/JPG.",
+            )
+            return
+
+        if not ask_yes_no(
+            self,
+            "Sekwencja wizek",
+            f"Przetworzyć {len(folders)} folder(ów) in-place?\n"
+            "Pliki zostaną nadpisane w miejscu (bootstrap + kompresja).",
+        ):
+            return
+
+        self.convert_btn.setEnabled(False)
+        self.progress.setVisible(True)
+        self.progress.setMaximum(len(folders))
+        self.progress.setValue(0)
+        self._convert_start = time.time()
+
+        worker = WizWorker(folders, self.quality_slider.value())
+        self._wiz_thread = WizThread(worker)
+        worker.progress.connect(self._on_progress)
+        worker.finished.connect(self._on_wiz_finished)
+        worker.error.connect(lambda e: show_critical(self, "Błąd", e))
+        self._wiz_thread.start()
+
+    def _on_wiz_finished(self, results) -> None:
+        elapsed = time.time() - self._convert_start
+        self.convert_btn.setEnabled(True)
+        self.progress.setVisible(False)
+        ok = sum(1 for r in results if r.status.value == "OK")
+        self.statusBar().showMessage(f"Wizki gotowe — {ok}/{len(results)} folderów w {elapsed:.1f} s")
+        dlg = WizResultsDialog(results, elapsed, self)
+        dlg.exec()
 
     def _on_progress(self, current: int, total: int, name: str) -> None:
         self.progress.setValue(current)
@@ -621,16 +779,29 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _preview_rename(self) -> None:
+        self.tabs.setCurrentIndex(1)
         self.rename_preview.clear()
+        if not self._queue:
+            show_info(
+                self,
+                "Podgląd nazw",
+                "Lista plików jest pusta.\nDodaj pliki na zakładce „Konwersja wsadowa”.",
+            )
+            return
         fmt = self.format_combo.first_selected()
         rule = RenameRule(
             enabled=True,
-            template=self.rename_template.text(),
+            template=self.rename_template.text().strip() or "{name}_{counter:04d}",
             search=self.rename_search.text(),
             replace=self.rename_replace.text(),
         )
-        for old, new in preview_rename(self._queue, rule, fmt):
-            self.rename_preview.addItem(f"{old.name}  →  {new}")
+        rows = preview_rename(self._queue, rule, fmt)
+        if not rows:
+            self.rename_preview.addItem("Brak wyników — sprawdź szablon nazwy.")
+            return
+        for old, new in rows:
+            self.rename_preview.addItem(f"{old}  →  {new}")
+        self.statusBar().showMessage(f"Podgląd nazw: {len(rows)} pozycji")
 
     def _load_preset(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Wczytaj ustawienia", "", "JSON (*.json)")
@@ -654,10 +825,10 @@ class MainWindow(QMainWindow):
             save_preset(Path(path), data)
 
     def _about(self) -> None:
-        QMessageBox.about(
+        show_about(
             self,
             "Inyfinn Photo Resizer",
-            "Inyfinn Photo Resizer 1.0\n\n"
+            f"Inyfinn Photo Resizer {__version__}\n\n"
             "Wsadowa konwersja i kompresja zdjęć.\n"
             "WebP, AVIF, HEIC, GIF i inne formaty.",
         )

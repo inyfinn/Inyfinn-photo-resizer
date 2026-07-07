@@ -16,16 +16,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Stałe wymiary (design system)
 BTN_H = 36
-BTN_ACTION_W = 120
-LABEL_W = 132
+LABEL_MIN_W = 96
 ROW_GAP = 10
-SECTION_GAP = 14
 
 
 def make_section(title: str) -> tuple[QFrame, QVBoxLayout]:
-    """Ramkowana sekcja z nagłówkiem."""
     box = QFrame()
     box.setObjectName("sectionBox")
     lay = QVBoxLayout(box)
@@ -40,14 +36,14 @@ def make_section(title: str) -> tuple[QFrame, QVBoxLayout]:
 def form_label(text: str) -> QLabel:
     lbl = QLabel(text)
     lbl.setObjectName("formLabel")
-    lbl.setMinimumWidth(LABEL_W)
-    lbl.setMaximumWidth(LABEL_W)
+    lbl.setMinimumWidth(LABEL_MIN_W)
     lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
     return lbl
 
 
 def add_form_row(grid: QGridLayout, row: int, label: str, widget: QWidget, *, span: int = 1) -> None:
-    grid.addWidget(form_label(label), row, 0, Qt.AlignTop)
+    grid.addWidget(form_label(label), row, 0)
     grid.addWidget(widget, row, 1, 1, span)
 
 
@@ -55,7 +51,6 @@ def tool_button_row(
     specs: list[tuple[str, Callable[[], None]]],
     parent: QWidget | None = None,
 ) -> QGridLayout:
-    """Równa siatka przycisków narzędzi (1 wiersz, N kolumn)."""
     grid = QGridLayout()
     grid.setHorizontalSpacing(8)
     grid.setContentsMargins(0, 0, 0, 0)
@@ -63,7 +58,7 @@ def tool_button_row(
         btn = QPushButton(text, parent)
         btn.setObjectName("toolBtn")
         btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        btn.setFixedHeight(BTN_H)
+        btn.setMinimumHeight(BTN_H)
         btn.clicked.connect(slot)
         grid.addWidget(btn, 0, col)
         grid.setColumnStretch(col, 1)
@@ -73,11 +68,9 @@ def tool_button_row(
 def action_button(text: str, object_name: str, slot: Callable[[], None], parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
     btn.setObjectName(object_name)
-    btn.setFixedHeight(BTN_H)
-    if object_name == "btnSecondary":
-        btn.setFixedWidth(BTN_ACTION_W)
-    elif object_name == "primaryBtn":
-        btn.setMinimumWidth(148)
-        btn.setFixedHeight(40)
+    btn.setMinimumHeight(BTN_H if object_name != "primaryBtn" else 40)
+    btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+    if object_name == "primaryBtn":
+        btn.setMinimumWidth(120)
     btn.clicked.connect(slot)
     return btn
