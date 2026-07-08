@@ -42,6 +42,7 @@ from inyfinn_resizer.app.dialogs.message_boxes import (
 from inyfinn_resizer import __version__
 from inyfinn_resizer.app.dialogs.advanced_options import AdvancedOptionsDialog
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
+from inyfinn_resizer.app.dialogs.help_guide import show_help_guide
 from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
 from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
@@ -52,6 +53,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     add_form_row,
     add_grid_field,
     add_grid_span,
+    compact_row,
     field_group,
     make_section,
     make_settings_grid,
@@ -75,10 +77,10 @@ from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
-DEFAULT_WINDOW_WIDTH = 1240
-DEFAULT_WINDOW_HEIGHT = 940
-MIN_WINDOW_WIDTH = 1080
-MIN_WINDOW_HEIGHT = 760
+DEFAULT_WINDOW_WIDTH = 1000
+DEFAULT_WINDOW_HEIGHT = 660
+MIN_WINDOW_WIDTH = 920
+MIN_WINDOW_HEIGHT = 560
 
 
 class MainWindow(QMainWindow):
@@ -119,33 +121,14 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._fit_initial_window_size)
 
     def _fit_initial_window_size(self) -> None:
-        """Dopasuj okno przy starcie — cały panel ustawień bez przewijania."""
-        from PySide6.QtWidgets import QApplication
-
-        scroll = self._settings_scroll
-        if scroll is None:
-            return
-
+        """Ustaw rozsądny rozmiar startowy bez nadmiernego powiększania okna."""
         screen = self.screen().availableGeometry()
-        max_w = int(screen.width() * 0.96)
-        max_h = int(screen.height() * 0.96)
-        width = min(DEFAULT_WINDOW_WIDTH, max_w)
-        height = min(DEFAULT_WINDOW_HEIGHT, max_h)
-        self.resize(width, height)
-
+        w = min(DEFAULT_WINDOW_WIDTH, int(screen.width() * 0.92))
+        h = min(DEFAULT_WINDOW_HEIGHT, int(screen.height() * 0.88))
+        self.resize(w, h)
         if splitter := self._main_splitter:
-            right_w = max(500, int(width * 0.42))
-            splitter.setSizes([width - right_w, right_w])
-
-        QApplication.processEvents()
-
-        bar = scroll.verticalScrollBar()
-        for _ in range(24):
-            if bar.maximum() <= 0 or height >= max_h:
-                break
-            height = min(height + 48, max_h)
-            self.resize(width, height)
-            QApplication.processEvents()
+            right_w = max(380, int(w * 0.38))
+            splitter.setSizes([w - right_w, right_w])
 
     @staticmethod
     def _make_panel(title: str, object_name: str = "panel") -> tuple[QFrame, QVBoxLayout]:
@@ -168,11 +151,16 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("W&yjście", self.close)
 
-        theme_menu = menubar.addMenu("&Motyw")
-        theme_menu.addAction("Jasny", lambda: self._set_theme("light"))
-        theme_menu.addAction("Ciemny", lambda: self._set_theme("dark"))
+        tools_menu = menubar.addMenu("&Narzędzia")
+        tools_menu.addAction("Jasny motyw", lambda: self._set_theme("light"))
+        tools_menu.addAction("Ciemny motyw", lambda: self._set_theme("dark"))
+        tools_menu.addSeparator()
+        tools_menu.addAction("Wczytaj ustawienia…", self._load_preset)
+        tools_menu.addAction("Zapisz ustawienia…", self._save_preset)
 
         help_menu = menubar.addMenu("Pomo&c")
+        help_menu.addAction("Przewodnik użytkownika…", lambda: show_help_guide(self))
+        help_menu.addSeparator()
         help_menu.addAction("O programie", self._about)
 
     def _build_ui(self) -> None:
@@ -194,11 +182,6 @@ class MainWindow(QMainWindow):
         title_col.addWidget(version_lbl)
         header.addLayout(title_col)
         header.addStretch()
-        self.theme_btn = QPushButton("Ciemny motyw")
-        self.theme_btn.setObjectName("themeToggle")
-        self.theme_btn.setFixedHeight(36)
-        self.theme_btn.clicked.connect(self._toggle_theme)
-        header.addWidget(self.theme_btn)
         root.addLayout(header)
 
         self.tabs = QTabWidget()
@@ -260,8 +243,8 @@ class MainWindow(QMainWindow):
         splitter.addWidget(left_box)
 
         # —— Prawy panel: ustawienia ——
-        right_shell, right_layout = self._make_panel("Ustawienia konwersji", "panel")
-        right_shell.setMinimumWidth(460)
+        right_shell, right_layout = self._make_panel("Ustawienia", "panel")
+        right_shell.setMinimumWidth(360)
         right_layout.addWidget(self._build_settings_panel(), stretch=1)
 
         self.progress = QProgressBar()
@@ -281,7 +264,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(right_shell)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
-        splitter.setSizes([640, 520])
+        splitter.setSizes([580, 380])
         return splitter
 
     def _build_settings_panel(self) -> QScrollArea:
@@ -298,47 +281,53 @@ class MainWindow(QMainWindow):
         body = QWidget()
         self._settings_body = body
         body.setObjectName("settingsBody")
-        body.setMinimumWidth(420)
+        body.setMinimumWidth(340)
         root = QVBoxLayout(body)
         root.setSpacing(SECTION_GAP)
-        root.setContentsMargins(0, 0, 6, 16)
+        root.setContentsMargins(0, 0, 4, 8)
 
-        # —— Format wyjściowy ——
+        # —— Format ——
         fmt_box, fmt_lay = make_section(
-            "Format wyjściowy",
-            "Wybierz format(y) zapisu. Przy wielu formatach możesz rozdzielić pliki do podfolderów.",
+            "Format",
+            "Format(y) zapisu. Przy wielu — segregacja do podfolderów webp/, jpg/.",
         )
-        fmt_grid = make_settings_grid()
-
         self.format_combo = FormatMultiCombo()
         self.format_combo.selectionChanged.connect(self._on_formats_changed)
         fmt_row = QHBoxLayout()
-        fmt_row.setSpacing(8)
+        fmt_row.setSpacing(6)
         fmt_row.addWidget(self.format_combo, stretch=1)
-        self.settings_btn = QPushButton("Ustawienia formatu…")
+        self.settings_btn = QPushButton("Ustawienia…")
         self.settings_btn.setObjectName("btnSecondary")
-        self.settings_btn.setMinimumHeight(36)
+        self.settings_btn.setMinimumHeight(32)
+        self.settings_btn.setToolTip("Metadane, progresywny JPG, lossless WebP i inne opcje formatu.")
         self.settings_btn.clicked.connect(self._open_format_settings)
         fmt_row.addWidget(self.settings_btn)
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
         self.fmt_wrap = fmt_controls
-        add_grid_span(fmt_grid, 0, field_group("Format", fmt_controls))
+        fmt_lay.addWidget(fmt_controls)
 
-        self.segregate_cb = QCheckBox("Segreguj do podfolderów (webp/, jpg/…)")
+        self.segregate_cb = QCheckBox("Segreguj do podfolderów")
         self.segregate_cb.setChecked(False)
         self.segregate_cb.setToolTip(
-            "Przy eksporcie do wielu formatów zapisuje pliki w podfolderach. "
-            "Przy jednym formacie opcja jest ignorowana."
+            "Przy wielu formatach zapisuje pliki w podfolderach (webp/, jpg/). "
+            "Przy jednym formacie — ignorowane."
         )
-        add_grid_span(fmt_grid, 1, self.segregate_cb)
-        fmt_lay.addLayout(fmt_grid)
+        fmt_lay.addWidget(self.segregate_cb)
+
+        self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
+        self.wiz_sequence_cb.setToolTip(
+            "Bootstrap + kompresja in-place w folderze źródłowym. "
+            "Ignoruje format z listy i folder wyjściowy."
+        )
+        self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
+        fmt_lay.addWidget(self.wiz_sequence_cb)
         root.addWidget(fmt_box)
 
         # —— Kompresja ——
         comp_box, comp_lay = make_section(
             "Kompresja",
-            "Jakość wpływa na JPG/WebP/AVIF. Kolory PNG — paleta przy zapisie PNG.",
+            "Jakość: JPG/WebP/AVIF. Kolory PNG: paleta przy zapisie PNG (zachowuje akcenty kolorystyczne).",
         )
         comp_grid = make_settings_grid()
 
@@ -349,7 +338,11 @@ class MainWindow(QMainWindow):
         self.quality_label = QLabel("85")
         qual_field = field_group(
             "Jakość",
-            slider_control(self.quality_slider, self.quality_label),
+            slider_control(
+                self.quality_slider,
+                self.quality_label,
+                tooltip="Wyższa wartość = lepsza jakość i większy plik.",
+            ),
             "Wyższa wartość = lepsza jakość, większy plik.",
         )
         add_grid_field(comp_grid, 0, 0, qual_field)
@@ -359,15 +352,20 @@ class MainWindow(QMainWindow):
         self.png_colors_slider.setValue(256)
         self.png_colors_slider.valueChanged.connect(self._on_png_colors_changed)
         self.png_colors_label = QLabel("256")
-        colors_slider_row = slider_control(self.png_colors_slider, self.png_colors_label)
+        colors_slider_row = slider_control(
+            self.png_colors_slider,
+            self.png_colors_label,
+            tooltip="Liczba kolorów palety PNG (32–256). Więcej = lepsze zachowanie drobnych kolorów.",
+        )
         colors_extras = QHBoxLayout()
         colors_extras.setContentsMargins(0, 0, 0, 0)
-        colors_extras.setSpacing(8)
+        colors_extras.setSpacing(6)
         colors_extras.addWidget(colors_slider_row, stretch=1)
         self.png_colors_auto_cb = QCheckBox("Z jakości")
         self.png_colors_auto_cb.setChecked(True)
         self.png_colors_auto_cb.setToolTip(
-            "Automatycznie: 256 kolorów od 80%, 192 przy 50%, min. 32 przy 5% jakości."
+            "256 kolorów od 80%, 192 przy 50%, min. 32 przy 5%. "
+            "Przy obrazach z akcentami program może podbić paletę automatycznie."
         )
         self.png_colors_auto_cb.toggled.connect(self._on_png_colors_auto)
         self.png_colors_slider.setEnabled(False)
@@ -377,82 +375,68 @@ class MainWindow(QMainWindow):
         colors_field = field_group(
             "Kolory PNG",
             colors_wrap,
-            "Liczba kolorów w palecie PNG (32–256).",
+            "Paleta 32–256. Program wykrywa rzadkie akcenty (np. zieleń) i zwiększa paletę.",
         )
         add_grid_field(comp_grid, 0, 1, colors_field)
         comp_lay.addLayout(comp_grid)
         root.addWidget(comp_box)
 
-        # —— Rozmiar ——
-        size_box, size_lay = make_section(
-            "Rozmiar obrazu",
-            "Szybki preset rozmiaru. Pełna kontrola (bok, filtr, obrót) — w sekcji Zaawansowane.",
+        # —— Rozmiar i zapis ——
+        out_box, out_lay = make_section(
+            "Rozmiar i zapis",
+            "Preset rozmiaru nadpisuje zaawansowane przy konwersji. Folder wyjściowy pomijany przy wizek.",
         )
         self.size_combo = QComboBox()
-        self.size_combo.setMinimumHeight(36)
+        self.size_combo.setMinimumHeight(32)
         self.size_combo.addItems([
             "Oryginalny rozmiar",
             "Maks. 1800 px (szerokość)",
             "Maks. 1200 px",
             "50%",
         ])
+        self.size_combo.setToolTip("Szybki preset. Pełna kontrola: Zaawansowane.")
         self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
-        size_lay.addWidget(field_group("Preset rozmiaru", self.size_combo))
-        root.addWidget(size_box)
+        out_lay.addWidget(compact_row("Rozmiar", self.size_combo))
 
-        # —— Sekwencja wizek ——
-        wiz_box, wiz_lay = make_section(
-            "Sekwencja wizek",
-            "Bootstrap + kompresja pakietu XL / L / S / SKLEP in-place w folderze źródłowym.",
-        )
-        self.wiz_sequence_cb = QCheckBox("Konwertuj na sekwencję wizek")
-        self.wiz_sequence_cb.setToolTip(
-            "Ignoruje format z listy i folder wyjściowy — eksport PNG/JPG wg skryptu wizek."
-        )
-        self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
-        wiz_lay.addWidget(self.wiz_sequence_cb)
-        root.addWidget(wiz_box)
-
-        # —— Folder wyjściowy ——
-        out_box, out_lay = make_section(
-            "Zapis",
-            "Folder docelowy dla zwykłej konwersji. Przy wizek — pliki zostają w folderze źródłowym.",
-        )
         out_row = QHBoxLayout()
-        out_row.setSpacing(8)
+        out_row.setSpacing(6)
         self.output_dir_edit = QLineEdit()
-        self.output_dir_edit.setPlaceholderText("Wybierz folder docelowy…")
-        self.output_dir_edit.setMinimumHeight(36)
-        browse_out = QPushButton("Przeglądaj…")
+        self.output_dir_edit.setPlaceholderText("Folder docelowy…")
+        self.output_dir_edit.setMinimumHeight(32)
+        self.output_dir_edit.setToolTip("Folder docelowy dla zwykłej konwersji.")
+        browse_out = QPushButton("…")
         browse_out.setObjectName("btnSecondary")
-        browse_out.setMinimumHeight(36)
+        browse_out.setFixedWidth(36)
+        browse_out.setMinimumHeight(32)
+        browse_out.setToolTip("Przeglądaj folder wyjściowy")
         browse_out.clicked.connect(self._browse_output)
         out_row.addWidget(self.output_dir_edit, stretch=1)
         out_row.addWidget(browse_out)
         out_controls = QWidget()
         out_controls.setLayout(out_row)
-        out_lay.addWidget(field_group("Folder wyjściowy", out_controls))
+        out_lay.addWidget(compact_row("Wyjście", out_controls))
         root.addWidget(out_box)
 
         # —— Zaawansowane ——
         adv_box, adv_lay = make_section(
             "Zaawansowane",
-            "Obrót, odbicia, korekcje kolorów oraz szczegółowa zmiana rozmiaru.",
+            "Obrót, odbicia, korekcje i szczegółowa zmiana rozmiaru.",
         )
         self.advanced_summary = QLabel()
         self.advanced_summary.setObjectName("advancedSummary")
         self.advanced_summary.setWordWrap(True)
+        self.advanced_summary.setMaximumHeight(44)
         adv_lay.addWidget(self.advanced_summary)
-        self.advanced_btn = QPushButton("Edytuj opcje zaawansowane…")
+        self.advanced_btn = QPushButton("Opcje zaawansowane…")
         self.advanced_btn.setObjectName("btnSecondary")
-        self.advanced_btn.setMinimumHeight(36)
+        self.advanced_btn.setMinimumHeight(32)
         self.advanced_btn.clicked.connect(self._open_advanced)
         adv_lay.addWidget(self.advanced_btn)
         root.addWidget(adv_box)
 
-        # —— Więcej opcji (zwijane) ——
-        more_box, more_lay = make_section("Dodatkowe opcje", "Ustawienia wsadowe i podgląd miniatury.")
-        self.more_toggle = QCheckBox("Pokaż dodatkowe opcje")
+        # —— Więcej ——
+        more_box, more_lay = make_section("Więcej", "Opcje wsadowe i podgląd miniatury.")
+        self.more_toggle = QCheckBox("Pokaż więcej opcji")
         self.more_toggle.setObjectName("moreToggle")
         self.more_toggle.setChecked(False)
         more_lay.addWidget(self.more_toggle)
@@ -523,9 +507,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(preview_btn)
         return w
 
-    def _toggle_theme(self) -> None:
-        self._set_theme("dark" if self._theme == "light" else "light")
-
     def _set_theme(self, theme: str) -> None:
         from PySide6.QtWidgets import QApplication
 
@@ -533,7 +514,6 @@ class MainWindow(QMainWindow):
 
         self._theme = theme
         apply_theme(QApplication.instance(), theme)
-        self.theme_btn.setText("Jasny motyw" if theme == "dark" else "Ciemny motyw")
 
     def _on_wiz_mode_changed(self, enabled: bool) -> None:
         self.format_combo.setEnabled(not enabled)
@@ -763,38 +743,35 @@ class MainWindow(QMainWindow):
 
         parts: list[str] = []
         if self._resize.mode == ResizeMode.NONE:
-            parts.append("Rozmiar: bez zmian (oryginał)")
+            parts.append("Rozmiar: oryginał")
         elif self._resize.mode == ResizeMode.PERCENT:
-            parts.append(f"Rozmiar: {self._resize.percent}% oryginału")
+            parts.append(f"Rozmiar: {self._resize.percent}%")
         elif self._resize.mode == ResizeMode.MAX_DIMENSION:
-            parts.append(f"Rozmiar: maks. {self._resize.dimension} px")
+            parts.append(f"Rozmiar: max {self._resize.dimension}px")
         else:
             side = {
-                "width": "szerokość",
-                "height": "wysokość",
-                "longer": "dłuższy bok",
-                "shorter": "krótszy bok",
-            }.get(self._resize.side or "width", "szerokość")
-            parts.append(f"Rozmiar: {self._resize.dimension} px ({side})")
+                "width": "szer.",
+                "height": "wys.",
+                "longer": "dł. bok",
+                "shorter": "kr. bok",
+            }.get(self._resize.side or "width", "szer.")
+            parts.append(f"Rozmiar: {self._resize.dimension}px ({side})")
 
-        transforms: list[str] = []
+        fx: list[str] = []
         if self._transforms.rotate:
-            transforms.append(f"obrót {self._transforms.rotate}°")
+            fx.append(f"obrót {self._transforms.rotate}°")
         if self._transforms.flip_h:
-            transforms.append("odbicie poziome")
+            fx.append("odb. poz.")
         if self._transforms.flip_v:
-            transforms.append("odbicie pionowe")
+            fx.append("odb. pion.")
         if self._transforms.grayscale:
-            transforms.append("czarno-biały")
+            fx.append("B&W")
         if self._transforms.sepia:
-            transforms.append("sepia")
+            fx.append("sepia")
         if self._transforms.auto_rotate_exif:
-            transforms.append("autoobrót EXIF")
-        if transforms:
-            parts.append("Efekty: " + ", ".join(transforms))
-        else:
-            parts.append("Efekty: brak")
-        return "\n".join(parts)
+            fx.append("EXIF")
+        parts.append("Efekty: " + (", ".join(fx) if fx else "brak"))
+        return " · ".join(parts)
 
     def _update_advanced_summary(self) -> None:
         self.advanced_summary.setText(self._advanced_summary_text())

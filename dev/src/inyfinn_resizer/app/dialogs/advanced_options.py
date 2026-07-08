@@ -25,20 +25,12 @@ class AdvancedOptionsDialog(AppDialog):
     def __init__(self, resize: ResizeOptions, transforms: TransformOptions, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Opcje zaawansowane")
-        self.setMinimumSize(520, 480)
+        self.setMinimumSize(460, 400)
         self._resize = resize
         self._transforms = transforms
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-
-        intro = QLabel(
-            "Tu ustawisz szczegółową zmianę rozmiaru, obrót i proste korekcje. "
-            "Preset „Rozmiar obrazu” w głównym oknie nadpisuje te ustawienia przy konwersji."
-        )
-        intro.setObjectName("hintLabel")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.setSpacing(8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -57,18 +49,18 @@ class AdvancedOptionsDialog(AppDialog):
         resize_lay.addWidget(self.resize_enable)
 
         self.side_combo = QComboBox()
-        self.side_combo.setMinimumHeight(36)
+        self.side_combo.setMinimumHeight(32)
         self.side_combo.addItems(["Szerokość", "Wysokość", "Dłuższy bok", "Krótszy bok"])
         resize_lay.addWidget(field_group("Skaluj według", self.side_combo))
 
         self.dim_spin = QSpinBox()
         self.dim_spin.setRange(1, 32000)
         self.dim_spin.setValue(self._resize.dimension or 1800)
-        self.dim_spin.setMinimumHeight(36)
+        self.dim_spin.setMinimumHeight(32)
         resize_lay.addWidget(field_group("Wymiar (px)", self.dim_spin))
 
         self.filter_combo = QComboBox()
-        self.filter_combo.setMinimumHeight(36)
+        self.filter_combo.setMinimumHeight(32)
         self.filter_combo.addItems(["Lanczos3 (domyślny)", "Lanczos2", "Cubic", "Linear"])
         resize_lay.addWidget(field_group("Filtr skalowania", self.filter_combo))
 
@@ -86,7 +78,7 @@ class AdvancedOptionsDialog(AppDialog):
         rotate_lay.addWidget(self.flip_v)
         rotate_lay.addWidget(self.auto_exif)
         self.rotate_combo = QComboBox()
-        self.rotate_combo.setMinimumHeight(36)
+        self.rotate_combo.setMinimumHeight(32)
         self.rotate_combo.addItems(["0°", "90°", "180°", "270°"])
         rotate_lay.addWidget(field_group("Stały obrót", self.rotate_combo))
         body_lay.addWidget(rotate_box)

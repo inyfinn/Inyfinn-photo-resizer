@@ -54,13 +54,35 @@ QLabel#fieldLabel {
 }
 
 QLabel#advancedSummary {
-    font-size: 12px;
-    line-height: 1.4;
+    font-size: 11px;
     color: @FG_MUTED@;
-    padding: 10px 12px;
+    padding: 6px 8px;
     background-color: @BG_PANEL@;
     border: 1px solid @BORDER@;
-    border-radius: 6px;
+    border-radius: 4px;
+}
+
+QScrollArea#helpGuideScroll {
+    background: transparent;
+    border: none;
+}
+
+QLabel#helpGuideTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: @FG_TITLE@;
+}
+
+QLabel#helpGuideVersion {
+    font-size: 11px;
+    font-weight: 600;
+    color: @FG_ACCENT@;
+}
+
+QLabel#helpGuideContent {
+    font-size: 13px;
+    color: @FG_TEXT@;
+    padding: 4px 2px;
 }
 
 QWidget#fieldGroup {
@@ -107,7 +129,7 @@ QFrame#dropPanel {
 QFrame#sectionBox {
     background-color: @BG_PANEL_ALT@;
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: 6px;
 }
 
 QScrollArea#settingsScroll {
