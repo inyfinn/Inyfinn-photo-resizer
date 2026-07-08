@@ -64,3 +64,23 @@
 **Test/Ewaluacja:** ISCC compile OK; silent install do `C:\InyfinnPhotoResizer` OK
 
 **Źródła:** Inno Setup docs [UninstallDelete], [CloseApplications]; Microsoft SmartScreen / Authenticode
+
+---
+
+## 2026-07-08 — Redesign UI panelu ustawień (v1.0.8)
+
+**Komenda/Akcja:** Przebudowa prawego panelu na sekcje siatkowe (CSS Grid / Flex)
+
+**Log/Status:**
+1. `layout_helpers.py` — `field_group`, `slider_control`, `make_settings_grid`, sekcje 2×2 dla przycisków
+2. `main_window.py` — `_build_settings_panel()` z kartami: Format, Kompresja, Rozmiar, Wizek, Zapis, Zaawansowane, Dodatkowe
+3. Usunięto mylący checkbox „Opcje zaawansowane” + „Otwórz…” → jeden przycisk + podsumowanie stanu
+4. `advanced_options.py` — zakładki → scroll z sekcjami + intro
+5. `app.qss` — `fieldLabel`, `advancedSummary`, `fieldGroup`
+6. Preset „Oryginalny” nie kasuje ustawień z dialogu zaawansowanego
+
+**Efekt/Fix:** Brak ucinania etykiet; czytelna hierarchia; min. okno 980×620; panel ustawień min. 400 px
+
+**Test/Ewaluacja:** Import modułów — wymaga venv z PySide6 (lokalnie); linter OK
+
+**Źródła:** Qt QGridLayout/QVBoxLayout; feedback użytkownika (ucinanie, nieintuicyjne Zaawansowane)

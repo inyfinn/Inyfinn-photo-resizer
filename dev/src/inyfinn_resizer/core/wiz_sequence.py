@@ -10,7 +10,11 @@ from pathlib import Path
 from PIL import Image
 
 from inyfinn_resizer.core.compressors.jpeg import compress_jpeg_file
-from inyfinn_resizer.core.compressors.png import apply_pngquant, cleanup_pngquant_artifacts_in_folder
+from inyfinn_resizer.core.compressors.png import (
+    apply_pngquant,
+    cleanup_pngquant_artifacts_in_folder,
+    png_max_colors_for_quality,
+)
 from inyfinn_resizer.core.job import JobStatus
 
 SIZE_SUFFIX_RE = re.compile(r"-(XL|L|S(?:-SKLEP)?)$", re.I)
@@ -307,15 +311,17 @@ def compress_wiz_file(path: Path, slider_val: int) -> tuple[bool, str]:
         return ok, msg
 
     if ext == ".png":
+        palette = png_max_colors_for_quality(pct)
         if profile == "sklep":
             ok, msg = apply_pngquant(
                 path,
                 target_kb=shop_target_kb(slider_val, True),
                 target_tolerance=0.2,
                 quality_pct=pct,
+                max_colors=palette,
             )
         else:
-            ok, msg = apply_pngquant(path, quality_pct=pct)
+            ok, msg = apply_pngquant(path, quality_pct=pct, max_colors=palette)
         return ok, msg
 
     return False, "nieobsługiwany format"

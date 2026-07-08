@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QComboBox, QListView
 
@@ -35,6 +35,7 @@ class FormatMultiCombo(QComboBox):
             le.setReadOnly(True)
             le.setPlaceholderText("Wybierz formaty…")
             le.setCursor(Qt.PointingHandCursor)
+            le.installEventFilter(self)
 
         view.pressed.connect(self._on_item_pressed)
 
@@ -51,10 +52,23 @@ class FormatMultiCombo(QComboBox):
 
         self.set_selected(["webp"])
 
+    def _open_popup(self) -> None:
+        if not self.isEnabled():
+            return
+        self.setFocus()
+        self.showPopup()
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.lineEdit() and event.type() == QEvent.Type.MouseButtonPress:
+            me = event
+            if isinstance(me, QMouseEvent) and me.button() == Qt.LeftButton:
+                self._open_popup()
+                return True
+        return super().eventFilter(watched, event)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
-            self.setFocus()
-            self.showPopup()
+            self._open_popup()
             event.accept()
             return
         super().mousePressEvent(event)

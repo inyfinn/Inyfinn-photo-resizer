@@ -17,6 +17,7 @@ from inyfinn_resizer.core.formats.registry import output_extension
 from inyfinn_resizer.core.job import JobResult, JobSpec, JobStatus
 from inyfinn_resizer.core.metadata.exif import strip_metadata_file
 from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_transforms
+from inyfinn_resizer.core.compressors.png import resolve_png_max_colors
 from inyfinn_resizer.utils.paths import ensure_vips_lib
 
 _VIPS_READY = False
@@ -120,6 +121,7 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
             target_kb=opts.target_kb,
             target_tolerance=opts.target_tolerance,
             quality_pct=opts.quality,
+            max_colors=resolve_png_max_colors(opts),
         )
         if not ok:
             optimize_png_oxipng(path)

@@ -83,6 +83,8 @@ class FormatOptions:
     smoothing: int = 0
     target_kb: float | None = None
     target_tolerance: float = 0.2
+    png_max_colors: int = 256
+    png_colors_auto: bool = True
 
 
 @dataclass

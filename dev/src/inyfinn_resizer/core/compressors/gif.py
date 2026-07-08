@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import subprocess
 import tempfile
 from pathlib import Path
 
 from PIL import Image
 
 from inyfinn_resizer.utils.paths import find_tool
+from inyfinn_resizer.utils.subprocess_win import run_hidden
 
 FREEZE_MS = 750
 ULTRA_LOSSY = 70
 
 
 def run_gifsicle(gifsicle: Path, args: list[str]) -> None:
-    r = subprocess.run([str(gifsicle)] + args, capture_output=True, text=True, check=False)
+    r = run_hidden([str(gifsicle)] + args, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or r.stdout.strip())
 

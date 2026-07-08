@@ -13,7 +13,11 @@ from inyfinn_resizer.app.dialogs.message_boxes import show_warning
 from inyfinn_resizer import __version__
 from inyfinn_resizer.app.main_window import MainWindow
 from inyfinn_resizer.app.themes import apply_theme
-from inyfinn_resizer.utils.app_mutex import acquire_app_mutex
+from inyfinn_resizer.utils.app_mutex import (
+    acquire_app_mutex,
+    activate_existing_instance,
+    release_app_mutex,
+)
 from inyfinn_resizer.utils.paths import bundle_dir, project_root
 
 
@@ -32,14 +36,23 @@ def _app_icon() -> QIcon | None:
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
     if not acquire_app_mutex():
+        if activate_existing_instance():
+            return 0
+        warn_app = QApplication(sys.argv)
         show_warning(
             None,
             "Inyfinn Photo Resizer",
-            "Aplikacja jest już uruchomiona.\nZamknij poprzednie okno przed ponownym startem.",
+            "Główna aplikacja jest już uruchomiona.\n\n"
+            "To nie jest pngquant — narzędzia kompresji działają w tle jako osobne procesy "
+            "tylko podczas konwersji.\n\n"
+            "Zamknij poprzednie okno Inyfinn Photo Resizer lub sprawdź pasek zadań.",
         )
+        del warn_app
         return 1
+
+    app = QApplication(sys.argv)
+    app.aboutToQuit.connect(release_app_mutex)
     app.setFont(QFont("Segoe UI", 9))
     app.setApplicationName("Inyfinn Photo Resizer")
     app.setApplicationVersion(__version__)
@@ -57,4 +70,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     sys.exit(main())

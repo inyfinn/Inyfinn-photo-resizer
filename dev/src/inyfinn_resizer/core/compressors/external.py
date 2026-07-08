@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from inyfinn_resizer.utils.paths import find_tool
+from inyfinn_resizer.utils.subprocess_win import run_hidden
 
 
 def run_external(cmd: list[str]) -> tuple[bool, str]:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        r = run_hidden(cmd, capture_output=True, text=True)
         if r.returncode == 0:
             return True, "ok"
         return False, r.stderr.strip() or r.stdout.strip() or f"exit {r.returncode}"
-    except (OSError, subprocess.SubprocessError) as e:
+    except OSError as e:
         return False, str(e)
 
 

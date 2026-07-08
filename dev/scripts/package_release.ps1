@@ -74,6 +74,19 @@ Write-Host "  $AppRoot\InyfinnPhotoResizer.exe"
 Write-Host "  $AppRoot\_internal\"
 Write-Host ""
 
+$version = & $venvPy -c "from inyfinn_resizer import __version__; print(__version__)"
+$releaseDir = Join-Path $DevRoot "installer-output"
+New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+$portableZip = Join-Path $releaseDir "InyfinnPhotoResizer-$version-portable.zip"
+if (Test-Path $portableZip) { Remove-Item $portableZip -Force }
+Compress-Archive -Path @(
+    (Join-Path $AppRoot "InyfinnPhotoResizer.exe"),
+    (Join-Path $AppRoot "InyfinnPhotoResizer.ico"),
+    (Join-Path $AppRoot "_internal")
+) -DestinationPath $portableZip -CompressionLevel Optimal
+Write-Host "Portable ZIP: $portableZip"
+Write-Host ""
+
 if ($Launch) {
     Start-Process (Join-Path $AppRoot "InyfinnPhotoResizer.exe")
 }

@@ -1,4 +1,4 @@
-"""PNG compression via pngquant — suwak Quality = agresywność kompresji."""
+"""PNG compression via pngquant — suwak Quality + paleta kolorów."""
 
 from __future__ import annotations
 
@@ -6,7 +6,46 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from inyfinn_resizer.core.job import FormatOptions
 from inyfinn_resizer.utils.paths import find_tool
+from inyfinn_resizer.utils.subprocess_win import run_hidden
+
+PNGQUANT_BANDS = [
+    (90, 100), (85, 100), (80, 95), (75, 90), (70, 85),
+    (65, 80), (60, 75), (55, 70), (50, 65), (45, 60),
+    (40, 55), (35, 50), (30, 45), (25, 40), (20, 35),
+    (15, 30), (10, 25), (5, 20), (0, 15),
+]
+
+DEFAULT_TARGET_TOLERANCE = 0.2
+PNGQUANT_SPEED = 4
+MAX_TRIES = 6
+PQ_MARKER = ".pq."
+MIN_PALETTE_COLORS = 32
+MAX_PALETTE_COLORS = 256
+
+
+def png_max_colors_for_quality(quality_pct: int) -> int:
+    """
+    Mapuje suwak jakości (0–100) na liczbę kolorów palety.
+
+    - >= 80%: 256 kolorów
+    - 50%: 192 kolorów
+    - 5%: 32 kolory (minimum)
+    - Poniżej 5%: nadal 32
+    """
+    q = max(5, min(100, int(quality_pct)))
+    if q >= 80:
+        return MAX_PALETTE_COLORS
+    if q >= 50:
+        return int(round(192 + (q - 50) * (256 - 192) / (80 - 50)))
+    return int(round(32 + (q - 5) * (192 - 32) / (50 - 5)))
+
+
+def resolve_png_max_colors(opts: FormatOptions) -> int:
+    if opts.png_colors_auto:
+        return png_max_colors_for_quality(opts.quality)
+    return max(MIN_PALETTE_COLORS, min(MAX_PALETTE_COLORS, int(opts.png_max_colors)))
 
 PNGQUANT_BANDS = [
     (90, 100), (85, 100), (80, 95), (75, 90), (70, 85),
@@ -55,41 +94,47 @@ def target_bounds(target_kb: float, tolerance: float = DEFAULT_TARGET_TOLERANCE)
     )
 
 
-def pngquant_params_for_quality(quality_pct: int) -> tuple[int, int, int]:
+def pngquant_params_for_quality(quality_pct: int, max_colors: int = MAX_PALETTE_COLORS) -> tuple[int, int, int]:
     """
-    Mapuje suwak UI na parametry pngquant (skalibrowane na realnych plikach).
+    Mapuje suwak UI na parametry pngquant — łagodniejsze pasma przy większej palecie.
 
-    q=50 → pasmo 0–15 (~5× mniejszy PNG, jak pngquant „50%”).
-    q=75 → łagodniej (25–40). q=35 → maksymalna agresja (0–8, speed 1).
+    q=50 + 192 kolory → ok. 40–70 (zachowanie detali).
     """
-    q = max(1, min(100, int(quality_pct)))
+    q = max(5, min(100, int(quality_pct)))
     anchors: list[tuple[int, tuple[int, int, int]]] = [
-        (100, (55, 70, PNGQUANT_SPEED)),
-        (75, (25, 40, PNGQUANT_SPEED)),
-        (62, (15, 30, PNGQUANT_SPEED)),
-        (50, (0, 15, PNGQUANT_SPEED)),
-        (40, (0, 12, 1)),
-        (35, (0, 8, 1)),
-        (1, (0, 5, 1)),
+        (100, (75, 100, PNGQUANT_SPEED)),
+        (80, (65, 95, PNGQUANT_SPEED)),
+        (50, (40, 70, PNGQUANT_SPEED)),
+        (35, (22, 52, 2)),
+        (5, (8, 32, 1)),
     ]
     for i, (aq, params) in enumerate(anchors):
         if q >= aq:
             if i == 0:
-                return params
+                qmin, qmax, speed = params
+                break
             prev_q, prev_params = anchors[i - 1]
             if prev_q == aq:
-                return params
+                qmin, qmax, speed = params
+                break
             t = (q - aq) / (prev_q - aq)
             qmin = int(round(params[0] + t * (prev_params[0] - params[0])))
             qmax = int(round(params[1] + t * (prev_params[1] - params[1])))
             speed = prev_params[2] if t >= 0.5 else params[2]
-            return (max(0, qmin), max(qmin + 1, qmax), speed)
-    return anchors[-1][1]
+            break
+    else:
+        qmin, qmax, speed = anchors[-1][1]
+
+    palette_boost = max(0.0, (max_colors - MIN_PALETTE_COLORS) / (MAX_PALETTE_COLORS - MIN_PALETTE_COLORS))
+    lift = int(round(palette_boost * 18))
+    qmin = min(95, qmin + lift)
+    qmax = min(100, max(qmin + 5, qmax + lift))
+    return (max(0, qmin), qmax, speed)
 
 
-def bands_for_quality(quality_pct: int) -> list[tuple[int, int, int]]:
+def bands_for_quality(quality_pct: int, max_colors: int = MAX_PALETTE_COLORS) -> list[tuple[int, int, int]]:
     """Główne + zapasowe pasma do wypróbowania (qmin, qmax, speed)."""
-    primary = pngquant_params_for_quality(quality_pct)
+    primary = pngquant_params_for_quality(quality_pct, max_colors)
     fallbacks: list[tuple[int, int, int]] = []
     qmin, qmax, speed = primary
     for band in PNGQUANT_BANDS:
@@ -115,15 +160,25 @@ def pick_calibrated_candidate(candidates, min_b: int, max_b: int, ideal_b: int):
     return min(pool, key=lambda c: (abs(c[1] - ideal_b), -c[0][0] if isinstance(c[0], tuple) else -c[0]))
 
 
-def run_pngquant(pngquant: Path, src: Path, dst: Path, qmin: int, qmax: int, speed: int = PNGQUANT_SPEED) -> int | None:
+def run_pngquant(
+    pngquant: Path,
+    src: Path,
+    dst: Path,
+    qmin: int,
+    qmax: int,
+    speed: int = PNGQUANT_SPEED,
+    max_colors: int = MAX_PALETTE_COLORS,
+) -> int | None:
+    palette = max(MIN_PALETTE_COLORS, min(MAX_PALETTE_COLORS, int(max_colors)))
     cmd = [
         str(pngquant), "--force",
         "--quality", f"{int(qmin)}-{int(qmax)}",
         "--speed", str(int(speed)),
+        str(palette),
         "--output", str(dst), str(src),
     ]
     try:
-        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=90)
+        result = run_hidden(cmd, timeout=90)
         if result.returncode == 0 and dst.is_file():
             return dst.stat().st_size
     except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
@@ -137,6 +192,7 @@ def _apply_target_kb(
     target_kb: float,
     quality_pct: int,
     tolerance: float,
+    max_colors: int,
 ) -> tuple[bool, str]:
     min_b, max_b, ideal_b = target_bounds(target_kb, tolerance)
     q_pct = max(10, min(100, int(quality_pct or 50)))
@@ -148,7 +204,7 @@ def _apply_target_kb(
         for qmin, qmax in bands[:12]:
             if tmp.exists():
                 tmp.unlink()
-            sz = run_pngquant(pngquant, path, tmp, qmin, qmax)
+            sz = run_pngquant(pngquant, path, tmp, qmin, qmax, max_colors=max_colors)
             if sz is not None and sz <= max_b:
                 staged = path.with_suffix(f".pq.staging.{qmin}-{qmax}.png")
                 shutil.copy2(tmp, staged)
@@ -162,7 +218,7 @@ def _apply_target_kb(
             for c in candidates:
                 if c[2] != staged and Path(c[2]).exists():
                     Path(c[2]).unlink()
-            return True, f"pngquant {band[0]}-{band[1]} target {sz // 1024}KB"
+            return True, f"pngquant {band[0]}-{band[1]} {max_colors}c target {sz // 1024}KB"
         for c in candidates:
             Path(c[2]).unlink(missing_ok=True)
         return False, "pngquant target not reached"
@@ -178,10 +234,14 @@ def apply_pngquant(
     target_kb: float | None = None,
     target_tolerance: float = DEFAULT_TARGET_TOLERANCE,
     quality_pct: int = 50,
+    max_colors: int | None = None,
 ) -> tuple[bool, str]:
     pngquant = find_tool("pngquant")
     if not pngquant:
         return False, "no_pngquant"
+
+    palette = max_colors if max_colors is not None else png_max_colors_for_quality(quality_pct)
+    palette = max(MIN_PALETTE_COLORS, min(MAX_PALETTE_COLORS, int(palette)))
 
     orig_size = path.stat().st_size
     src_copy = path.with_suffix(".pq.src.png")
@@ -190,7 +250,9 @@ def apply_pngquant(
 
     try:
         if target_kb is not None:
-            ok, msg = _apply_target_kb(pngquant, path, target_kb, quality_pct, target_tolerance)
+            ok, msg = _apply_target_kb(
+                pngquant, path, target_kb, quality_pct, target_tolerance, palette,
+            )
             return ok, msg
 
         if max_kb is not None:
@@ -198,19 +260,21 @@ def apply_pngquant(
             for qmin, qmax in PNGQUANT_BANDS:
                 if tmp.exists():
                     tmp.unlink()
-                sz = run_pngquant(pngquant, src_copy, tmp, qmin, qmax)
+                sz = run_pngquant(pngquant, src_copy, tmp, qmin, qmax, max_colors=palette)
                 if sz is not None and sz <= max_bytes:
                     shutil.move(str(tmp), str(path))
-                    return True, f"pngquant {qmin}-{qmax} max_kb"
+                    return True, f"pngquant {qmin}-{qmax} {palette}c max_kb"
             return False, "pngquant max_kb not reached"
 
-        bands = bands_for_quality(quality_pct)
+        bands = bands_for_quality(quality_pct, palette)
         results: list[tuple[tuple[int, int, int], int, Path]] = []
 
         for band in bands:
             if tmp.exists():
                 tmp.unlink()
-            sz = run_pngquant(pngquant, src_copy, tmp, band[0], band[1], band[2])
+            sz = run_pngquant(
+                pngquant, src_copy, tmp, band[0], band[1], band[2], max_colors=palette,
+            )
             if sz is None:
                 continue
             staged = path.with_suffix(f".pq.staging.{band[0]}-{band[1]}.png")
@@ -225,7 +289,7 @@ def apply_pngquant(
                     r[2].unlink()
             return False, "pngquant no gain"
 
-        primary = pngquant_params_for_quality(quality_pct)
+        primary = pngquant_params_for_quality(quality_pct, palette)
         primary_hit = next((r for r in valid if r[0] == primary), None)
         best = primary_hit if primary_hit else valid[0]
 
@@ -235,7 +299,7 @@ def apply_pngquant(
         shutil.move(str(best[2]), str(path))
         fold = round(orig_size / best[1], 1)
         return True, (
-            f"pngquant {best[0][0]}-{best[0][1]} s{best[0][2]} "
+            f"pngquant {best[0][0]}-{best[0][1]} {palette}c s{best[0][2]} "
             f"{best[1] // 1024}KB ({fold}× mniej)"
         )
     finally:

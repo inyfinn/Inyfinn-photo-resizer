@@ -46,6 +46,27 @@ QLabel#sectionTitle {
     background: transparent;
 }
 
+QLabel#fieldLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: @FG_TEXT@;
+    background: transparent;
+}
+
+QLabel#advancedSummary {
+    font-size: 12px;
+    line-height: 1.4;
+    color: @FG_MUTED@;
+    padding: 10px 12px;
+    background-color: @BG_PANEL@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+}
+
+QWidget#fieldGroup {
+    background: transparent;
+}
+
 QLabel#formLabel, QLabel#formLabelInline {
     color: @FG_MUTED@;
     font-weight: 600;

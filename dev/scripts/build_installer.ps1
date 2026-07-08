@@ -37,7 +37,14 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "ISCC zakończył się kodem $LASTEXITCODE"
 }
 
-$setup = Get-ChildItem $outDir -Filter "InyfinnPhotoResizer-*-setup.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$setup = Get-ChildItem $outDir -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if (-not $setup) {
+    $setup = Get-ChildItem (Join-Path $AppRoot "installer-output") -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+}
 if (-not $setup) {
     Write-Error "Nie znaleziono pliku setup w $outDir"
 }
