@@ -72,7 +72,7 @@ def restore_geometry(window: MainWindow) -> bool:
         try:
             parsed = [int(x) for x in sizes]
             if len(parsed) == 2:
-                right = max(470, parsed[1])
+                right = max(500, parsed[1])
                 left = max(400, parsed[0])
                 window._main_splitter.setSizes([left, right])
             else:

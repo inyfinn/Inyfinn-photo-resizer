@@ -112,11 +112,11 @@ from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
-DEFAULT_WINDOW_WIDTH = 1018
-DEFAULT_WINDOW_HEIGHT = 608
+DEFAULT_WINDOW_WIDTH = 1200
+DEFAULT_WINDOW_HEIGHT = 850
 MIN_WINDOW_WIDTH = DEFAULT_WINDOW_WIDTH
 MIN_WINDOW_HEIGHT = DEFAULT_WINDOW_HEIGHT
-RIGHT_PANEL_MIN_WIDTH = 470
+RIGHT_PANEL_MIN_WIDTH = 500
 
 
 class MainWindow(QMainWindow):
@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._fit_initial_window_size)
 
     def _fit_initial_window_size(self) -> None:
-        """Domyślny rozmiar 1018×608 — nie mniejszy niż MIN (jak referencyjny screenshot)."""
+        """Domyślny rozmiar 1200×850 — nie mniejszy niż MIN."""
         screen = self.screen().availableGeometry()
         w = max(MIN_WINDOW_WIDTH, min(DEFAULT_WINDOW_WIDTH, screen.width()))
         h = max(MIN_WINDOW_HEIGHT, min(DEFAULT_WINDOW_HEIGHT, screen.height()))
@@ -189,12 +189,18 @@ class MainWindow(QMainWindow):
             splitter.setSizes([left_w, self.width() - left_w])
 
     @staticmethod
-    def _make_panel(title: str, object_name: str = "panel", *, titled: bool = True) -> tuple[QFrame, QVBoxLayout]:
+    def _make_panel(
+        title: str,
+        object_name: str = "panel",
+        *,
+        titled: bool = True,
+        margins: tuple[int, int, int, int] = (20, 16, 20, 16),
+    ) -> tuple[QFrame, QVBoxLayout]:
         frame = QFrame()
         frame.setObjectName(object_name)
         frame.setFrameShape(QFrame.StyledPanel)
         outer = QVBoxLayout(frame)
-        outer.setContentsMargins(20, 16, 20, 16)
+        outer.setContentsMargins(*margins)
         outer.setSpacing(8)
         if titled:
             lbl = QLabel(title)
@@ -309,7 +315,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(left_box)
 
         # —— Prawy panel: ustawienia (płasko jak FastStone) ——
-        right_shell, right_layout = self._make_panel("", "panel", titled=False)
+        right_shell, right_layout = self._make_panel("", "panel", titled=False, margins=(16, 16, 16, 16))
         right_shell.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
         right_layout.addWidget(self._build_settings_panel(), stretch=1)
 
@@ -369,7 +375,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(right_shell)
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
-        splitter.setSizes([548, 470])
+        splitter.setSizes([648, 552])
         return splitter
 
     def _build_settings_panel(self) -> QWidget:
@@ -378,14 +384,19 @@ class MainWindow(QMainWindow):
         body.setObjectName("settingsBody")
         root = QVBoxLayout(body)
         root.setSpacing(6)
-        root.setContentsMargins(25, 4, 12, 4)
+        root.setContentsMargins(12, 4, 16, 4)
 
-        # Rozszerzenie + ustawienia formatu (jeden wiersz)
+        # Rozszerzenie + ustawienia formatu (etykieta nad wierszem — pełna szerokość)
+        ext_section = QWidget()
+        ext_layout = QVBoxLayout(ext_section)
+        ext_layout.setContentsMargins(0, 0, 0, 0)
+        ext_layout.setSpacing(4)
+        ext_layout.addWidget(field_label("Rozszerzenie", UI_TOOLTIPS["extension"]))
         fmt_row = QHBoxLayout()
-        fmt_row.setSpacing(6)
+        fmt_row.setSpacing(8)
         self.format_combo = FormatMultiCombo()
         style_dropdown(self.format_combo)
-        self.format_combo.setMinimumWidth(220)
+        self.format_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.format_combo.selectionChanged.connect(self._on_formats_changed)
         fmt_row.addWidget(self.format_combo, stretch=1)
         self.settings_btn = QPushButton("Ustawienia…")
@@ -399,13 +410,9 @@ class MainWindow(QMainWindow):
         fmt_row.addWidget(self.settings_btn)
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
-        fmt_controls.setMinimumWidth(340)
         self.fmt_wrap = fmt_controls
-        root.addWidget(compact_row(
-            "Rozszerzenie",
-            fmt_controls,
-            tooltip=UI_TOOLTIPS["extension"],
-        ))
+        ext_layout.addWidget(fmt_controls)
+        root.addWidget(ext_section)
 
         self.segregate_cb = QCheckBox("Segreguj do podfolderów")
         self.segregate_cb.setChecked(False)
