@@ -31,7 +31,7 @@ from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_scale_
 from inyfinn_resizer.core.transforms.matte import apply_jpeg_matte
 from inyfinn_resizer.core.image_loader import ensure_export_rgb, open_image
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
-from inyfinn_resizer.core.compressors.png import resolve_png_max_colors, count_rare_green_accents, png_auto_target_kb
+from inyfinn_resizer.core.compressors.png import resolve_png_max_colors, count_rare_green_accents
 from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundled_libvips, ensure_vips_lib
 
 _VIPS_READY = False
@@ -224,8 +224,6 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
             optimize_png_oxipng(path)
             return detail
         target_kb = opts.target_kb
-        if target_kb is None and source_bytes > 0 and opts.quality < 100:
-            target_kb = png_auto_target_kb(source_bytes, opts.quality)
         force_colors = resolve_png_max_colors(opts)
         if opts.png_mode == "png8":
             force_colors = min(force_colors, 256)

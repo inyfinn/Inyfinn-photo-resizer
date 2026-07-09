@@ -20,7 +20,8 @@ PNGQUANT_BANDS = [
 
 DEFAULT_TARGET_TOLERANCE = 0.2
 PNGQUANT_SPEED = 2
-MAX_TRIES = 6
+MAX_TARGET_KB_TRIES = 3
+MAX_QUALITY_FALLBACKS = 2
 PQ_MARKER = ".pq."
 MIN_PALETTE_COLORS = 24
 MAX_PALETTE_COLORS = 256
@@ -257,22 +258,19 @@ def bands_for_quality(
     *,
     accent_boost: int = 0,
 ) -> list[tuple[int, int, int]]:
+    """Maks. 2 pasma: docelowe + ewentualnie łagodniejsze przy ochronie akcentów."""
     primary = pngquant_params_for_quality(quality_pct, max_colors, accent_boost=accent_boost)
-    fallbacks: list[tuple[int, int, int]] = []
     qmin, qmax, speed = primary
-    for band in PNGQUANT_BANDS:
-        candidate = (band[0], band[1], speed)
-        if candidate != (qmin, qmax, speed) and abs(band[0] - qmin) <= 12:
-            fallbacks.append(candidate)
-    seen = {primary}
-    ordered = [primary]
-    for fb in sorted(fallbacks, key=lambda b: abs(b[0] - qmin)):
-        if fb not in seen:
-            ordered.append(fb)
-            seen.add(fb)
-        if len(ordered) >= MAX_TRIES:
-            break
-    return ordered
+    bands = [primary]
+    if accent_boost >= 16 or quality_pct >= 70:
+        softer = (max(0, qmin - 8), min(100, qmax + 6), 1)
+        if softer != primary:
+            bands.append(softer)
+    elif quality_pct < 70:
+        harder = (max(0, qmin - 12), max(0, qmax - 8), speed)
+        if harder != primary:
+            bands.append(harder)
+    return bands[:MAX_QUALITY_FALLBACKS]
 
 
 def pick_calibrated_candidate(candidates, min_b: int, max_b: int, ideal_b: int):
@@ -324,6 +322,19 @@ def run_pngquant(
     return None
 
 
+def _target_kb_bands(quality_pct: int, palette: int, accent_boost: int) -> list[tuple[int, int, int]]:
+    """Pasma do trybu target_kb — od docelowego, max 3 próby (bez skanowania co 5%)."""
+    qmin, qmax, speed = pngquant_params_for_quality(quality_pct, palette, accent_boost=accent_boost)
+    primary = (qmin, qmax, speed)
+    harder = (max(0, qmin - 18), max(0, qmax - 12), speed)
+    hardest = (max(0, qmin - 32), max(0, qmax - 22), min(3, speed + 1))
+    out = [primary]
+    for band in (harder, hardest):
+        if band not in out:
+            out.append(band)
+    return out[:MAX_TARGET_KB_TRIES]
+
+
 def _apply_target_kb(
     pngquant: Path,
     path: Path,
@@ -334,59 +345,40 @@ def _apply_target_kb(
 ) -> tuple[bool, str]:
     min_b, max_b, ideal_b = target_bounds(target_kb, tolerance)
     q_pct = max(10, min(100, int(quality_pct or 50)))
-    floor = max(10, q_pct - 25)
     accent_boost = analyze_accent_palette_boost(path)
     palette = effective_png_palette(path, max_colors, quality_pct=q_pct)
-    speed = speed_for_quality(q_pct, accent_boost)
     accent_guard = has_sensitive_accents(path) and q_pct >= 70
-    bands = [b for b in PNGQUANT_BANDS if b[0] >= floor] + [b for b in PNGQUANT_BANDS if b[0] < floor]
     tmp = path.with_suffix(".pq.tmp.png")
-    candidates = []
+    best_tmp = path.with_suffix(".pq.best.png")
+    best: tuple[tuple[int, int, int], int] | None = None
+
     try:
-        for qmin, qmax in bands[:14]:
+        for band in _target_kb_bands(q_pct, palette, accent_boost):
             if tmp.exists():
                 tmp.unlink()
             sz = run_pngquant(
-                pngquant, path, tmp, qmin, qmax, speed, max_colors=palette,
+                pngquant, path, tmp, band[0], band[1], band[2], max_colors=palette,
                 preserve_accents=accent_guard,
             )
-            if sz is not None:
-                staged = path.with_suffix(f".pq.staging.{qmin}-{qmax}.png")
-                shutil.copy2(tmp, staged)
-                if accent_guard and not accents_preserved(path, staged, quality_pct=q_pct):
-                    staged.unlink(missing_ok=True)
-                elif sz <= max_b or sz < path.stat().st_size:
-                    candidates.append(((qmin, qmax), sz, staged))
-                else:
-                    staged.unlink(missing_ok=True)
-            if tmp.exists():
-                tmp.unlink()
-        if accent_guard:
-            preserved = [c for c in candidates if accents_preserved(path, c[2], quality_pct=q_pct)]
-            if preserved:
-                candidates = preserved
-            elif candidates and q_pct < 70:
-                pass
-            elif candidates:
-                for c in candidates:
-                    Path(c[2]).unlink(missing_ok=True)
-                return False, "pngquant accent preserved"
+            if sz is None:
+                continue
+            if accent_guard and not accents_preserved(path, tmp, quality_pct=q_pct):
+                continue
+            if best is None or abs(sz - ideal_b) < abs(best[1] - ideal_b):
+                best = (band, sz)
+                shutil.copy2(tmp, best_tmp)
+            if min_b <= sz <= max_b:
+                break
 
-        pick = pick_calibrated_candidate(candidates, min_b, max_b, ideal_b)
-        if not pick and candidates:
-            pick = min(candidates, key=lambda c: c[1])
-        if pick:
-            band, sz, staged = pick
-            shutil.move(str(staged), str(path))
-            for c in candidates:
-                if c[2] != staged and Path(c[2]).exists():
-                    Path(c[2]).unlink()
-            return True, f"pngquant {band[0]}-{band[1]} {palette}c target {sz // 1024}KB"
-        for c in candidates:
-            Path(c[2]).unlink(missing_ok=True)
-        return False, "pngquant target not reached"
+        if not best or not best_tmp.is_file():
+            return False, "pngquant target not reached"
+
+        shutil.move(str(best_tmp), str(path))
+        band, sz = best
+        return True, f"pngquant {band[0]}-{band[1]} {palette}c target {sz // 1024}KB"
     finally:
         tmp.unlink(missing_ok=True)
+        best_tmp.unlink(missing_ok=True)
         cleanup_pngquant_artifacts_for(path)
 
 
@@ -422,24 +414,26 @@ def apply_pngquant(
 
         if max_kb is not None:
             max_bytes = int(max_kb * 1024)
-            speed = speed_for_quality(quality_pct, accent_boost)
-            for qmin, qmax in PNGQUANT_BANDS:
+            primary = pngquant_params_for_quality(quality_pct, palette, accent_boost=accent_boost)
+            tries = [primary]
+            qmin, qmax, speed = primary
+            tries.append((max(0, qmin - 20), max(0, qmax - 15), speed))
+            for band in tries[:2]:
                 if tmp.exists():
                     tmp.unlink()
                 sz = run_pngquant(
-                    pngquant, src_copy, tmp, qmin, qmax, speed, max_colors=palette,
+                    pngquant, src_copy, tmp, band[0], band[1], band[2], max_colors=palette,
                     preserve_accents=accent_guard,
                 )
                 if sz is not None and sz <= max_bytes:
                     if accent_guard and not accents_preserved(src_copy, tmp):
-                        tmp.unlink(missing_ok=True)
                         continue
                     shutil.move(str(tmp), str(path))
-                    return True, f"pngquant {qmin}-{qmax} {palette}c max_kb"
+                    return True, f"pngquant {band[0]}-{band[1]} {palette}c max_kb"
             return False, "pngquant max_kb not reached"
 
         bands = bands_for_quality(quality_pct, palette, accent_boost=accent_boost)
-        results: list[tuple[tuple[int, int, int], int, Path]] = []
+        best: tuple[tuple[int, int, int], int] | None = None
         accent_rejects = 0
 
         for band in bands:
@@ -451,47 +445,27 @@ def apply_pngquant(
             )
             if sz is None:
                 continue
-            staged = path.with_suffix(f".pq.staging.{band[0]}-{band[1]}.png")
-            shutil.copy2(tmp, staged)
-            if accent_guard and not accents_preserved(src_copy, staged, quality_pct=quality_pct):
-                staged.unlink(missing_ok=True)
+            if accent_guard and not accents_preserved(src_copy, tmp, quality_pct=quality_pct):
                 accent_rejects += 1
                 continue
-            results.append((band, sz, staged))
-            tmp.unlink()
+            if sz < orig_size or (quality_pct < 70 and sz <= orig_size):
+                best = (band, sz)
+                break
+            if best is None or sz < best[1]:
+                best = (band, sz)
 
-        valid = [r for r in results if r[1] < orig_size]
-        if accent_guard and not valid and accent_rejects:
-            for r in results:
-                if r[2].exists():
-                    r[2].unlink()
+        if not best and accent_rejects:
             return False, "pngquant accent preserved"
-        if accent_guard and not valid and results:
-            for r in results:
-                if r[2].exists():
-                    r[2].unlink()
-            return False, "pngquant accent preserved"
-        if not valid and results and quality_pct < 70:
-            valid = sorted(results, key=lambda r: r[1])
-        if not valid:
-            for r in results:
-                if r[2].exists():
-                    r[2].unlink()
+        if not best:
             return False, "pngquant no gain"
 
-        primary = pngquant_params_for_quality(quality_pct, palette, accent_boost=accent_boost)
-        primary_hit = next((r for r in valid if r[0] == primary), None)
-        best = primary_hit if primary_hit else valid[0]
-
-        for r in results:
-            if r[2] != best[2] and r[2].exists():
-                r[2].unlink()
-        shutil.move(str(best[2]), str(path))
-        fold = round(orig_size / best[1], 1)
+        shutil.move(str(tmp), str(path))
+        band, sz = best
+        fold = round(orig_size / sz, 1) if sz else 1
         accent_note = f" +{accent_boost}c" if accent_boost else ""
         return True, (
-            f"pngquant {best[0][0]}-{best[0][1]} {palette}c{accent_note} s{best[0][2]} "
-            f"{best[1] // 1024}KB ({fold}× mniej)"
+            f"pngquant {band[0]}-{band[1]} {palette}c{accent_note} s{band[2]} "
+            f"{sz // 1024}KB ({fold}× mniej)"
         )
     finally:
         src_copy.unlink(missing_ok=True)
