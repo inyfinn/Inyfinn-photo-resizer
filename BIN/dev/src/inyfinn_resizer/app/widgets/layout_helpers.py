@@ -24,7 +24,7 @@ FOOTER_BTN_H = 32
 ROW_GAP = 4
 FIELD_GAP = 2
 SECTION_GAP = 4
-COMPACT_LABEL_W = 100
+COMPACT_LABEL_W = 125
 
 
 def hint_label(text: str) -> QLabel:

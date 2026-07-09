@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import threading
@@ -68,6 +69,8 @@ def _polish_error(exc: Exception) -> str:
         return "Brak biblioteki narzędzia (pngquant/gifsicle) — przebuduj BIN\\build.bat."
     if "permission" in low or "odmowa dostępu" in low:
         return "Brak uprawnień do zapisu w folderze wyjściowym."
+    if "truncated file read" in low or "truncated" in low:
+        return "Błąd odczytu pliku (uszkodzony lub nadpisany w trakcie zapisu)."
     if "libvips" in low or "dll" in low or "vips" in low:
         return f"Błąd dekodowania obrazu: {msg}"
     return msg
@@ -305,48 +308,57 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
         result.new_bytes = out.stat().st_size
         return result
 
+    in_place = inp == out
+    staging = out.with_name(f".{out.name}.inyfinn.tmp") if in_place else out
+    if staging.exists():
+        staging.unlink(missing_ok=True)
+
     lock = _PROCESS_LOCK if getattr(sys, "frozen", False) else nullcontext()
     fmt = job.output_format.lower()
 
     try:
         with lock:
             try:
-                out.parent.mkdir(parents=True, exist_ok=True)
+                staging.parent.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
-                raise OSError(f"Nie można utworzyć folderu wyjściowego: {out.parent}") from exc
+                raise OSError(f"Nie można utworzyć folderu wyjściowego: {staging.parent}") from exc
 
             src_bytes = result.old_bytes
             cmyk_tiff = _is_cmyk_tiff(inp)
             use_vips = not cmyk_tiff and fmt not in ("bmp",) and _init_vips()
             if fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
-                shutil.copy2(inp, out)
+                shutil.copy2(inp, staging)
             elif use_vips:
                 try:
                     image = _load_image(job)
-                    _save_vips(image, out, fmt, job.format_opts, source_path=job.input_path)
+                    _save_vips(image, staging, fmt, job.format_opts, source_path=job.input_path)
                 except Exception:
-                    _save_pillow_fallback(job, out)
+                    _save_pillow_fallback(job, staging)
             else:
-                _save_pillow_fallback(job, out)
+                _save_pillow_fallback(job, staging)
 
-            if not out.is_file() or out.stat().st_size == 0:
+            if not staging.is_file() or staging.stat().st_size == 0:
                 raise OSError("Zapis pliku wyjściowego nie powiódł się")
 
             try:
-                _post_compress(out, fmt, job.format_opts, source_bytes=src_bytes)
+                _post_compress(staging, fmt, job.format_opts, source_bytes=src_bytes)
             except Exception:
                 pass  # pngquant/gifsicle opcjonalne — plik już zapisany
 
             if job.metadata.strip_all or not job.metadata.keep_exif:
-                strip_metadata_file(out, job.metadata)
+                strip_metadata_file(staging, job.metadata)
 
+            if in_place:
+                os.replace(staging, out)
             result.new_bytes = out.stat().st_size
             result.status = JobStatus.OK
             result.message = "OK"
     except Exception as exc:
         result.status = JobStatus.ERROR
         result.message = _polish_error(exc)
-        if out.exists() and out.stat().st_size == 0:
+        if staging.exists() and staging != out:
+            staging.unlink(missing_ok=True)
+        elif out.exists() and in_place and out.stat().st_size == 0:
             out.unlink(missing_ok=True)
 
     return result

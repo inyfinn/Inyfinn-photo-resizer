@@ -284,6 +284,48 @@ QPushButton#footerSecondary:hover {
     color: @FG_ACCENT@;
 }
 
+QPushButton#footerConvert {
+    min-height: 32px;
+    max-height: 32px;
+    min-width: 108px;
+    padding: 0 16px;
+    font-size: 13px;
+    border-radius: 4px;
+    background-color: #008834;
+    color: #ffffff;
+    border: 1px solid #008834;
+    font-weight: 700;
+}
+
+QPushButton#footerConvert:hover {
+    background-color: #76b82a;
+    border-color: #76b82a;
+}
+
+QPushButton#footerConvert:disabled {
+    background-color: @BG_HOVER@;
+    color: @FG_MUTED@;
+    border-color: @BORDER@;
+}
+
+QPushButton#footerClose {
+    min-height: 32px;
+    max-height: 32px;
+    min-width: 108px;
+    padding: 0 16px;
+    font-size: 13px;
+    border-radius: 4px;
+    background-color: #c62828;
+    color: #ffffff;
+    border: 1px solid #c62828;
+    font-weight: 600;
+}
+
+QPushButton#footerClose:hover {
+    background-color: #e53935;
+    border-color: #e53935;
+}
+
 QPushButton#primaryBtn {
     background-color: @ACCENT@;
     color: #ffffff;
@@ -580,6 +622,10 @@ QLabel#previewBox {
     border: 1px solid @BORDER@;
     border-radius: 6px;
     background-color: @BG_INPUT@;
+    min-width: 100px;
+    min-height: 100px;
+    max-width: 100px;
+    max-height: 100px;
 }
 
 QStatusBar {
