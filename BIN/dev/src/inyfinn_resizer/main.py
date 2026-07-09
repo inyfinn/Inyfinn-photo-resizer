@@ -4,24 +4,17 @@ from __future__ import annotations
 
 import sys
 
-from pathlib import Path
-
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
-from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.message_boxes import show_warning
-from inyfinn_resizer.app.widgets.startup_splash import StartupSplash
-from inyfinn_resizer.utils.app_mutex import (
-    acquire_app_mutex,
-    activate_existing_instance,
-    release_app_mutex,
-)
-from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundle_dir, project_root
-
 
 def _app_icon() -> QIcon | None:
+    from pathlib import Path
+
+    from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundle_dir, project_root
+
+    bootstrap_runtime_paths()
     for base in (project_root(), bundle_dir()):
         if base is None:
             continue
@@ -41,14 +34,15 @@ def _configure_pillow() -> None:
     Image.MAX_IMAGE_PIXELS = 300_000_000
 
 
-def _boot_application(app: QApplication, splash: StartupSplash, icon: QIcon | None) -> None:
+def _boot_application(app: QApplication, splash, icon: QIcon | None) -> None:
+    from inyfinn_resizer import __version__
     from inyfinn_resizer.app.main_window import MainWindow
     from inyfinn_resizer.app.themes import apply_theme
     from inyfinn_resizer.app.user_settings import load_theme
+    from inyfinn_resizer.utils.app_log import log_event
+    from inyfinn_resizer.utils.paths import bootstrap_runtime_paths
 
     bootstrap_runtime_paths()
-    from inyfinn_resizer.utils.app_log import log_event
-
     log_event("Uruchomienie aplikacji", f"v{__version__}")
     splash.set_status("Ładowanie motywu…")
     app.processEvents()
@@ -66,9 +60,17 @@ def _boot_application(app: QApplication, splash: StartupSplash, icon: QIcon | No
 
 
 def main() -> int:
+    from inyfinn_resizer.utils.app_mutex import (
+        acquire_app_mutex,
+        activate_existing_instance,
+        release_app_mutex,
+    )
+
     if not acquire_app_mutex():
         if activate_existing_instance():
             return 0
+        from inyfinn_resizer.app.dialogs.message_boxes import show_warning
+
         warn_app = QApplication(sys.argv)
         show_warning(
             None,
@@ -81,6 +83,9 @@ def main() -> int:
         del warn_app
         return 1
 
+    from inyfinn_resizer import __version__
+    from inyfinn_resizer.app.widgets.startup_splash import StartupSplash
+
     app = QApplication(sys.argv)
     app.aboutToQuit.connect(release_app_mutex)
     app.setFont(QFont("Segoe UI", 9))
@@ -88,14 +93,15 @@ def main() -> int:
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Inyfinn")
 
-    icon = _app_icon()
-    if icon is not None:
-        app.setWindowIcon(icon)
-
-    splash = StartupSplash(icon)
+    splash = StartupSplash()
     splash.center_on_screen()
     splash.show()
     app.processEvents()
+
+    icon = _app_icon()
+    if icon is not None:
+        app.setWindowIcon(icon)
+        splash.setWindowIcon(icon)
 
     QTimer.singleShot(0, lambda: _boot_application(app, splash, icon))
     return app.exec()

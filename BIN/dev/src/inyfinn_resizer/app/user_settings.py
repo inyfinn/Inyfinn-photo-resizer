@@ -70,7 +70,13 @@ def restore_geometry(window: MainWindow) -> bool:
     sizes = s.value("ui/splitter")
     if sizes and window._main_splitter:
         try:
-            window._main_splitter.setSizes([int(x) for x in sizes])
+            parsed = [int(x) for x in sizes]
+            if len(parsed) == 2:
+                right = max(470, parsed[1])
+                left = max(400, parsed[0])
+                window._main_splitter.setSizes([left, right])
+            else:
+                window._main_splitter.setSizes(parsed)
         except (TypeError, ValueError):
             pass
     return bool(sizes)

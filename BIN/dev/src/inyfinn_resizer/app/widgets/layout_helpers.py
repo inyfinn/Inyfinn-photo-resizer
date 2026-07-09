@@ -205,6 +205,7 @@ def browse_button(text: str = "PRZEGLĄDAJ", *, tooltip: str = "", slot=None) ->
     btn.setObjectName("btnBrowse")
     btn.setMinimumHeight(BTN_H)
     btn.setFixedHeight(BTN_H)
+    btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
     if tooltip:
         btn.setToolTip(tooltip)
     if slot:

@@ -59,6 +59,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     BTN_H,
     browse_button,
     compact_row,
+    field_label,
     footer_button,
     slider_control,
     style_dropdown,
@@ -113,8 +114,9 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 DEFAULT_WINDOW_WIDTH = 1018
 DEFAULT_WINDOW_HEIGHT = 608
-MIN_WINDOW_WIDTH = 760
-MIN_WINDOW_HEIGHT = 500
+MIN_WINDOW_WIDTH = DEFAULT_WINDOW_WIDTH
+MIN_WINDOW_HEIGHT = DEFAULT_WINDOW_HEIGHT
+RIGHT_PANEL_MIN_WIDTH = 470
 
 
 class MainWindow(QMainWindow):
@@ -158,6 +160,11 @@ class MainWindow(QMainWindow):
         self._geometry_restored = restore_geometry(self)
         if not self._geometry_restored:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        if self.width() < MIN_WINDOW_WIDTH or self.height() < MIN_WINDOW_HEIGHT:
+            self.resize(
+                max(self.width(), MIN_WINDOW_WIDTH),
+                max(self.height(), MIN_WINDOW_HEIGHT),
+            )
         self._app_footer = QLabel(f"Inyfinn Photo Resizer · v{__version__}")
         self._app_footer.setObjectName("appFooter")
         self.statusBar().addPermanentWidget(self._app_footer)
@@ -170,15 +177,16 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._fit_initial_window_size)
 
     def _fit_initial_window_size(self) -> None:
-        """Domyślny rozmiar 1018×608 (jak referencyjny screenshot wyników)."""
+        """Domyślny rozmiar 1018×608 — nie mniejszy niż MIN (jak referencyjny screenshot)."""
         screen = self.screen().availableGeometry()
-        w = min(DEFAULT_WINDOW_WIDTH, screen.width())
-        h = min(DEFAULT_WINDOW_HEIGHT, screen.height())
+        w = max(MIN_WINDOW_WIDTH, min(DEFAULT_WINDOW_WIDTH, screen.width()))
+        h = max(MIN_WINDOW_HEIGHT, min(DEFAULT_WINDOW_HEIGHT, screen.height()))
         if not getattr(self, "_geometry_restored", False):
             self.resize(w, h)
         if splitter := self._main_splitter:
-            right_w = max(340, int(self.width() * 0.42))
-            splitter.setSizes([self.width() - right_w, right_w])
+            right_w = max(RIGHT_PANEL_MIN_WIDTH, int(self.width() * 0.46))
+            left_w = max(400, self.width() - right_w)
+            splitter.setSizes([left_w, self.width() - left_w])
 
     @staticmethod
     def _make_panel(title: str, object_name: str = "panel", *, titled: bool = True) -> tuple[QFrame, QVBoxLayout]:
@@ -252,6 +260,7 @@ class MainWindow(QMainWindow):
     def _build_convert_body(self) -> QWidget:
         splitter = QSplitter(Qt.Horizontal)
         splitter.setObjectName("mainSplitter")
+        splitter.setChildrenCollapsible(False)
         self._main_splitter = splitter
 
         # —— Lewy panel: lista plików ——
@@ -301,7 +310,7 @@ class MainWindow(QMainWindow):
 
         # —— Prawy panel: ustawienia (płasko jak FastStone) ——
         right_shell, right_layout = self._make_panel("", "panel", titled=False)
-        right_shell.setMinimumWidth(400)
+        right_shell.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
         right_layout.addWidget(self._build_settings_panel(), stretch=1)
 
         progress_wrap = QWidget()
@@ -360,7 +369,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(right_shell)
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
-        splitter.setSizes([500, 360])
+        splitter.setSizes([548, 470])
         return splitter
 
     def _build_settings_panel(self) -> QWidget:
@@ -369,18 +378,20 @@ class MainWindow(QMainWindow):
         body.setObjectName("settingsBody")
         root = QVBoxLayout(body)
         root.setSpacing(6)
-        root.setContentsMargins(25, 4, 0, 4)
+        root.setContentsMargins(25, 4, 12, 4)
 
         # Rozszerzenie + ustawienia formatu (jeden wiersz)
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(6)
         self.format_combo = FormatMultiCombo()
         style_dropdown(self.format_combo)
+        self.format_combo.setMinimumWidth(220)
         self.format_combo.selectionChanged.connect(self._on_formats_changed)
         fmt_row.addWidget(self.format_combo, stretch=1)
         self.settings_btn = QPushButton("Ustawienia…")
         self.settings_btn.setObjectName("btnSecondary")
         self.settings_btn.setMinimumHeight(28)
+        self.settings_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.settings_btn.setToolTip(
             "Szczegóły rozszerzenia: PNG-8/24, tło JPG, dithering GIF, kadrowanie i opcje zaawansowane."
         )
@@ -388,6 +399,7 @@ class MainWindow(QMainWindow):
         fmt_row.addWidget(self.settings_btn)
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
+        fmt_controls.setMinimumWidth(340)
         self.fmt_wrap = fmt_controls
         root.addWidget(compact_row(
             "Rozszerzenie",
@@ -512,16 +524,19 @@ class MainWindow(QMainWindow):
         root.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"]))
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
 
-        out_control = QWidget()
-        self._out_control = out_control
-        out_layout = QVBoxLayout(out_control)
-        out_layout.setContentsMargins(0, 0, 0, 0)
-        out_layout.setSpacing(6)
+        out_section = QWidget()
+        out_section_layout = QVBoxLayout(out_section)
+        out_section_layout.setContentsMargins(0, 0, 0, 0)
+        out_section_layout.setSpacing(4)
+        wyjscie_lbl = field_label("Wyjście", UI_TOOLTIPS["output_dir"])
+        out_section_layout.addWidget(wyjscie_lbl)
+
         self.output_enabled_cb = QCheckBox("Zapisz do folderu wyjściowego")
         self.output_enabled_cb.setChecked(False)
         self.output_enabled_cb.setToolTip(UI_TOOLTIPS["output_enabled"])
         self.output_enabled_cb.toggled.connect(self._on_output_enabled_toggled)
-        out_layout.addWidget(self.output_enabled_cb)
+        out_section_layout.addWidget(self.output_enabled_cb)
+
         path_row = QHBoxLayout()
         path_row.setContentsMargins(0, 0, 0, 0)
         path_row.setSpacing(6)
@@ -541,10 +556,13 @@ class MainWindow(QMainWindow):
             tooltip="Przeglądaj folder wyjściowy",
             slot=self._browse_output,
         )
+        browse_out.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         path_row.addWidget(browse_out)
-        out_layout.addLayout(path_row)
-        self._out_row = compact_row("Wyjście", out_control, tooltip=UI_TOOLTIPS["output_dir"])
-        root.addWidget(self._out_row)
+        out_section_layout.addLayout(path_row)
+
+        self._out_row = out_section
+        self._out_control = out_section
+        root.addWidget(out_section)
         self.output_dir_edit.textChanged.connect(self._sync_output_tooltip)
         self._sync_output_tooltip()
 
