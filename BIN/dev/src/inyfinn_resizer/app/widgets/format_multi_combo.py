@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QModelIndex, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QMouseEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -92,6 +92,7 @@ class FormatMultiCombo(QComboBox):
             line.setReadOnly(True)
             line.setToolTip(_MULTI_SELECT_TOOLTIP)
             line.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            line.installEventFilter(self)
         self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.setMinimumContentsLength(18)
 
@@ -125,20 +126,20 @@ class FormatMultiCombo(QComboBox):
         self.setModel(self._list_model)
         self.set_selected(["webp"])
 
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        line = self.lineEdit()
+        if watched is line and event.type() == QEvent.Type.MouseButtonPress:
+            mouse = event
+            if isinstance(mouse, QMouseEvent) and mouse.button() == Qt.MouseButton.LeftButton:
+                self.showPopup()
+                return True
+        return super().eventFilter(watched, event)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            opt = QStyleOptionComboBox()
-            self.initStyleOption(opt)
-            arrow_rect = self.style().subControlRect(
-                QStyle.ComplexControl.CC_ComboBox,
-                opt,
-                QStyle.SubControl.SC_ComboBoxArrow,
-                self,
-            )
-            if not arrow_rect.contains(event.pos()):
-                self.showPopup()
-                event.accept()
-                return
+            self.showPopup()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def hidePopup(self) -> None:
