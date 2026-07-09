@@ -1,8 +1,10 @@
-# Dystrybucja lokalna (binaria poza GitHub Releases)
+# Dystrybucja lokalna
 InyfinnPhotoResizer.exe
-InyfinnPhotoResizer.ico
-_internal/
-dev/installer-output/
+BIN/_internal/
+BIN/InyfinnPhotoResizer.exe
+BIN/InyfinnPhotoResizer.ico
+BIN/dev/installer-output/
+PORTABLE/InyfinnPhotoResizer/
 
 # Python
 __pycache__/
@@ -12,16 +14,16 @@ __pycache__/
 .ruff_cache/
 
 # Srodowisko i artefakty buildu
-dev/.venv/
-dev/build/
-dev/release/
-dev/tests/output/*
-!dev/tests/output/.gitkeep
+BIN/dev/.venv/
+BIN/dev/build/
+BIN/dev/release/
+BIN/dev/tests/output/*
+!BIN/dev/tests/output/.gitkeep
 
 # Duze binaria narzedzi (pobierz lokalnie)
-dev/tools/libvips/
-dev/tools/pngquant/pngquant.exe
-dev/tools/gifsicle/
+BIN/dev/tools/libvips/
+BIN/dev/tools/pngquant/pngquant.exe
+BIN/dev/tools/gifsicle/
 
 # OS / logi
 .DS_Store
@@ -29,4 +31,5 @@ Thumbs.db
 *.log
 
 # Zrzuty QA (generowane lokalnie)
-ui-complete/screenshots/
+ui-complete/
+BIN/dev/ui-complete/screenshots/

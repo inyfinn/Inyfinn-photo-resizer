@@ -8,12 +8,22 @@ import sys
 from pathlib import Path
 
 
+def _is_dev_root(path: Path) -> bool:
+    return (path / "pyproject.toml").is_file() or (path / "tools").is_dir()
+
+
 def project_root() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        exe_dir = Path(sys.executable).resolve().parent
+        if (exe_dir / "_internal").is_dir():
+            return exe_dir
+        bin_dir = exe_dir.parent if exe_dir.name.upper() == "BIN" else exe_dir / "BIN"
+        if (bin_dir / "_internal").is_dir():
+            return bin_dir
+        return exe_dir
     p = Path(__file__).resolve().parent
-    for _ in range(8):
-        if (p / "pyproject.toml").is_file() or (p / "tools").is_dir():
+    for _ in range(10):
+        if _is_dev_root(p):
             return p
         parent = p.parent
         if parent == p:
