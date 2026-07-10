@@ -50,6 +50,30 @@ def icon_folder_green() -> QIcon:
     return QIcon(px)
 
 
+def icon_image_file() -> QIcon:
+    """Ikona pliku graficznego."""
+    size = 16
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(px)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    frame = QColor("#94a3b8")
+    fill = QColor("#e2e8f0")
+    painter.setPen(QPen(frame, 1.2))
+    painter.setBrush(fill)
+    painter.drawRoundedRect(2, 3, 12, 10, 1, 1)
+    sun = QColor("#38bdf8")
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(sun)
+    painter.drawEllipse(4, 5, 3, 3)
+    hill = QColor("#22c55e")
+    painter.setBrush(hill)
+    from PySide6.QtCore import QPoint
+    painter.drawPolygon([QPoint(4, 12), QPoint(8, 8), QPoint(12, 12)])
+    painter.end()
+    return QIcon(px)
+
+
 def icon_clear_gray() -> QIcon:
     """Wyczyść — szary krzyżyk."""
     size = 16

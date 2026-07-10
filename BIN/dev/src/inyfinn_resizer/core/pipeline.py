@@ -375,9 +375,16 @@ def build_output_path(
     if segregate_by_extension:
         sub = ext.lstrip(".").lower() or output_format.lower()
         root = output_dir / sub
-    if preserve_structure and base_root and base_root in input_path.parents:
-        rel = input_path.relative_to(base_root)
-        return root / rel.parent / (input_path.stem + ext)
+    if preserve_structure and base_root is not None:
+        try:
+            if base_root in input_path.parents:
+                rel = input_path.relative_to(base_root)
+                return root / rel.parent / (input_path.stem + ext)
+        except ValueError:
+            pass
+        parent_name = input_path.parent.name
+        if parent_name:
+            return root / parent_name / (input_path.stem + ext)
     return root / (input_path.stem + ext)
 
 

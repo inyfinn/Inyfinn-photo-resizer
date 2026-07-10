@@ -8,7 +8,7 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QGuiApplication, QIntValidator, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -36,7 +36,6 @@ from PySide6.QtWidgets import (
 )
 from inyfinn_resizer.app.dialogs.message_boxes import (
     ask_confirm_delete,
-    ask_multi_folder_output,
     ask_overwrite_inplace,
     ask_yes_no,
     show_about,
@@ -54,6 +53,7 @@ from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
 from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
 from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
+from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
 from inyfinn_resizer.app.widgets.layout_helpers import (
     BTN_H,
@@ -65,7 +65,13 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     style_dropdown,
     tool_button_row,
 )
-from inyfinn_resizer.app.widgets.tool_icons import icon_clear_gray, icon_folder_green, icon_minus_red, icon_plus_green
+from inyfinn_resizer.app.widgets.tool_icons import (
+    icon_clear_gray,
+    icon_folder_green,
+    icon_image_file,
+    icon_minus_red,
+    icon_plus_green,
+)
 from inyfinn_resizer.app.user_settings import (
     load_session,
     load_theme,
@@ -131,7 +137,9 @@ class MainWindow(QMainWindow):
         self._main_splitter: QSplitter | None = None
 
         self._queue: list[Path] = []
+        self._file_roots: dict[Path, Path] = {}
         self._base_root: Path | None = None
+        self._output_dir_manual = False
         self._format_opts = FormatOptions()
         self._resize = ResizeOptions()
         self._transforms = TransformOptions()
@@ -157,6 +165,10 @@ class MainWindow(QMainWindow):
         self._update_advanced_summary()
         self._apply_saved_theme()
         load_session(self)
+        if self.output_dir_edit.text().strip():
+            self._output_dir_manual = True
+        elif self._output_path_active():
+            self._refresh_output_dir_suggestion()
         self._geometry_restored = restore_geometry(self)
         if not self._geometry_restored:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
@@ -295,11 +307,12 @@ class MainWindow(QMainWindow):
             ("Wyczyść", self._clear_queue, icon_clear_gray()),
         ]))
 
-        self.input_tree = QTreeWidget()
+        self.input_tree = InputFileTree(self)
         self.input_tree.setObjectName("inputList")
         self.input_tree.setHeaderLabels(["Nazwa pliku", "Rozmiar"])
         self.input_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.input_tree.setRootIsDecorated(False)
+        self.input_tree.setRootIsDecorated(True)
+        self.input_tree.setIconSize(QSize(16, 16))
         self.input_tree.setAlternatingRowColors(True)
         hdr = self.input_tree.header()
         hdr.setStretchLastSection(False)
@@ -728,6 +741,8 @@ class MainWindow(QMainWindow):
         can_edit = enabled and not self.wiz_sequence_cb.isChecked()
         self.output_dir_edit.setEnabled(can_edit)
         self.output_dir_edit.setReadOnly(not can_edit)
+        if enabled:
+            self._refresh_output_dir_suggestion()
 
     def _output_path_active(self) -> bool:
         return self.output_enabled_cb.isChecked() and not self.wiz_sequence_cb.isChecked()
@@ -849,19 +864,85 @@ class MainWindow(QMainWindow):
         except OSError:
             return "-"
 
-    def _add_path_to_queue(self, path: Path) -> None:
+    def _default_output_dir(self) -> Path | None:
+        if self._folder_queue:
+            return self._folder_queue[0] / CONVERTED_FOLDER_NAME
+        if self._queue:
+            return self._queue[0].parent / CONVERTED_FOLDER_NAME
+        return None
+
+    def _refresh_output_dir_suggestion(self) -> None:
+        if not self._output_path_active() or self._output_dir_manual:
+            return
+        suggested = self._default_output_dir()
+        if suggested is None:
+            return
+        self._programmatic_settings = True
+        try:
+            self.output_dir_edit.setText(str(suggested))
+        finally:
+            self._programmatic_settings = False
+
+    def _structure_root_for(self, path: Path) -> Path:
+        return self._file_roots.get(path, path.parent)
+
+    def _make_file_item(self, path: Path, *, label: str | None = None) -> QTreeWidgetItem:
+        item = QTreeWidgetItem([label or path.name, self._format_size(path)])
+        item.setIcon(0, icon_image_file())
+        item.setData(0, Qt.UserRole, str(path))
+        item.setData(0, Qt.UserRole + 1, "file")
+        item.setToolTip(0, str(path))
+        return item
+
+    def _make_folder_item(self, folder: Path) -> QTreeWidgetItem:
+        item = QTreeWidgetItem([folder.name, "folder"])
+        item.setIcon(0, icon_folder_green())
+        item.setData(0, Qt.UserRole, str(folder))
+        item.setData(0, Qt.UserRole + 1, "folder")
+        item.setToolTip(0, str(folder))
+        return item
+
+    def _add_path_to_queue(self, path: Path, *, parent_item: QTreeWidgetItem | None = None) -> None:
         path = path.resolve()
         if path in self._queue:
             return
         self._queue.append(path)
-        item = QTreeWidgetItem([path.name, self._format_size(path)])
-        item.setData(0, Qt.UserRole, str(path))
-        item.setData(0, Qt.UserRole + 1, "file")
-        item.setToolTip(0, str(path))
-        self.input_tree.addTopLevelItem(item)
+        self._file_roots[path] = path.parent
+        item = self._make_file_item(path)
+        if parent_item is not None:
+            parent_item.addChild(item)
+        else:
+            self.input_tree.addTopLevelItem(item)
         if self._base_root is None:
             self._base_root = path.parent
         self._maybe_auto_format_from_first_file(path)
+        self._refresh_output_dir_suggestion()
+        self._update_queue_label()
+
+    def _import_batch_folder(self, folder: Path) -> None:
+        folder = folder.resolve()
+        if folder in self._folder_queue:
+            return
+        self._folder_queue.append(folder)
+        folder_item = self._make_folder_item(folder)
+        for f in sorted(folder.rglob("*")):
+            if not f.is_file() or not is_image_file(f):
+                continue
+            f = f.resolve()
+            if f in self._queue:
+                continue
+            self._queue.append(f)
+            self._file_roots[f] = folder
+            rel = f.relative_to(folder)
+            child = self._make_file_item(f, label=str(rel))
+            folder_item.addChild(child)
+        self.input_tree.addTopLevelItem(folder_item)
+        folder_item.setExpanded(True)
+        if self._base_root is None:
+            self._base_root = folder
+        if self._queue:
+            self._maybe_auto_format_from_first_file(self._queue[0])
+        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _add_folder_to_queue(self, folder: Path) -> None:
@@ -869,13 +950,11 @@ class MainWindow(QMainWindow):
         if folder in self._folder_queue:
             return
         self._folder_queue.append(folder)
-        item = QTreeWidgetItem([f"📁 {folder.name}", "folder"])
-        item.setData(0, Qt.UserRole, str(folder))
-        item.setData(0, Qt.UserRole + 1, "folder")
-        item.setToolTip(0, str(folder))
+        item = self._make_folder_item(folder)
         self.input_tree.addTopLevelItem(item)
         if self._base_root is None:
             self._base_root = folder
+        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _paths_from_items(self, items: list[QTreeWidgetItem]) -> list[Path]:
@@ -910,10 +989,20 @@ class MainWindow(QMainWindow):
         if self.wiz_sequence_cb.isChecked():
             self._add_folder_to_queue(root)
             return
-        self._base_root = root
-        for f in sorted(root.rglob("*")):
-            if f.is_file() and is_image_file(f):
-                self._add_path_to_queue(f)
+        self._import_batch_folder(root)
+
+    def _handle_dropped_urls(self, urls) -> None:
+        for url in urls:
+            p = Path(url.toLocalFile())
+            if not p.exists():
+                continue
+            if p.is_dir():
+                if self.wiz_sequence_cb.isChecked():
+                    self._add_folder_to_queue(p)
+                else:
+                    self._import_batch_folder(p)
+            elif p.is_file() and is_image_file(p):
+                self._add_path_to_queue(p)
 
     def _selected_file_paths(self) -> list[Path]:
         paths: list[Path] = []
@@ -989,8 +1078,15 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Folder wyjściowy")
         if folder:
             self.output_enabled_cb.setChecked(True)
+            self._output_dir_manual = True
             self.output_dir_edit.setText(folder)
             log_event("Folder wyjściowy", folder)
+
+    def _remove_files_for_folder(self, folder: Path) -> None:
+        to_remove = [f for f in self._queue if self._file_roots.get(f) == folder]
+        for f in to_remove:
+            self._queue.remove(f)
+            self._file_roots.pop(f, None)
 
     def _remove_selected(self) -> None:
         for item in self.input_tree.selectedItems():
@@ -998,17 +1094,28 @@ class MainWindow(QMainWindow):
             if self._item_kind(item) == "folder":
                 if p in self._folder_queue:
                     self._folder_queue.remove(p)
+                self._remove_files_for_folder(p)
             elif p in self._queue:
                 self._queue.remove(p)
-            idx = self.input_tree.indexOfTopLevelItem(item)
-            if idx >= 0:
-                self.input_tree.takeTopLevelItem(idx)
+                self._file_roots.pop(p, None)
+            parent = item.parent()
+            if parent is not None and parent != self.input_tree.invisibleRootItem():
+                parent.removeChild(item)
+            else:
+                idx = self.input_tree.indexOfTopLevelItem(item)
+                if idx >= 0:
+                    self.input_tree.takeTopLevelItem(idx)
+        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _clear_queue(self) -> None:
         self._queue.clear()
         self._folder_queue.clear()
+        self._file_roots.clear()
+        self._base_root = None
+        self._output_dir_manual = False
         self.input_tree.clear()
+        self._refresh_output_dir_suggestion()
         self._update_queue_label()
         self.preview_label.clear()
         self.size_info.clear()
@@ -1069,18 +1176,7 @@ class MainWindow(QMainWindow):
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:
-        for url in event.mimeData().urls():
-            p = Path(url.toLocalFile())
-            if p.is_dir():
-                if self.wiz_sequence_cb.isChecked():
-                    self._add_folder_to_queue(p)
-                else:
-                    self._base_root = p
-                    for f in sorted(p.rglob("*")):
-                        if f.is_file() and is_image_file(f):
-                            self._add_path_to_queue(f)
-            elif p.is_file() and is_image_file(p):
-                self._add_path_to_queue(p)
+        self._handle_dropped_urls(event.mimeData().urls())
         event.acceptProposedAction()
 
     def _open_format_settings(self) -> None:
@@ -1128,35 +1224,16 @@ class MainWindow(QMainWindow):
         payload = self._custom_preset_payloads.get(pid)
         self._resize, self._transforms = apply_size_preset(pid, custom_payload=payload)
 
-    def _source_roots(self, queue: list[Path]) -> set[Path]:
-        return {p.parent.resolve() for p in queue}
-
     def _prepare_output_for_convert(self, inputs: list[Path]) -> bool:
         if self.wiz_sequence_cb.isChecked():
             return True
         if not self._output_path_active():
             return True
+        if not self.output_dir_edit.text().strip():
+            self._refresh_output_dir_suggestion()
         explicit = self.output_dir_edit.text().strip()
         if explicit:
             self._output_layout = "single"
-            return True
-        roots = self._source_roots(inputs)
-        if len(roots) > 1:
-            choice = ask_multi_folder_output(self)
-            if choice is None:
-                return False
-            self._output_layout = choice
-            if choice == "single":
-                start = str(inputs[0].parent)
-                folder = QFileDialog.getExistingDirectory(
-                    self,
-                    "Wybierz jeden folder na wszystkie zdjęcia",
-                    start,
-                )
-                if not folder:
-                    return False
-                self.output_enabled_cb.setChecked(True)
-                self.output_dir_edit.setText(folder)
             return True
         self._output_layout = "beside"
         return True
@@ -1164,11 +1241,8 @@ class MainWindow(QMainWindow):
     def _output_dir_for_input(self, inp: Path, queue: list[Path], explicit_out: str) -> Path:
         if explicit_out:
             return Path(explicit_out)
-        if self._output_layout == "beside":
-            return inp.parent / CONVERTED_FOLDER_NAME
-        if queue:
-            return queue[0].parent / CONVERTED_FOLDER_NAME
-        return Path.cwd() / CONVERTED_FOLDER_NAME
+        root = self._structure_root_for(inp)
+        return root / CONVERTED_FOLDER_NAME
 
     def _build_jobs(self, inputs: list[Path] | None = None) -> list[JobSpec]:
         queue = inputs if inputs is not None else self._queue
@@ -1196,7 +1270,7 @@ class MainWindow(QMainWindow):
                 else:
                     out = build_output_path(
                         inp, out_dir, fmt,
-                        base_root=self._base_root if use_output else None,
+                        base_root=self._structure_root_for(inp) if use_output else None,
                         preserve_structure=use_output and self.preserve_cb.isChecked(),
                         segregate_by_extension=segregate,
                     )
