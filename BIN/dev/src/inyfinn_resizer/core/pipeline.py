@@ -29,6 +29,7 @@ from inyfinn_resizer.core.job import JobResult, JobSpec, JobStatus
 from inyfinn_resizer.core.metadata.exif import strip_metadata_file
 from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_scale_postprocess, apply_transforms
 from inyfinn_resizer.core.transforms.matte import apply_jpeg_matte
+from inyfinn_resizer.core.transforms.background_removal import remove_background
 from inyfinn_resizer.core.image_loader import ensure_export_rgb, open_image
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
 from inyfinn_resizer.core.compressors.png import resolve_png_max_colors, count_rare_green_accents
@@ -59,6 +60,11 @@ def _init_vips() -> bool:
 
 
 def _polish_error(exc: Exception) -> str:
+    if isinstance(exc, UnicodeDecodeError):
+        return (
+            "Błąd DirectML/ONNX przy usuwaniu tła — spróbuj ponownie "
+            "(aplikacja przełączy się na CPU)."
+        )
     msg = str(exc).strip() or exc.__class__.__name__
     low = msg.lower()
     if "decompressionbomb" in low or "exceeds limit" in low:
@@ -73,6 +79,10 @@ def _polish_error(exc: Exception) -> str:
         return "Błąd odczytu pliku (uszkodzony lub nadpisany w trakcie zapisu)."
     if "libvips" in low or "dll" in low or "vips" in low:
         return f"Błąd dekodowania obrazu: {msg}"
+    if "rembg" in low or "onnx" in low or "u2net" in low or "birefnet" in low:
+        return f"Usuwanie tła: {msg}"
+    if "brak modelu" in low:
+        return msg
     return msg
 
 
@@ -158,6 +168,65 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
         image.write_to_file(str(path))
 
 
+def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
+    """Pipeline z usunięciem tła — zachowuje kanał alpha."""
+    from PIL import Image
+
+    im = open_image(job.input_path)
+    try:
+        im = remove_background(
+            im,
+            model_name=job.transforms.bg_model,
+            alpha_matting=job.transforms.bg_alpha_matting,
+            post_process_mask=job.transforms.bg_post_process_mask,
+        )
+        im = apply_transforms_pil(im, job.transforms)
+        im = apply_resize_pil(im, job.resize)
+        im = apply_scale_postprocess_pil(im, job.resize)
+        if im.mode != "RGBA":
+            im = im.convert("RGBA")
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        fmt = job.output_format.lower()
+        opts = job.format_opts
+        quality = max(0, min(100, opts.quality))
+        if not opts.lossless and fmt in ("webp", "jpeg"):
+            quality = _effective_lossy_quality(job.input_path, quality)
+
+        if fmt == "png":
+            im.save(out_path, format="PNG", optimize=opts.optimize)
+        elif fmt == "webp":
+            im.save(
+                out_path,
+                format="WEBP",
+                quality=quality,
+                method=6,
+                lossless=opts.lossless,
+            )
+        elif fmt == "avif":
+            _save_avif_rgba(im, out_path, quality, opts.lossless)
+        elif fmt == "jpeg":
+            flat = Image.new("RGB", im.size, (255, 255, 255))
+            flat.paste(im, mask=im.split()[-1])
+            flat.save(out_path, format="JPEG", quality=quality, optimize=True)
+        else:
+            im.save(out_path, format="PNG", optimize=True)
+    finally:
+        im.close()
+
+
+def _save_avif_rgba(im, out_path: Path, quality: int, lossless: bool) -> None:
+    tmp = out_path.with_suffix(".rgba.tmp.png")
+    try:
+        im.save(tmp, format="PNG")
+        ok, msg = compress_avif_avifenc(tmp, out_path, quality, lossless)
+        if ok:
+            return
+        raise OSError(msg or "avifenc")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def _save_pillow_fallback(job: JobSpec, out_path: Path) -> None:
     im = open_image(job.input_path)
     try:
@@ -217,9 +286,26 @@ def _save_jp2_pillow(im: Image.Image, out_path: Path, quality: int) -> None:
         raise OSError(f"JPEG2000: {exc}") from exc
 
 
+def _image_has_alpha(path: Path) -> bool:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as im:
+            if im.mode in ("RGBA", "LA"):
+                return True
+            if im.mode == "P" and "transparency" in im.info:
+                return True
+    except Exception:
+        return False
+    return False
+
+
 def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
     detail = ""
     if fmt == "png" and not opts.lossless:
+        if _image_has_alpha(path):
+            optimize_png_oxipng(path)
+            return "oxipng (alpha)"
         if opts.png_mode == "png24":
             optimize_png_oxipng(path)
             return detail
@@ -261,12 +347,24 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
             tmp.unlink(missing_ok=True)
     elif fmt == "gif":
         tmp = path.with_suffix(".gif.tmp.gif")
+        gif_lossy = opts.gif_lossy
+        gif_colors = opts.gif_max_colors
+        if opts.gif_from_quality and opts.gif_mode == "quality":
+            from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality
+
+            gif_lossy = gif_lossy_for_quality(opts.quality)
+            gif_colors = palette_colors_for_quality(opts.quality)
         ok, msg = compress_gif(
-            path, tmp,
+            path,
+            tmp,
+            mode=opts.gif_mode,
+            level=opts.gif_level,
             quality=opts.quality,
             dither=opts.gif_dither,
-            lossy=opts.gif_lossy,
-            colors=opts.gif_max_colors if opts.gif_from_quality else None,
+            lossy=gif_lossy,
+            colors=gif_colors if opts.gif_mode == "quality" else None,
+            ultra_max_frames=opts.gif_ultra_max_frames,
+            ultra_lossy=opts.gif_ultra_lossy,
         )
         if ok and tmp.exists():
             shutil.move(str(tmp), str(path))
@@ -292,6 +390,10 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
         ask_before_overwrite=job.ask_before_overwrite,
     )
     result.job = job
+
+    from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
+
+    ensure_stdio()
 
     if not inp.is_file():
         result.status = JobStatus.ERROR
@@ -324,7 +426,9 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
             src_bytes = result.old_bytes
             cmyk_tiff = _is_cmyk_tiff(inp)
             use_vips = not cmyk_tiff and fmt not in ("bmp",) and _init_vips()
-            if fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
+            if job.transforms.remove_background:
+                _save_pillow_rgba(job, staging)
+            elif fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
                 shutil.copy2(inp, staging)
             elif use_vips:
                 try:

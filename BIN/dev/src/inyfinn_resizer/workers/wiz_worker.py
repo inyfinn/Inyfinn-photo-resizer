@@ -23,7 +23,7 @@ class WizWorker(QObject):
     def run(self) -> None:
         results: list[WizFolderResult] = []
         total = len(self.folders)
-        for i, folder in enumerate(self.folders, start=1):
+        for i, folder in enumerate(self.folders):
             self.progress.emit(i, total, folder.name)
             try:
                 result = process_wiz_folder(folder, self.slider_val)
@@ -31,6 +31,7 @@ class WizWorker(QObject):
                 self.folder_done.emit(result)
             except Exception as e:
                 self.error.emit(f"{folder}: {e}")
+            self.progress.emit(i + 1, total, folder.name)
         self.finished.emit(results)
 
 

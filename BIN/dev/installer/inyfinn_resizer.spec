@@ -4,6 +4,8 @@
 import os
 from pathlib import Path
 
+from PyInstaller.utils.hooks import copy_metadata
+
 block_cipher = None
 ROOT = Path(SPECPATH).resolve().parent
 SRC = ROOT / "src"
@@ -51,6 +53,31 @@ def _collect_tool_binaries():
                 out.append(
                     (str(item), str(Path("tools/libvips") / rel.parent).replace("\\", "/"))
                 )
+    rmbg = TOOLS / "rmbg"
+    if rmbg.is_dir():
+        for item in rmbg.glob("*.onnx"):
+            out.append((str(item), "tools/rmbg"))
+    return out
+
+
+def _collect_package_metadata():
+    """rembg/pymatting używają importlib.metadata — bez .dist-info w EXE pada alpha matting."""
+    out = []
+    for pkg in (
+        "pymatting",
+        "rembg",
+        "pooch",
+        "scipy",
+        "skimage",
+        "imageio",
+        "llvmlite",
+        "numba",
+        "onnxruntime",
+    ):
+        try:
+            out.extend(copy_metadata(pkg))
+        except Exception:
+            pass
     return out
 
 
@@ -70,12 +97,16 @@ def _collect_imagecodecs_binaries():
 
 binaries = _collect_tool_binaries() + _collect_imagecodecs_binaries()
 
+_icon_datas = [(str(ICON), ".")] if ICON.is_file() else []
+
 a = Analysis(
     [str(SRC / "inyfinn_resizer" / "main.py")],
     pathex=[str(SRC)],
     binaries=binaries,
     datas=[
         (str(SRC / "inyfinn_resizer" / "app" / "themes"), "inyfinn_resizer/app/themes"),
+        *_icon_datas,
+        *_collect_package_metadata(),
     ],
     hiddenimports=[
         "pyvips",
@@ -90,6 +121,13 @@ a = Analysis(
         "imagecodecs._tiff",
         "imagecodecs._shared",
         "pillow_heif",
+        "rembg",
+        "onnxruntime",
+        "onnxruntime.capi",
+        "pymatting",
+        "pooch",
+        "skimage",
+        "scipy",
     ],
     hookspath=[],
     hooksconfig={},

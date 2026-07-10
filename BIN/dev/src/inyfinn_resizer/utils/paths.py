@@ -53,13 +53,27 @@ def tools_dir() -> Path:
     return project_root() / "tools"
 
 
+def rmbg_models_dir() -> Path:
+    """Katalog modeli ONNX dla rembg (U2NET_HOME)."""
+    return tools_dir() / "rmbg"
+
+
 def tool_env_path(tool_path: Path) -> str:
     """Katalog narzędzia + bundle tools — DLL pngquant/gifsicle na Windows."""
     parts: list[str] = []
     bundled = bundle_dir()
     if bundled is not None:
         parts.append(str(bundled))
-        for sub in ("tools/pngquant", "tools/gifsicle", "tools/cwebp", "tools/oxipng", "tools/avifenc", "tools/libvips/bin", "tools"):
+        for sub in (
+            "tools/pngquant",
+            "tools/gifsicle",
+            "tools/cwebp",
+            "tools/oxipng",
+            "tools/avifenc",
+            "tools/libvips/bin",
+            "tools/rmbg",
+            "tools",
+        ):
             p = bundled / sub.replace("/", os.sep)
             if p.is_dir():
                 parts.append(str(p))
@@ -97,16 +111,31 @@ def bundled_libvips() -> bool:
 
 def bootstrap_runtime_paths() -> None:
     """Ustaw PATH dla narzędzi z _internal (pngquant, gifsicle) w EXE."""
+    from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
+
+    ensure_stdio()
     bundled = bundle_dir()
     if bundled is None:
         return
     parts = [str(bundled)]
-    for sub in ("tools/pngquant", "tools/gifsicle", "tools/cwebp", "tools/oxipng", "tools/avifenc", "tools/libvips/bin", "tools"):
+    for sub in (
+        "tools/pngquant",
+        "tools/gifsicle",
+        "tools/cwebp",
+        "tools/oxipng",
+        "tools/avifenc",
+        "tools/libvips/bin",
+        "tools/rmbg",
+        "tools",
+    ):
         p = bundled / sub.replace("/", os.sep)
         if p.is_dir():
             parts.append(str(p))
     existing = os.environ.get("PATH", "")
     os.environ["PATH"] = os.pathsep.join(parts + [existing])
+    rmbg = rmbg_models_dir()
+    if rmbg.is_dir():
+        os.environ["U2NET_HOME"] = str(rmbg)
     ensure_vips_lib()
 
 

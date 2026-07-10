@@ -116,6 +116,8 @@ def snapshot_from_window(window: MainWindow) -> dict[str, Any]:
         "preview": window.preview_cb.isChecked(),
         "sort_mode": window.sort_combo.currentIndex(),
         "formats": window.format_combo.selected_formats(),
+        "remove_background": window.remove_bg_cb.isChecked(),
+        "bg_model": window.bg_model_combo.currentData() or "birefnet-general-lite",
     }
     return data
 
@@ -185,6 +187,11 @@ def restore_to_window(window: MainWindow, data: dict[str, Any]) -> None:
             window.preview_cb.setChecked(bool(ui["preview"]))
         if "sort_mode" in ui:
             window.sort_combo.setCurrentIndex(int(ui["sort_mode"]))
+        if "remove_background" in ui:
+            window._transforms.remove_background = bool(ui["remove_background"])
+        if "bg_model" in ui:
+            window._transforms.bg_model = str(ui["bg_model"])
+        window._sync_remove_bg_ui()
     finally:
         window._programmatic_settings = False
     window._update_advanced_summary()

@@ -24,7 +24,7 @@ from inyfinn_resizer.app.dialogs.advanced_options import (
     AdvancedSettingsPanel,
 )
 from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
-from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS
+from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
 from inyfinn_resizer.app.widgets.layout_helpers import style_dropdown
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality
@@ -91,6 +91,11 @@ class FormatSettingsDialog(AppDialog):
         self._gif_lossy: QSpinBox | None = None
         self._gif_from_quality: QCheckBox | None = None
         self._gif_colors_label: QLabel | None = None
+        self._gif_mode: QComboBox | None = None
+        self._gif_level: QSpinBox | None = None
+        self._gif_ultra_frames: QSpinBox | None = None
+        self._gif_ultra_lossy: QSpinBox | None = None
+        self._gif_mode_hint: QLabel | None = None
         self._advanced_panel: AdvancedSettingsPanel | None = None
 
         layout = QVBoxLayout(self)
@@ -242,15 +247,47 @@ class FormatSettingsDialog(AppDialog):
     def _gif_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
+        fl.setSpacing(8)
+
+        self._gif_mode = style_dropdown(QComboBox())
+        self._gif_mode.addItem("Jakość (2 z 3 klatek + lossy)", "quality")
+        self._gif_mode.addItem("Klatki (redukcja bez utraty jakości)", "frames")
+        self._gif_mode.addItem("ULTRA (max 4 klatki, zamrożenia)", "ultra")
+        self._gif_mode.setToolTip(UI_TOOLTIPS["gif_mode_quality"])
+        self._gif_mode.currentIndexChanged.connect(self._sync_gif_mode_controls)
+        fl.addRow("Tryb kompresji:", self._gif_mode)
+
+        self._gif_mode_hint = QLabel()
+        self._gif_mode_hint.setObjectName("hintLabel")
+        self._gif_mode_hint.setWordWrap(True)
+        fl.addRow(self._gif_mode_hint)
+
+        self._gif_level = QSpinBox()
+        self._gif_level.setRange(1, 10)
+        self._gif_level.setToolTip(UI_TOOLTIPS["gif_level"])
+        fl.addRow("Poziom (1–10):", self._gif_level)
+
+        self._gif_ultra_frames = QSpinBox()
+        self._gif_ultra_frames.setRange(2, 8)
+        self._gif_ultra_frames.setValue(4)
+        self._gif_ultra_frames.setToolTip("Maksymalna liczba klatek w trybie ULTRA (domyślnie 4).")
+        fl.addRow("ULTRA — max klatek:", self._gif_ultra_frames)
+
+        self._gif_ultra_lossy = QSpinBox()
+        self._gif_ultra_lossy.setRange(0, 200)
+        self._gif_ultra_lossy.setValue(70)
+        self._gif_ultra_lossy.setToolTip("Lossy w trybie ULTRA (domyślnie 70).")
+        fl.addRow("ULTRA — lossy:", self._gif_ultra_lossy)
+
         self._gif_dither = QCheckBox("Dithering (szum — gładkie przejścia kolorów)")
         self._gif_dither.setToolTip(
             "Dithering dodaje drobny szum, żeby gradienty wyglądały ładniej przy małej liczbie kolorów."
         )
         fl.addRow(self._gif_dither)
 
-        self._gif_from_quality = QCheckBox("Lossy i kolory z suwaka jakości")
+        self._gif_from_quality = QCheckBox("Lossy i kolory z suwaka jakości (tylko tryb Jakość)")
         self._gif_from_quality.setToolTip(
-            "Gdy włączone, lossy i liczba kolorów są liczone z głównego suwaka Jakość (jak PNG)."
+            "Gdy włączone, lossy i liczba kolorów są liczone z głównego suwaka Jakość."
         )
         self._gif_from_quality.toggled.connect(self._sync_gif_controls)
         fl.addRow(self._gif_from_quality)
@@ -311,8 +348,43 @@ class FormatSettingsDialog(AppDialog):
             self._jpeg_gradient_reverse.setEnabled(gradient)
         self._update_matte_preview()
 
+    def _sync_gif_mode_controls(self) -> None:
+        mode = "quality"
+        if self._gif_mode:
+            data = self._gif_mode.currentData()
+            mode = str(data) if data else "quality"
+        hints = {
+            "quality": UI_TOOLTIPS["gif_mode_quality"],
+            "frames": UI_TOOLTIPS["gif_mode_frames"],
+            "ultra": UI_TOOLTIPS["gif_mode_ultra"],
+        }
+        if self._gif_mode_hint:
+            self._gif_mode_hint.setText(hints.get(mode, ""))
+        quality_mode = mode == "quality"
+        ultra_mode = mode == "ultra"
+        if self._gif_level:
+            self._gif_level.setEnabled(not ultra_mode)
+            self._gif_level.setToolTip(
+                UI_TOOLTIPS["gif_level"] if not ultra_mode else "W ULTRA poziom nie dotyczy — używane są zamrożenia."
+            )
+        if self._gif_from_quality:
+            self._gif_from_quality.setEnabled(quality_mode)
+        if self._gif_ultra_frames:
+            self._gif_ultra_frames.setEnabled(ultra_mode)
+        if self._gif_ultra_lossy:
+            self._gif_ultra_lossy.setEnabled(ultra_mode)
+        self._sync_gif_controls()
+
     def _sync_gif_controls(self) -> None:
-        auto = bool(self._gif_from_quality and self._gif_from_quality.isChecked())
+        mode = "quality"
+        if self._gif_mode:
+            data = self._gif_mode.currentData()
+            mode = str(data) if data else "quality"
+        auto = bool(
+            mode == "quality"
+            and self._gif_from_quality
+            and self._gif_from_quality.isChecked()
+        )
         if self._gif_lossy:
             self._gif_lossy.setEnabled(not auto)
         self._update_gif_labels()
@@ -397,8 +469,17 @@ class FormatSettingsDialog(AppDialog):
             self._gif_lossy.setValue(self._opts.gif_lossy)
         if self._gif_from_quality:
             self._gif_from_quality.setChecked(self._opts.gif_from_quality)
+        if self._gif_mode:
+            idx = max(0, self._gif_mode.findData(self._opts.gif_mode))
+            self._gif_mode.setCurrentIndex(idx)
+        if self._gif_level:
+            self._gif_level.setValue(self._opts.gif_level)
+        if self._gif_ultra_frames:
+            self._gif_ultra_frames.setValue(self._opts.gif_ultra_max_frames)
+        if self._gif_ultra_lossy:
+            self._gif_ultra_lossy.setValue(self._opts.gif_ultra_lossy)
         self._sync_matte_controls()
-        self._sync_gif_controls()
+        self._sync_gif_mode_controls()
 
     def _reset(self) -> None:
         self._opts = FormatOptions()
@@ -430,11 +511,20 @@ class FormatSettingsDialog(AppDialog):
             self._opts.png_mode = modes[self._png_mode.currentIndex()]
         if self._gif_dither:
             self._opts.gif_dither = self._gif_dither.isChecked()
+        if self._gif_mode:
+            data = self._gif_mode.currentData()
+            self._opts.gif_mode = str(data) if data else "quality"
+        if self._gif_level:
+            self._opts.gif_level = self._gif_level.value()
+        if self._gif_ultra_frames:
+            self._opts.gif_ultra_max_frames = self._gif_ultra_frames.value()
+        if self._gif_ultra_lossy:
+            self._opts.gif_ultra_lossy = self._gif_ultra_lossy.value()
         if self._gif_from_quality:
             self._opts.gif_from_quality = self._gif_from_quality.isChecked()
         if self._gif_lossy:
             self._opts.gif_lossy = self._gif_lossy.value()
-        if self._opts.gif_from_quality:
+        if self._opts.gif_from_quality and self._opts.gif_mode == "quality":
             self._opts.gif_max_colors = palette_colors_for_quality(self._opts.quality)
             self._opts.gif_lossy = gif_lossy_for_quality(self._opts.quality)
         return self._opts

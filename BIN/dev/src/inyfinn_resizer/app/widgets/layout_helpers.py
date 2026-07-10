@@ -21,10 +21,11 @@ from PySide6.QtWidgets import (
 
 BTN_H = 28
 FOOTER_BTN_H = 32
-ROW_GAP = 4
-FIELD_GAP = 2
-SECTION_GAP = 4
+ROW_GAP = 2
+FIELD_GAP = 1
+SECTION_GAP = 3
 COMPACT_LABEL_W = 78
+COMPACT_ROW_H = 24
 
 
 def hint_label(text: str) -> QLabel:
@@ -60,12 +61,12 @@ def field_group(label: str, control: QWidget, hint: str = "") -> QWidget:
     return wrap
 
 
-def compact_row(label: str, control: QWidget, *, tooltip: str = "") -> QWidget:
+def compact_row(label: str, control: QWidget, *, tooltip: str = "", tight: bool = False) -> QWidget:
     """Jeden wiersz: etykieta | kontrolka (kompaktowy formularz)."""
     wrap = QWidget()
     row = QHBoxLayout(wrap)
     row.setContentsMargins(0, 0, 0, 0)
-    row.setSpacing(8)
+    row.setSpacing(6)
     lbl = field_label(label, tooltip)
     lbl.setMinimumWidth(COMPACT_LABEL_W)
     lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
@@ -73,6 +74,8 @@ def compact_row(label: str, control: QWidget, *, tooltip: str = "") -> QWidget:
         control.setToolTip(tooltip)
     row.addWidget(lbl)
     row.addWidget(control, stretch=1)
+    if tight:
+        wrap.setFixedHeight(COMPACT_ROW_H)
     return wrap
 
 

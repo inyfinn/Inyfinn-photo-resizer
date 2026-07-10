@@ -24,6 +24,18 @@ BIN/dev/tests/output/*
 BIN/dev/tools/libvips/
 BIN/dev/tools/pngquant/pngquant.exe
 BIN/dev/tools/gifsicle/
+BIN/dev/tools/rmbg/
+
+# Artefakty testow lokalnych
+BIN/dev/session_*.txt
+BIN/dev/test_result*.txt
+BIN/dev/test_out_*.png
+
+# ZIP release (GitHub Releases)
+release/
+
+# Ikona kopiowana przy buildzie
+InyfinnPhotoResizer.ico
 
 # OS / logi
 .DS_Store

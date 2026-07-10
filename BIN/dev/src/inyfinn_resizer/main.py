@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import sys
 
+from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
+
+ensure_stdio()
+
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
@@ -15,9 +19,17 @@ def _app_icon() -> QIcon | None:
     from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundle_dir, project_root
 
     bootstrap_runtime_paths()
+    candidates: list[Path] = []
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent)
     for base in (project_root(), bundle_dir()):
-        if base is None:
+        if base is not None:
+            candidates.append(base)
+    seen: set[Path] = set()
+    for base in candidates:
+        if base in seen:
             continue
+        seen.add(base)
         for name in ("InyfinnPhotoResizer.ico", "icon.ico"):
             path = base / name
             if path.is_file():

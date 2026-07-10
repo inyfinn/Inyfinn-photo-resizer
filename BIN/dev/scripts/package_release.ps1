@@ -31,6 +31,7 @@ if (-not (Test-Path $venvPy)) {
 & $venvPy -m pip install -e . pyinstaller -q 3>$null
 
 & (Join-Path $DevRoot "scripts\setup_tools.ps1")
+& (Join-Path $DevRoot "scripts\setup_rmbg_models.ps1")
 
 $pq = Join-Path $DevRoot "tools\pngquant\pngquant.exe"
 if (-not (Test-Path $pq)) {
@@ -73,8 +74,10 @@ if (-not (Test-Path $binInternal)) {
 
 $iconSrc = Join-Path $DevRoot "assets\icon.ico"
 $iconDst = Join-Path $BinRoot "InyfinnPhotoResizer.ico"
+$rootIconDst = Join-Path $AppRoot "InyfinnPhotoResizer.ico"
 if (Test-Path $iconSrc) {
     Copy-Item $iconSrc $iconDst -Force
+    Copy-Item $iconSrc $rootIconDst -Force
 }
 
 $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -108,7 +111,11 @@ if (-not $launcherBuilt) {
     if ((Test-Path $csc) -and (Test-Path $netfxSrc)) {
         New-Item -ItemType Directory -Force -Path $netfxOut | Out-Null
         $netfxExe = Join-Path $netfxOut "InyfinnPhotoResizer.exe"
-        & $csc /nologo /target:winexe /out:$netfxExe `
+        $iconArg = ""
+        if (Test-Path $iconSrc) {
+            $iconArg = "/win32icon:$iconSrc"
+        }
+        & $csc /nologo /target:winexe /out:$netfxExe $iconArg `
             /reference:System.dll `
             /reference:System.Windows.Forms.dll `
             $netfxSrc

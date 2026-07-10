@@ -400,3 +400,46 @@
 **Efekt/Fix:** Wersja **1.0.33** w kodzie; dokumentacja poza korzeniem; rebuild przez agenta
 
 **Źródła:** feedback użytkownika (screenshoty UI); ui-ux-pro-max (separatory, loading feedback)
+
+---
+
+## 2026-07-10 — v1.0.48 overlay + GIF + fix General
+
+**Komenda/Akcja:** Overlay postępu per plik, layout, usuwanie tła General, pełny port GIF
+
+**Log/Status:**
+1. `frozen_stdio.py` — naprawa `NoneType.write` w EXE (console=False)
+2. `background_removal.py` — aliasy ONNX `birefnet-general.onnx` z lokalnych plików
+3. `conversion_overlay.py` — karty per plik na środku okna (scrim + panel)
+4. `batch_worker.py` — sygnały `file_started` / `file_finished`
+5. `main_window.py` — layout: Liczba kolorów pod Jakość, Skala wyrównana, siatka opcji, Szybko/Najlepsza Jakość
+6. `gif.py` — port quality/frames/ultra z KOMPRESJA GIFÓW (presety 1–10, ultra_plan, zamrożenia)
+7. `format_settings.py` — zakładka GIF: tryb, poziom, ULTRA max klatek/lossy
+8. `format_multi_combo.py` — wyszarzenie formatów bez alpha + tooltip przezroczystości
+
+**Efekt/Fix:** Build **v1.0.48** — `InyfinnPhotoResizer.exe` + `BIN\_internal\`
+
+**Test/Ewaluacja:** pytest 29/31 OK (2 stare fail PNG); smoke General model z `ensure_stdio`
+
+**Źródła:** KOMPRESJA GIFÓW/gif_core.py; feedback UI (screenshoty); ui-ux-pro-max
+
+---
+
+## 2026-07-10 — v1.0.49 postęp, przerwanie, Lite fix, tabela
+
+**Komenda/Akcja:** UX overlay (czas/ETA/symulacja), ESC/X przerwanie, fix utf-8 Lite, resize kolumn wyników
+
+**Log/Status:**
+1. `progress_simulator.py` — symulowany postęp do 90% (General ~150s, Lite ~60s); 100% tylko po fakcie
+2. `conversion_overlay.py` — czerwony ✕, ESC, Czas + ETA, bez czarnej ramki kart
+3. `main_window.py` — podłączenie simulatora, dialog „Przerwać konwersję?”, anulowanie batch
+4. `batch_worker.py` — `request_cancel`, sygnał `cancelled`
+5. `background_removal.py` — retry CPU po błędzie DirectML/UnicodeDecodeError (przyczyna utf-8 Lite)
+6. `results_dialog.py` — kolumny `Interactive` (przeciąganie separatorów), bez resetu przy resize
+7. `app.qss` — styl `overlayAbortBtn`, usunięte obramowania kart overlay
+
+**Efekt/Fix:** Build **v1.0.49**
+
+**Test/Ewaluacja:** pytest `test_background_removal` + `test_batch_progress` — 6/6 OK
+
+**Źródła:** diagnoza ONNX/DML cp1250 → UnicodeDecodeError; feedback użytkownika (screenshoty)

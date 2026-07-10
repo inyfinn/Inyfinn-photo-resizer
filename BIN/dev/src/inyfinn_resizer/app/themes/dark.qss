@@ -415,7 +415,7 @@ QListView#formatMultiList::item {
     min-height: 24px;
 }
 
-QListView#formatMultiList::item:hover {
+QListView#formatMultiList::item:hover:!selected {
     background-color: #1e2d4a;
 }
 

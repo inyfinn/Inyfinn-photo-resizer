@@ -68,6 +68,22 @@ _DEFAULT_WIDTHS = {
 }
 
 
+_STRETCH_COLUMNS: set[int] = set()
+
+
+def _apply_responsive_column_modes(table: QTableWidget) -> None:
+    hdr = table.horizontalHeader()
+    hdr.setStretchLastSection(False)
+    hdr.setSectionResizeMode(_COL_LP, QHeaderView.ResizeMode.Fixed)
+    table.setColumnWidth(_COL_LP, _DEFAULT_WIDTHS[_COL_LP])
+    for col in range(table.columnCount()):
+        if col == _COL_LP:
+            continue
+        hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        if table.columnWidth(col) < 56:
+            table.setColumnWidth(col, _DEFAULT_WIDTHS.get(col, 120))
+
+
 def _configure_results_table(table: QTableWidget) -> QHeaderView:
     table.setObjectName("resultsTable")
     table.setShowGrid(True)
@@ -80,15 +96,12 @@ def _configure_results_table(table: QTableWidget) -> QHeaderView:
     table.setCornerButtonEnabled(False)
 
     hdr = table.horizontalHeader()
-    hdr.setStretchLastSection(True)
     hdr.setSectionsMovable(True)
     hdr.setSectionsClickable(True)
     hdr.setHighlightSections(True)
     hdr.setMinimumSectionSize(56)
-    hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-    hdr.setSectionResizeMode(_COL_LP, QHeaderView.ResizeMode.Fixed)
-    for col, width in _DEFAULT_WIDTHS.items():
-        table.setColumnWidth(col, width)
+    hdr.setDefaultSectionSize(120)
+    _apply_responsive_column_modes(table)
     hdr.setSortIndicatorShown(False)
     return hdr
 
@@ -135,8 +148,7 @@ class ResultsDialog(AppDialog):
             ]
         )
         self._table_header = _configure_results_table(self.table)
-        if not restore_results_table_header(self._table_header):
-            pass
+        restore_results_table_header(self._table_header)
         restore_results_dialog_geometry(self)
         layout.addWidget(self.table, stretch=1)
 
@@ -257,6 +269,7 @@ class WizResultsDialog(AppDialog):
         )
         _configure_results_table(self.table)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table, stretch=1)
 
         row = 0

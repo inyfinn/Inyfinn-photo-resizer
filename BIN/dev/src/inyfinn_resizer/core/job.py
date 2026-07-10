@@ -61,6 +61,10 @@ class TransformOptions:
     saturation: float = 1.0
     grayscale: bool = False
     sepia: bool = False
+    remove_background: bool = False
+    bg_model: str = "birefnet-general-lite"
+    bg_alpha_matting: bool = True
+    bg_post_process_mask: bool = True
 
 
 @dataclass
@@ -109,6 +113,10 @@ class FormatOptions:
     gif_lossy: int = 0
     gif_max_colors: int = 256
     gif_from_quality: bool = True
+    gif_mode: str = "quality"  # quality | frames | ultra
+    gif_level: int = 6
+    gif_ultra_max_frames: int = 4
+    gif_ultra_lossy: int = 70
 
 
 @dataclass
@@ -212,6 +220,10 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "gif_lossy": fo.gif_lossy,
             "gif_max_colors": fo.gif_max_colors,
             "gif_from_quality": fo.gif_from_quality,
+            "gif_mode": fo.gif_mode,
+            "gif_level": fo.gif_level,
+            "gif_ultra_max_frames": fo.gif_ultra_max_frames,
+            "gif_ultra_lossy": fo.gif_ultra_lossy,
         },
         "resize": {
             "mode": _enum_val(ro.mode),
@@ -243,6 +255,10 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "crop_h": tr.crop_h,
             "grayscale": tr.grayscale,
             "sepia": tr.sepia,
+            "remove_background": tr.remove_background,
+            "bg_model": tr.bg_model,
+            "bg_alpha_matting": tr.bg_alpha_matting,
+            "bg_post_process_mask": tr.bg_post_process_mask,
         },
         "metadata": {
             "keep_exif": md.keep_exif,
@@ -288,6 +304,10 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
             gif_lossy=int(fo.get("gif_lossy", 0)),
             gif_max_colors=int(fo.get("gif_max_colors", 256)),
             gif_from_quality=bool(fo.get("gif_from_quality", True)),
+            gif_mode=str(fo.get("gif_mode", "quality")),
+            gif_level=int(fo.get("gif_level", 6)),
+            gif_ultra_max_frames=int(fo.get("gif_ultra_max_frames", 4)),
+            gif_ultra_lossy=int(fo.get("gif_ultra_lossy", 70)),
         ),
         resize=ResizeOptions(
             mode=resize_mode,
@@ -319,6 +339,10 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
             crop_h=int(tr.get("crop_h", 0)),
             grayscale=bool(tr.get("grayscale", False)),
             sepia=bool(tr.get("sepia", False)),
+            remove_background=bool(tr.get("remove_background", False)),
+            bg_model=str(tr.get("bg_model", "birefnet-general-lite")),
+            bg_alpha_matting=bool(tr.get("bg_alpha_matting", True)),
+            bg_post_process_mask=bool(tr.get("bg_post_process_mask", True)),
         ),
         metadata=MetadataPolicy(
             keep_exif=bool(md.get("keep_exif", True)),

@@ -24,6 +24,7 @@ def _result_to_dict(result: JobResult) -> dict:
     return {
         "input_path": str(result.job.input_path),
         "output_path": str(result.job.output_path),
+        "output_format": result.job.output_format,
         "status": result.status.value,
         "message": result.message,
         "old_bytes": result.old_bytes,
@@ -38,24 +39,33 @@ def _use_thread_pool() -> bool:
 
 class BatchWorker(QObject):
     progress = Signal(int, int, str)  # current, total, filename
-    file_done = Signal(dict)
+    file_started = Signal(int, str)  # index, phase
+    file_finished = Signal(int, str, str)  # index, status, message
     finished = Signal(list)
     error = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, jobs: list[JobSpec], parallel: bool = True, overwrite: bool = True):
         super().__init__()
         self.jobs = jobs
         self.parallel = parallel
         self.overwrite = overwrite
+        self._cancelled = False
+
+    def request_cancel(self) -> None:
+        self._cancelled = True
 
     def run(self) -> None:
+        from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
+
+        ensure_stdio()
         results: list[JobResult] = []
         total = len(self.jobs)
         if total == 0:
             self.finished.emit(results)
             return
 
-        if self.parallel and total > 1:
+        if self.parallel and total > 1 and not self._cancelled:
             workers = max(1, min((os.cpu_count() or 2) - 1, 4 if _use_thread_pool() else 8))
             job_dicts = [job_to_dict(j) for j in self.jobs]
             executor_cls = ThreadPoolExecutor if _use_thread_pool() else ProcessPoolExecutor
@@ -70,9 +80,14 @@ class BatchWorker(QObject):
                         pool.submit(_worker_process, jd, self.overwrite): i
                         for i, jd in enumerate(job_dicts)
                     }
+                for idx in range(total):
+                    self.file_started.emit(idx, "Oczekiwanie w kolejce")
                 done = 0
                 for fut in as_completed(futures):
+                    if self._cancelled:
+                        break
                     idx = futures[fut]
+                    self.file_started.emit(idx, "Przetwarzanie…")
                     done += 1
                     try:
                         if _use_thread_pool():
@@ -80,8 +95,10 @@ class BatchWorker(QObject):
                             data = _result_to_dict(result)
                         else:
                             data = fut.result()
+                        status = data["status"]
+                        msg = data["message"] or ""
+                        self.file_finished.emit(idx, status, msg)
                         self.progress.emit(done, total, Path(data["input_path"]).name)
-                        self.file_done.emit(data)
                         results.append(self._dict_to_result(data, self.jobs[idx]))
                     except Exception as e:
                         err_job = self.jobs[idx]
@@ -92,17 +109,23 @@ class BatchWorker(QObject):
                             old_bytes=err_job.input_path.stat().st_size if err_job.input_path.is_file() else 0,
                         )
                         data = _result_to_dict(err_result)
+                        self.file_finished.emit(idx, "ERROR", str(e))
                         self.progress.emit(done, total, Path(data["input_path"]).name)
-                        self.file_done.emit(data)
                         results.append(err_result)
         else:
             for i, job in enumerate(self.jobs):
-                self.progress.emit(i + 1, total, job.input_path.name)
+                if self._cancelled:
+                    break
+                self.file_started.emit(i, "Przetwarzanie…")
+                self.progress.emit(i, total, job.input_path.name)
                 result = process_job(job, overwrite=self.overwrite)
                 data = _result_to_dict(result)
-                self.file_done.emit(data)
+                self.file_finished.emit(i, result.status.value, result.message or "")
                 results.append(result)
+                self.progress.emit(i + 1, total, job.input_path.name)
 
+        if self._cancelled:
+            self.cancelled.emit()
         self.finished.emit(results)
 
     @staticmethod
@@ -120,7 +143,12 @@ class BatchThread(QThread):
     def __init__(self, worker: BatchWorker):
         super().__init__()
         self._worker = worker
+        self.was_cancelled = False
         worker.moveToThread(self)
+
+    def request_cancel(self) -> None:
+        self._worker.request_cancel()
 
     def run(self) -> None:
         self._worker.run()
+        self.was_cancelled = self._worker._cancelled

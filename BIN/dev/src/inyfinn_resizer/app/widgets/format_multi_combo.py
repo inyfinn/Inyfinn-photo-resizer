@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QMouseEvent, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QMouseEvent, QPainter, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -16,6 +16,11 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer.app.i18n_pl import FORMAT_LABEL_PL
+from inyfinn_resizer.app.i18n_tooltips import (
+    ALPHA_OUTPUT_FORMATS,
+    FORMAT_ALPHA_TIPS,
+    FORMAT_EXTENSION_TIPS,
+)
 from inyfinn_resizer.core.formats.registry import OUTPUT_FORMATS
 
 PRIMARY_FORMATS = ("webp", "jpeg", "png", "avif", "gif", "tiff", "heic", "bmp", "jp2", "pdf")
@@ -24,6 +29,8 @@ _MULTI_SELECT_TOOLTIP = (
     "Kliknij nazwę formatu, aby wybrać tylko ten format.\n"
     "Możesz zaznaczyć więcej, jeśli chcesz — użyj Ctrl, Shift lub kliknij checkbox."
 )
+
+_ALPHA_NO_TRANSPARENCY_TIP = "To rozszerzenie nie obsługuje przezroczystości."
 
 
 class _FormatListView(QListView):
@@ -58,6 +65,18 @@ class _FormatListView(QListView):
 
 class _FormatItemDelegate(QStyledItemDelegate):
     """Delegate that paints checkboxes without letting Qt auto-toggle on row click."""
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        opt = QStyleOptionViewItem(option)
+        model = index.model()
+        if isinstance(model, QStandardItemModel):
+            item = model.itemFromIndex(index)
+            if item is not None:
+                if not (item.flags() & Qt.ItemFlag.ItemIsEnabled):
+                    opt.palette.setColor(opt.palette.ColorRole.Text, opt.palette.color(opt.palette.ColorRole.Mid))
+                elif item.checkState() == Qt.CheckState.Checked:
+                    opt.state &= ~QStyle.StateFlag.State_MouseOver
+        super().paint(painter, opt, index)
 
     def editorEvent(
         self,
@@ -99,6 +118,8 @@ class FormatMultiCombo(QComboBox):
         self._list_model = QStandardItemModel(self)
         self._block_item_changed = False
         self._anchor_row = 0
+        self._alpha_only_mode = False
+        self._formats_before_alpha: list[str] = []
 
         for key in PRIMARY_FORMATS:
             if key not in OUTPUT_FORMATS:
@@ -106,6 +127,7 @@ class FormatMultiCombo(QComboBox):
             label = FORMAT_LABEL_PL.get(key, OUTPUT_FORMATS[key]["label"])
             item = QStandardItem(label)
             item.setData(key, Qt.ItemDataRole.UserRole)
+            item.setToolTip(FORMAT_EXTENSION_TIPS.get(key, label))
             item.setFlags(
                 Qt.ItemFlag.ItemIsEnabled
                 | Qt.ItemFlag.ItemIsSelectable
@@ -125,6 +147,58 @@ class FormatMultiCombo(QComboBox):
         self._list_model.itemChanged.connect(self._on_item_changed)
         self.setModel(self._list_model)
         self.set_selected(["webp"])
+
+    def set_alpha_only_mode(self, enabled: bool) -> None:
+        """Ogranicza wybór do formatów z kanałem alpha (PNG/WebP/AVIF)."""
+        if enabled == self._alpha_only_mode:
+            return
+        self._alpha_only_mode = enabled
+        if enabled:
+            self._formats_before_alpha = self.selected_formats()
+            allowed = [f for f in self._formats_before_alpha if f in ALPHA_OUTPUT_FORMATS]
+            if not allowed:
+                allowed = ["png"]
+            self.set_selected(allowed)
+        else:
+            restore = self._formats_before_alpha or ["webp"]
+            self.set_selected(restore)
+            self._formats_before_alpha = []
+        self._apply_alpha_row_states()
+        self._update_alpha_combo_style()
+
+    def _update_alpha_combo_style(self) -> None:
+        if self._alpha_only_mode:
+            self.setToolTip(
+                "Usuwanie tła wymaga formatu z przezroczystością (PNG, WebP, AVIF).\n"
+                + _ALPHA_NO_TRANSPARENCY_TIP
+            )
+        else:
+            self.setToolTip(_MULTI_SELECT_TOOLTIP)
+        line = self.lineEdit()
+        if line is not None:
+            line.setToolTip(self.toolTip())
+
+    def _apply_alpha_row_states(self) -> None:
+        self._block_item_changed = True
+        try:
+            for row in range(self._list_model.rowCount()):
+                item = self._list_model.item(row)
+                key = self._item_key(item)
+                if self._alpha_only_mode and key not in ALPHA_OUTPUT_FORMATS:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                    item.setToolTip(_ALPHA_NO_TRANSPARENCY_TIP)
+                else:
+                    item.setFlags(
+                        Qt.ItemFlag.ItemIsEnabled
+                        | Qt.ItemFlag.ItemIsSelectable
+                        | Qt.ItemFlag.ItemIsUserCheckable
+                    )
+                    if self._alpha_only_mode and key in FORMAT_ALPHA_TIPS:
+                        item.setToolTip(FORMAT_ALPHA_TIPS[key])
+                    else:
+                        item.setToolTip(FORMAT_EXTENSION_TIPS.get(key, item.text()))
+        finally:
+            self._block_item_changed = False
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         line = self.lineEdit()
@@ -185,6 +259,8 @@ class FormatMultiCombo(QComboBox):
     def set_selected(self, keys: list[str]) -> None:
         if not keys:
             keys = ["webp"]
+        if self._alpha_only_mode:
+            keys = [k for k in keys if k in ALPHA_OUTPUT_FORMATS] or ["png"]
         self._apply_check_states(keys)
         self._update_summary()
         self.selectionChanged.emit()
@@ -222,6 +298,9 @@ class FormatMultiCombo(QComboBox):
             self._keep_popup_open = False
             return
         key = self._item_key(item)
+        if self._alpha_only_mode and key not in ALPHA_OUTPUT_FORMATS:
+            self._keep_popup_open = False
+            return
         view = self.view()
         on_checkbox = isinstance(view, QListView) and self._click_on_checkbox(view, pos)
 

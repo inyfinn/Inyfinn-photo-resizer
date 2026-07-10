@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inyfinn-resizer"
-version = "1.0.29"
+version = "1.0.47"
 description = "Native batch image converter and compressor — FastStone-style desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,6 +20,9 @@ dependencies = [
     "pillow-heif>=0.18",
     "watchdog>=4.0",
     "piexif>=1.1",
+    "rembg>=2.0.76",
+    "pymatting>=1.1.14",
+    "onnxruntime-directml>=1.19",
 ]
 
 [project.optional-dependencies]

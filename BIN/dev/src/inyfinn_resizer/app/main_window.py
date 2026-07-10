@@ -52,11 +52,15 @@ from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
 from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
 from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
+from inyfinn_resizer.app.widgets.conversion_overlay import ConversionOverlay
+from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
 from inyfinn_resizer.app.widgets.layout_helpers import (
     BTN_H,
+    COMPACT_LABEL_W,
+    COMPACT_ROW_H,
     browse_button,
     compact_row,
     field_label,
@@ -119,7 +123,7 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
 DEFAULT_WINDOW_WIDTH = 1200
-DEFAULT_WINDOW_HEIGHT = 850
+DEFAULT_WINDOW_HEIGHT = 765
 MIN_WINDOW_WIDTH = DEFAULT_WINDOW_WIDTH
 MIN_WINDOW_HEIGHT = DEFAULT_WINDOW_HEIGHT
 RIGHT_PANEL_MIN_WIDTH = 500
@@ -147,6 +151,7 @@ class MainWindow(QMainWindow):
         self._rename = RenameRule()
         self._batch = BatchSettings()
         self._batch_thread: BatchThread | None = None
+        self._active_jobs: list[JobSpec] = []
         self._wiz_thread: WizThread | None = None
         self._folder_queue: list[Path] = []
         self._theme = load_theme()
@@ -165,6 +170,7 @@ class MainWindow(QMainWindow):
         self._update_advanced_summary()
         self._apply_saved_theme()
         load_session(self)
+        self._sync_remove_bg_ui()
         if self.output_dir_edit.text().strip():
             self._output_dir_manual = True
         elif self._output_path_active():
@@ -182,14 +188,21 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self._app_footer)
         self.statusBar().showMessage("Przeciągnij zdjęcia na listę po lewej")
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_conversion_overlay") and self.centralWidget():
+            self._conversion_overlay.setGeometry(self.centralWidget().rect())
+
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        if hasattr(self, "_conversion_overlay") and self.centralWidget():
+            self._conversion_overlay.setGeometry(self.centralWidget().rect())
         if not self._initial_size_applied:
             self._initial_size_applied = True
             QTimer.singleShot(0, self._fit_initial_window_size)
 
     def _fit_initial_window_size(self) -> None:
-        """Domyślny rozmiar 1200×850 — nie mniejszy niż MIN."""
+        """Domyślny rozmiar 1200×765 — nie mniejszy niż MIN."""
         screen = self.screen().availableGeometry()
         w = max(MIN_WINDOW_WIDTH, min(DEFAULT_WINDOW_WIDTH, screen.width()))
         h = max(MIN_WINDOW_HEIGHT, min(DEFAULT_WINDOW_HEIGHT, screen.height()))
@@ -274,6 +287,12 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(20, 12, 20, 12)
         root.setSpacing(0)
         root.addWidget(self._build_convert_body(), stretch=1)
+        self._conversion_overlay = ConversionOverlay(central)
+        self._conversion_overlay.hide()
+        self._conversion_overlay.abort_requested.connect(self._on_overlay_abort)
+        self._progress_simulator = FileProgressSimulator(self)
+        self._progress_simulator.tick.connect(self._on_simulated_progress)
+        self._batch_cancelled = False
 
     def _build_convert_body(self) -> QWidget:
         splitter = QSplitter(Qt.Horizontal)
@@ -396,17 +415,18 @@ class MainWindow(QMainWindow):
         self._settings_body = body
         body.setObjectName("settingsBody")
         root = QVBoxLayout(body)
-        root.setSpacing(6)
-        root.setContentsMargins(12, 4, 16, 4)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        # Rozszerzenie + ustawienia formatu (etykieta nad wierszem — pełna szerokość)
+        # Rozszerzenie + ustawienia formatu
         ext_section = QWidget()
         ext_layout = QVBoxLayout(ext_section)
         ext_layout.setContentsMargins(0, 0, 0, 0)
-        ext_layout.setSpacing(4)
+        ext_layout.setSpacing(2)
         ext_layout.addWidget(field_label("Rozszerzenie", UI_TOOLTIPS["extension"]))
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(8)
+        fmt_row.setContentsMargins(0, 0, 0, 0)
         self.format_combo = FormatMultiCombo()
         style_dropdown(self.format_combo)
         self.format_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -417,33 +437,66 @@ class MainWindow(QMainWindow):
         self.settings_btn.setMinimumHeight(28)
         self.settings_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.settings_btn.setToolTip(
-            "Szczegóły rozszerzenia: PNG-8/24, tło JPG, dithering GIF, kadrowanie i opcje zaawansowane."
+            "Szczegóły rozszerzenia: PNG-8/24, tło JPG, kompresja GIF, kadrowanie i opcje zaawansowane."
         )
         self.settings_btn.clicked.connect(self._open_format_settings)
-        fmt_row.addWidget(self.settings_btn)
+        fmt_row.addWidget(self.settings_btn, 0, Qt.AlignRight)
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
         self.fmt_wrap = fmt_controls
         ext_layout.addWidget(fmt_controls)
         root.addWidget(ext_section)
 
+        top_opts_grid = QGridLayout()
+        top_opts_grid.setSpacing(4)
+        top_opts_grid.setContentsMargins(0, 0, 0, 0)
+
         self.segregate_cb = QCheckBox("Segreguj do podfolderów")
         self.segregate_cb.setChecked(False)
         self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
-        root.addWidget(self.segregate_cb)
+        top_opts_grid.addWidget(self.segregate_cb, 0, 0)
+
+        bg_opts = QWidget()
+        bg_opts_layout = QHBoxLayout(bg_opts)
+        bg_opts_layout.setContentsMargins(0, 0, 0, 0)
+        bg_opts_layout.setSpacing(6)
+        self.remove_bg_cb = QCheckBox("Usuń tło")
+        self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
+        self.remove_bg_cb.toggled.connect(self._on_remove_bg_toggled)
+        bg_opts_layout.addWidget(self.remove_bg_cb)
+        self.bg_model_combo = QComboBox()
+        self.bg_model_combo.setObjectName("bgModelCombo")
+        self.bg_model_combo.setMinimumWidth(140)
+        self.bg_model_combo.addItem("Szybko", "birefnet-general-lite")
+        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_lite"], Qt.ToolTipRole)
+        self.bg_model_combo.addItem("Najlepsza Jakość", "birefnet-general")
+        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_general"], Qt.ToolTipRole)
+        self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_lite"])
+        self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
+        style_dropdown(self.bg_model_combo)
+        bg_opts_layout.addWidget(self.bg_model_combo)
+        top_opts_grid.addWidget(bg_opts, 0, 1)
 
         self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
         self.wiz_sequence_cb.setToolTip(UI_TOOLTIPS["wiz"])
         self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
-        root.addWidget(self.wiz_sequence_cb)
+        top_opts_grid.addWidget(self.wiz_sequence_cb, 1, 0)
+        top_opts_grid.setColumnStretch(0, 1)
+        top_opts_grid.setColumnStretch(1, 1)
+        root.addLayout(top_opts_grid)
+        root.addSpacing(2)
 
-        # Kompresja — etykieta | suwak | wartość (poziomo)
+        sliders_block = QWidget()
+        sliders_layout = QVBoxLayout(sliders_block)
+        sliders_layout.setContentsMargins(0, 0, 0, 0)
+        sliders_layout.setSpacing(0)
+
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setRange(0, 100)
         self.quality_slider.setValue(DEFAULT_QUALITY)
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         self.quality_label = QLabel(str(DEFAULT_QUALITY))
-        root.addWidget(compact_row(
+        sliders_layout.addWidget(compact_row(
             "Jakość",
             slider_control(
                 self.quality_slider,
@@ -451,6 +504,36 @@ class MainWindow(QMainWindow):
                 tooltip=UI_TOOLTIPS["quality"],
             ),
             tooltip=UI_TOOLTIPS["quality"],
+            tight=True,
+        ))
+
+        self.png_colors_slider = QSlider(Qt.Horizontal)
+        self.png_colors_slider.setRange(24, 256)
+        self.png_colors_slider.setValue(256)
+        self.png_colors_slider.valueChanged.connect(self._on_png_colors_changed)
+        self.png_colors_label = QLabel("256")
+        colors_slider_row = slider_control(
+            self.png_colors_slider,
+            self.png_colors_label,
+            tooltip=UI_TOOLTIPS["color_count"],
+        )
+        colors_extras = QHBoxLayout()
+        colors_extras.setContentsMargins(0, 0, 0, 0)
+        colors_extras.setSpacing(4)
+        colors_extras.addWidget(colors_slider_row, stretch=1)
+        self.png_colors_auto_cb = QCheckBox("Z jakości")
+        self.png_colors_auto_cb.setChecked(True)
+        self.png_colors_auto_cb.setToolTip(UI_TOOLTIPS["color_count"])
+        self.png_colors_auto_cb.toggled.connect(self._on_png_colors_auto)
+        self.png_colors_slider.setEnabled(False)
+        colors_extras.addWidget(self.png_colors_auto_cb)
+        colors_wrap = QWidget()
+        colors_wrap.setLayout(colors_extras)
+        sliders_layout.addWidget(compact_row(
+            "Liczba kolorów",
+            colors_wrap,
+            tooltip=UI_TOOLTIPS["color_count"],
+            tight=True,
         ))
 
         self.scale_slider = QSlider(Qt.Horizontal)
@@ -458,18 +541,23 @@ class MainWindow(QMainWindow):
         self.scale_slider.setValue(100)
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         self.scale_label = QLabel("100%")
-        scale_slider_row = slider_control(
-            self.scale_slider,
-            self.scale_label,
+        sliders_layout.addWidget(compact_row(
+            "Skala",
+            slider_control(
+                self.scale_slider,
+                self.scale_label,
+                tooltip=UI_TOOLTIPS["scale"],
+            ),
             tooltip=UI_TOOLTIPS["scale"],
-        )
-        scale_wrap = QWidget()
-        scale_layout = QVBoxLayout(scale_wrap)
-        scale_layout.setContentsMargins(0, 0, 0, 0)
-        scale_layout.setSpacing(4)
-        scale_layout.addWidget(scale_slider_row)
-        min_row = QHBoxLayout()
-        min_row.setContentsMargins(0, 0, 0, 0)
+            tight=True,
+        ))
+        root.addWidget(sliders_block)
+        root.addSpacing(2)
+
+        min_row_widget = QWidget()
+        min_row_widget.setFixedHeight(COMPACT_ROW_H)
+        min_row = QHBoxLayout(min_row_widget)
+        min_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
         min_row.setSpacing(6)
         self.min_longest_cb = QCheckBox("Min. najdłuższa krawędź")
         self.min_longest_cb.setChecked(True)
@@ -489,40 +577,8 @@ class MainWindow(QMainWindow):
         px_lbl.setObjectName("hintLabel")
         min_row.addWidget(px_lbl)
         min_row.addStretch(1)
-        scale_layout.addLayout(min_row)
-        root.addWidget(compact_row(
-            "Skala",
-            scale_wrap,
-            tooltip=UI_TOOLTIPS["scale"],
-        ))
-
-        self.png_colors_slider = QSlider(Qt.Horizontal)
-        self.png_colors_slider.setRange(24, 256)
-        self.png_colors_slider.setValue(256)
-        self.png_colors_slider.valueChanged.connect(self._on_png_colors_changed)
-        self.png_colors_label = QLabel("256")
-        colors_slider_row = slider_control(
-            self.png_colors_slider,
-            self.png_colors_label,
-            tooltip=UI_TOOLTIPS["png_colors"],
-        )
-        colors_extras = QHBoxLayout()
-        colors_extras.setContentsMargins(0, 0, 0, 0)
-        colors_extras.setSpacing(4)
-        colors_extras.addWidget(colors_slider_row, stretch=1)
-        self.png_colors_auto_cb = QCheckBox("Z jakości")
-        self.png_colors_auto_cb.setChecked(True)
-        self.png_colors_auto_cb.setToolTip("Auto: 256/100%, 160/50%, 24/10%.")
-        self.png_colors_auto_cb.toggled.connect(self._on_png_colors_auto)
-        self.png_colors_slider.setEnabled(False)
-        colors_extras.addWidget(self.png_colors_auto_cb)
-        colors_wrap = QWidget()
-        colors_wrap.setLayout(colors_extras)
-        root.addWidget(compact_row(
-            "Kolory PNG",
-            colors_wrap,
-            tooltip=UI_TOOLTIPS["png_colors"],
-        ))
+        root.addWidget(min_row_widget)
+        root.addSpacing(2)
 
         self.size_combo = style_dropdown(QComboBox())
         self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
@@ -541,13 +597,13 @@ class MainWindow(QMainWindow):
         format_row_layout.setSpacing(6)
         format_row_layout.addWidget(self.size_combo, stretch=1)
         format_row_layout.addWidget(self.delete_preset_btn)
-        root.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"]))
+        root.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"], tight=True))
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
 
         out_section = QWidget()
         out_section_layout = QVBoxLayout(out_section)
         out_section_layout.setContentsMargins(0, 0, 0, 0)
-        out_section_layout.setSpacing(4)
+        out_section_layout.setSpacing(2)
         wyjscie_lbl = field_label("Wyjście", UI_TOOLTIPS["output_dir"])
         out_section_layout.addWidget(wyjscie_lbl)
 
@@ -684,7 +740,7 @@ class MainWindow(QMainWindow):
             log_event("Usunięto preset wymiarów", name)
             self._last_size_preset_id = PRESET_ORIGINAL
             self._reload_size_combo(select_id=PRESET_ORIGINAL)
-            self._resize, self._transforms = apply_size_preset(PRESET_ORIGINAL)
+            self._apply_resize_preset()
             self._mark_dirty()
 
     def _current_size_preset_id(self) -> str:
@@ -723,9 +779,12 @@ class MainWindow(QMainWindow):
         self.format_combo.setEnabled(not enabled)
         self.settings_btn.setEnabled(not enabled)
         self.fmt_wrap.setEnabled(not enabled)
+        self.remove_bg_cb.setEnabled(not enabled)
+        self.bg_model_combo.setEnabled(not enabled)
         if enabled:
             self.segregate_cb.setChecked(False)
             self.segregate_cb.setEnabled(False)
+            self.remove_bg_cb.setChecked(False)
             self.output_enabled_cb.setEnabled(False)
             self.output_dir_edit.setEnabled(False)
             self.convert_btn.setText("Konwertuj wizek")
@@ -734,6 +793,39 @@ class MainWindow(QMainWindow):
             self.output_enabled_cb.setEnabled(True)
             self._on_output_enabled_toggled(self.output_enabled_cb.isChecked())
             self.convert_btn.setText("Konwertuj")
+
+    def _on_remove_bg_toggled(self, enabled: bool) -> None:
+        self._transforms.remove_background = enabled
+        self._programmatic_settings = True
+        try:
+            self.format_combo.set_alpha_only_mode(enabled)
+            if enabled:
+                self._set_output_format_programmatically("png")
+        finally:
+            self._programmatic_settings = False
+        self._mark_dirty()
+
+    def _on_bg_model_changed(self, _index: int) -> None:
+        data = self.bg_model_combo.currentData()
+        if data:
+            self._transforms.bg_model = str(data)
+            tip = self.bg_model_combo.currentData(Qt.ToolTipRole)
+            if tip:
+                self.bg_model_combo.setToolTip(str(tip))
+        self._mark_dirty()
+
+    def _sync_remove_bg_ui(self) -> None:
+        enabled = self._transforms.remove_background
+        self.remove_bg_cb.setChecked(enabled)
+        model = self._transforms.bg_model or "birefnet-general-lite"
+        idx = self.bg_model_combo.findData(model)
+        if idx >= 0:
+            self.bg_model_combo.setCurrentIndex(idx)
+        self._programmatic_settings = True
+        try:
+            self.format_combo.set_alpha_only_mode(enabled)
+        finally:
+            self._programmatic_settings = False
 
     def _on_output_enabled_toggled(self, enabled: bool) -> None:
         if not self._programmatic_settings:
@@ -774,7 +866,27 @@ class MainWindow(QMainWindow):
 
     def _selected_formats(self) -> list[str]:
         fmts = self.format_combo.selected_formats()
-        return fmts if fmts else ["webp"]
+        if not fmts:
+            fmts = ["webp"]
+        if self._transforms.remove_background:
+            from inyfinn_resizer.app.i18n_tooltips import ALPHA_OUTPUT_FORMATS
+
+            fmts = [f for f in fmts if f in ALPHA_OUTPUT_FORMATS] or ["png"]
+        return fmts
+
+    def _validate_bg_removal_ready(self) -> bool:
+        if not self._transforms.remove_background:
+            return True
+        from inyfinn_resizer.core.transforms.background_removal import (
+            missing_model_message,
+            model_is_ready,
+        )
+
+        model = self._transforms.bg_model or "birefnet-general-lite"
+        if model_is_ready(model):
+            return True
+        show_warning(self, "Usuń tło", missing_model_message(model))
+        return False
 
     def _on_quality_changed(self, v: int) -> None:
         if not self._programmatic_settings:
@@ -1212,17 +1324,34 @@ class MainWindow(QMainWindow):
             self._save_custom_size_preset()
             return
         payload = self._custom_preset_payloads.get(pid)
-        self._resize, self._transforms = apply_size_preset(pid, custom_payload=payload)
+        self._apply_resize_preset()
         self._last_size_preset_id = pid
         self._update_delete_preset_btn()
         self._mark_dirty()
 
-    def _apply_size_preset(self) -> None:
+    def _preserve_bg_transform_fields(self, transforms: TransformOptions) -> TransformOptions:
+        return replace(
+            transforms,
+            remove_background=self.remove_bg_cb.isChecked(),
+            bg_model=str(self.bg_model_combo.currentData() or "birefnet-general-lite"),
+            bg_alpha_matting=True,
+            bg_post_process_mask=True,
+        )
+
+    def _apply_resize_preset(self) -> None:
         pid = self._current_size_preset_id()
         if pid == PRESET_SAVE_CUSTOM:
             return
         payload = self._custom_preset_payloads.get(pid)
-        self._resize, self._transforms = apply_size_preset(pid, custom_payload=payload)
+        resize, preset_transforms = apply_size_preset(pid, custom_payload=payload)
+        self._resize = resize
+        if is_custom_preset(pid) and payload and payload.get("transforms"):
+            self._transforms = self._preserve_bg_transform_fields(preset_transforms)
+        else:
+            self._transforms = self._preserve_bg_transform_fields(self._transforms)
+
+    def _apply_size_preset(self) -> None:
+        self._apply_resize_preset()
 
     def _prepare_output_for_convert(self, inputs: list[Path]) -> bool:
         if self.wiz_sequence_cb.isChecked():
@@ -1334,6 +1463,8 @@ class MainWindow(QMainWindow):
         if not self.format_combo.selected_formats():
             show_warning(self, "Konwersja", "Zaznacz co najmniej jeden format wyjściowy.")
             return
+        if not self._validate_bg_removal_ready():
+            return
         if not self._prepare_output_for_convert(inputs):
             return
         jobs = self._build_jobs(inputs=inputs)
@@ -1352,12 +1483,11 @@ class MainWindow(QMainWindow):
                     overwrite = False
 
         self.convert_btn.setEnabled(False)
-        self.progress.setVisible(True)
-        self.progress_label.setVisible(True)
-        self.progress.setMaximum(len(jobs))
-        self.progress.setValue(0)
-        self.progress_label.setText("Przygotowanie…")
+        self.progress.setVisible(False)
+        self.progress_label.setVisible(False)
+        self._batch_cancelled = False
         self._convert_start = time.time()
+        self._active_jobs = jobs
         fmts = "+".join(self._selected_formats())
         preset = self._current_size_preset_id()
         log_event(
@@ -1365,15 +1495,99 @@ class MainWindow(QMainWindow):
             f"{len(jobs)} zadań, formaty: {fmts}, preset: {preset}",
         )
 
+        overlay_items = [(j.input_path.name, j.output_format) for j in jobs]
+        self._conversion_overlay.start_batch(overlay_items)
+
         worker = BatchWorker(jobs, parallel=self.parallel_cb.isChecked(), overwrite=overwrite)
-        self._batch_thread = BatchThread(worker)
         worker.progress.connect(self._on_progress)
+        worker.file_started.connect(self._on_file_started)
+        worker.file_finished.connect(self._on_file_finished)
         worker.finished.connect(self._on_finished)
         worker.error.connect(self._on_batch_error)
+        worker.cancelled.connect(self._on_batch_cancelled)
+        self._progress_simulator.tick.connect(self._on_simulated_progress)
+        self._batch_thread = BatchThread(worker)
         self._batch_thread.start()
+
+    def _on_overlay_abort(self) -> None:
+        if not self._batch_thread or not self._batch_thread.isRunning():
+            self._conversion_overlay.finish()
+            return
+        if not ask_yes_no(
+            self,
+            "Przerwać konwersję?",
+            "Czy na pewno chcesz przerwać konwersję?\n"
+            "Plik aktualnie przetwarzany może się jeszcze dokończyć.",
+        ):
+            return
+        self._batch_cancelled = True
+        self._batch_thread.request_cancel()
+        self._progress_simulator.stop()
+        self.statusBar().showMessage("Przerywanie konwersji…")
+
+    def _on_batch_cancelled(self) -> None:
+        self._batch_cancelled = True
+
+    def _on_simulated_progress(self, index: int, percent: int, phase: str) -> None:
+        if index < len(self._active_jobs):
+            job = self._active_jobs[index]
+            self._conversion_overlay.set_file_state(
+                index,
+                state=phase,
+                percent=percent,
+                detail=f"→ {job.output_format.upper()}",
+            )
+        eta = self._progress_simulator.estimate_remaining_sec()
+        self._conversion_overlay.set_eta_seconds(eta)
+
+    def _on_file_started(self, index: int, phase: str) -> None:
+        if index >= len(self._active_jobs):
+            return
+        job = self._active_jobs[index]
+        bg = job.transforms.remove_background
+        self._progress_simulator.start_file(
+            index,
+            bg_removal=bg,
+            bg_model=job.transforms.bg_model or "birefnet-general-lite",
+        )
+        detail = f"→ {job.output_format.upper()}"
+        if bg:
+            model_label = (
+                "Najlepsza Jakość"
+                if job.transforms.bg_model == "birefnet-general"
+                else "Szybko"
+            )
+            detail = f"Usuwanie tła ({model_label}) · {job.output_format.upper()}"
+        self._conversion_overlay.set_file_state(
+            index,
+            state=phase,
+            percent=5,
+            detail=detail,
+            force=True,
+        )
+        eta = self._progress_simulator.estimate_remaining_sec()
+        self._conversion_overlay.set_eta_seconds(eta)
+
+    def _on_file_finished(self, index: int, status: str, message: str) -> None:
+        self._progress_simulator.complete_file(index)
+        ok = status == "OK"
+        state = "Gotowe" if ok else "Błąd"
+        detail = message[:120] if message and not ok else "Zapisano"
+        self._conversion_overlay.set_file_state(
+            index,
+            state=state,
+            percent=100 if ok else None,
+            detail=detail,
+            force=True,
+        )
+        self._conversion_overlay.set_eta_seconds(None)
 
     def _on_batch_error(self, message: str) -> None:
         log_event("Błąd konwersji", message, status="ERROR")
+        self.convert_btn.setEnabled(True)
+        self._progress_simulator.stop()
+        self._conversion_overlay.finish()
+        self._active_jobs = []
         show_critical(self, "Błąd", message)
 
     def _start_convert(self) -> None:
@@ -1385,6 +1599,8 @@ class MainWindow(QMainWindow):
             return
         if not self.format_combo.selected_formats():
             show_warning(self, "Konwersja", "Zaznacz co najmniej jeden format wyjściowy.")
+            return
+        if not self._validate_bg_removal_ready():
             return
         self._start_convert_subset(self._queue)
 
@@ -1451,16 +1667,31 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_progress(self, current: int, total: int, name: str) -> None:
-        self.progress.setValue(current)
-        pct = int(100 * current / total) if total else 0
-        self.progress_label.setText(f"Przetwarzanie {current}/{total} ({pct}%) — {name}")
-        self.statusBar().showMessage(f"Przetwarzanie {current}/{total}: {name}")
+        self._conversion_overlay.set_overall(current, total)
+        if total and current >= total:
+            pct = 100
+            line = f"Zakończono {current}/{total} ({pct}%) — {name}"
+        elif total and current <= 0:
+            pct = 0
+            line = f"Przetwarzanie {name}…"
+        else:
+            pct = int(100 * current / total)
+            line = f"Przetwarzanie {current}/{total} ({pct}%) — {name}"
+        self.statusBar().showMessage(line)
 
     def _on_finished(self, results) -> None:
         elapsed = time.time() - self._convert_start
         self.convert_btn.setEnabled(True)
-        self.progress.setVisible(False)
-        self.progress_label.setVisible(False)
+        self._progress_simulator.stop()
+        self._conversion_overlay.set_overall(len(results), max(len(results), len(self._active_jobs)))
+        self._conversion_overlay.finish()
+        self._active_jobs = []
+        if self._batch_cancelled:
+            self.statusBar().showMessage("Konwersja przerwana przez użytkownika")
+            if results:
+                dlg = ResultsDialog(results, elapsed, self)
+                dlg.exec()
+            return
         ok = sum(1 for r in results if r.status.value == "OK")
         err = len(results) - ok
         log_event(

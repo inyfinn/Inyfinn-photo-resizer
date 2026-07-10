@@ -39,6 +39,8 @@ def run_hidden(
         kwargs["stderr"] = subprocess.PIPE
         if text:
             kwargs["text"] = True
+            kwargs["encoding"] = "utf-8"
+            kwargs["errors"] = "replace"
     else:
         kwargs["stdout"] = subprocess.DEVNULL
         kwargs["stderr"] = subprocess.DEVNULL

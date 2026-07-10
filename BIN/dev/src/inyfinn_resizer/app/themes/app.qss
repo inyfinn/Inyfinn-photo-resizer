@@ -496,18 +496,18 @@ QListWidget {
 }
 
 QSlider::groove:horizontal {
-    height: 6px;
+    height: 4px;
     background: @BORDER@;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 QSlider::handle:horizontal {
-    width: 16px;
-    height: 16px;
-    margin: -5px 0;
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
     background: @ACCENT@;
     border: 2px solid @BG_PANEL@;
-    border-radius: 8px;
+    border-radius: 6px;
 }
 
 QSlider::sub-page:horizontal {
@@ -701,7 +701,7 @@ QListView#formatMultiList::item {
     min-height: 24px;
 }
 
-QListView#formatMultiList::item:hover {
+QListView#formatMultiList::item:hover:!selected {
     background-color: @BG_HOVER@;
 }
 
@@ -819,4 +819,111 @@ QMessageBox QPushButton#btnSecondary {
     border: 1px solid @BORDER@;
     min-height: 36px;
     max-height: 36px;
+}
+
+/* —— Overlay konwersji (per plik) —— */
+QWidget#conversionOverlay {
+    background-color: rgba(15, 23, 42, 0.42);
+}
+
+QFrame#conversionOverlayPanel {
+    background-color: @BG_PANEL@;
+    border: none;
+    border-radius: 10px;
+}
+
+QLabel#conversionOverlayTime {
+    color: @FG_MUTED@;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QPushButton#overlayAbortBtn {
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0;
+}
+
+QPushButton#overlayAbortBtn:hover {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
+QPushButton#overlayAbortBtn:pressed {
+    background: #fee2e2;
+}
+
+QLabel#conversionOverlayTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: @FG_TEXT@;
+}
+
+QLabel#conversionOverlaySummary {
+    color: @FG_MUTED@;
+    font-size: 12px;
+}
+
+QScrollArea#conversionOverlayScroll {
+    background: transparent;
+}
+
+QFrame#fileProgressCard {
+    background: @BG_PANEL_ALT@;
+    border: none;
+    border-radius: 8px;
+}
+
+QFrame#fileProgressCard[status="active"] {
+    background: @BG_PANEL_ALT@;
+}
+
+QFrame#fileProgressCard[status="done"] {
+    background: @BG_PANEL_ALT@;
+}
+
+QFrame#fileProgressCard[status="error"] {
+    background: @BG_PANEL_ALT@;
+}
+
+QLabel#fileProgressExt {
+    background: @BG_INPUT@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: @FG_ACCENT@;
+}
+
+QLabel#fileProgressName {
+    font-weight: 600;
+    color: @FG_TEXT@;
+}
+
+QLabel#fileProgressMeta {
+    color: @FG_MUTED@;
+    font-size: 11px;
+}
+
+QLabel#fileProgressPct {
+    color: @FG_MUTED@;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QProgressBar#fileProgressBar,
+QProgressBar#conversionOverlayOverall {
+    background: @BG_INPUT@;
+    border: none;
+    border-radius: 4px;
+}
+
+QProgressBar#fileProgressBar::chunk,
+QProgressBar#conversionOverlayOverall::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @ACCENT@, stop:1 #7c3aed);
+    border-radius: 4px;
 }
