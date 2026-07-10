@@ -190,8 +190,23 @@ if ($Release) {
         if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
     }
     New-Item -ItemType Directory -Force -Path $staging | Out-Null
-    $excludeDirs = @("PORTABLE", "release", ".git", ".cursor", ".venv", "build", "dist", "work", "work-launcher", "release-staging", "_staging")
-    robocopy $AppRoot $staging /E /NFL /NDL /NJH /NJS /nc /ns /np /XD $excludeDirs | Out-Null
+
+    # Tylko pliki runtime (bez BIN/dev, .venv, duplikatów modeli)
+    $rootExe = Join-Path $AppRoot "InyfinnPhotoResizer.exe"
+    if (Test-Path $rootExe) { Copy-Item $rootExe (Join-Path $staging "InyfinnPhotoResizer.exe") -Force }
+    $rootIco = Join-Path $AppRoot "InyfinnPhotoResizer.ico"
+    if (Test-Path $rootIco) { Copy-Item $rootIco (Join-Path $staging "InyfinnPhotoResizer.ico") -Force }
+    $binStaging = Join-Path $staging "BIN"
+    New-Item -ItemType Directory -Force -Path $binStaging | Out-Null
+    foreach ($item in @("InyfinnPhotoResizer.exe", "InyfinnPhotoResizer.ico", "WERSJA.txt")) {
+        $src = Join-Path $BinRoot $item
+        if (Test-Path $src) { Copy-Item $src (Join-Path $binStaging $item) -Force }
+    }
+    $internalSrc = Join-Path $BinRoot "_internal"
+    if (Test-Path $internalSrc) {
+        robocopy $internalSrc (Join-Path $binStaging "_internal") /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    }
+
     $readme = @"
 Inyfinn Photo Resizer v$version
 
@@ -200,6 +215,7 @@ Aplikacja: BIN\InyfinnPhotoResizer.exe + BIN\_internal\
 
 Skala: suwak pod Jakością (np. 50% = połowa wymiarów).
 Min. najdłuższa krawędź: domyślnie 1080 px (włączone).
+Usuwanie tła: modele BiRefNet w BIN\_internal\tools\rmbg\
 
 Zbudowano: $stamp
 "@
@@ -207,6 +223,7 @@ Zbudowano: $stamp
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
     cmd /c "rd /s /q `"$staging`"" 2>$null
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
-    Write-Host "RELEASE ZIP: $zipPath"
+    $zipMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+    Write-Host "RELEASE ZIP: $zipPath (${zipMb} MB)"
     Write-Host ""
 }
