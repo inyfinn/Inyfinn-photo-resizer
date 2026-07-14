@@ -26,8 +26,8 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
-    QSlider,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -59,15 +59,22 @@ from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
 from inyfinn_resizer.app.widgets.layout_helpers import (
     BTN_H,
+    COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
-    COMPACT_ROW_H,
+    SECTION_GAP,
     browse_button,
     compact_row,
     field_label,
     footer_button,
+    make_step_section,
     slider_control,
     style_dropdown,
     tool_button_row,
+)
+from inyfinn_resizer.app.widgets.section_icons import (
+    action_icon_folder_orange,
+    action_icon_refresh_path,
+    action_icon_restore,
 )
 from inyfinn_resizer.app.widgets.tool_icons import (
     icon_clear_gray,
@@ -104,6 +111,12 @@ from inyfinn_resizer.core.presets import (
     save_preset,
     settings_to_dict,
 )
+from inyfinn_resizer.core.retail_presets import (
+    RETAIL_NONE,
+    RETAIL_PRESETS,
+    retail_preset_by_id,
+    retail_snapshot_from_preset,
+)
 from inyfinn_resizer.core.size_presets import (
     BUILTIN_PRESETS,
     PRESET_ORIGINAL,
@@ -118,6 +131,7 @@ from inyfinn_resizer.core.size_presets import (
 )
 from inyfinn_resizer.utils.app_log import log_event
 from inyfinn_resizer.core.rename.templates import preview_rename
+from inyfinn_resizer.app.widgets.wheel_controls import WheelIntLineEdit, WheelSlider
 from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
@@ -163,6 +177,8 @@ class MainWindow(QMainWindow):
         self._custom_preset_payloads: dict[str, dict] = {}
         self._last_size_preset_id = PRESET_ORIGINAL
         self._output_layout = "beside"
+        self._retail_preset_snapshot: dict | None = None
+        self._active_retail_preset_id = RETAIL_NONE
 
         self._build_menu()
         self._build_ui()
@@ -173,8 +189,6 @@ class MainWindow(QMainWindow):
         self._sync_remove_bg_ui()
         if self.output_dir_edit.text().strip():
             self._output_dir_manual = True
-        elif self._output_path_active():
-            self._refresh_output_dir_suggestion()
         self._geometry_restored = restore_geometry(self)
         if not self._geometry_restored:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
@@ -266,6 +280,29 @@ class MainWindow(QMainWindow):
         strip_lay.setContentsMargins(0, 0, 12, 0)
         strip_lay.setSpacing(8)
         strip_lay.addWidget(menubar, stretch=1)
+        strip_lay.addSpacing(24)
+        preset_lbl = QLabel("Presety")
+        preset_lbl.setObjectName("menuPresetLabel")
+        preset_lbl.setToolTip("Preset sieci handlowej — ustawia format, wymiary i tło")
+        strip_lay.addWidget(preset_lbl, 0, Qt.AlignRight | Qt.AlignVCenter)
+        self.retail_preset_combo = style_dropdown(QComboBox())
+        self.retail_preset_combo.setObjectName("retailPresetCombo")
+        self.retail_preset_combo.setMinimumWidth(200)
+        self.retail_preset_combo.addItem("— wybierz sieć —", RETAIL_NONE)
+        for preset in RETAIL_PRESETS:
+            idx = self.retail_preset_combo.count()
+            self.retail_preset_combo.addItem(preset.label, preset.id)
+            self.retail_preset_combo.setItemData(idx, preset.tooltip, Qt.ToolTipRole)
+        self.retail_preset_combo.currentIndexChanged.connect(self._on_retail_preset_changed)
+        strip_lay.addWidget(self.retail_preset_combo, 0, Qt.AlignRight | Qt.AlignVCenter)
+        self.restore_retail_btn = QPushButton("Przywróć preset")
+        self.restore_retail_btn.setObjectName("btnSecondary")
+        self.restore_retail_btn.setIcon(action_icon_restore())
+        self.restore_retail_btn.setIconSize(QSize(16, 16))
+        self.restore_retail_btn.setToolTip("Przywraca ustawienia wybranej sieci po ręcznych zmianach")
+        self.restore_retail_btn.setEnabled(False)
+        self.restore_retail_btn.clicked.connect(self._restore_retail_preset)
+        strip_lay.addWidget(self.restore_retail_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
         theme_lbl = QLabel("Motyw")
         theme_lbl.setObjectName("themeToggleLabel")
         theme_lbl.setToolTip("Przełącz jasny lub ciemny motyw")
@@ -344,12 +381,23 @@ class MainWindow(QMainWindow):
         self.input_tree.customContextMenuRequested.connect(self._show_file_context_menu)
         left_layout.addWidget(self.input_tree, stretch=1)
 
+        left_layout.addWidget(self._build_preview_panel())
+
         splitter.addWidget(left_box)
 
         # —— Prawy panel: ustawienia (płasko jak FastStone) ——
-        right_shell, right_layout = self._make_panel("", "panel", titled=False, margins=(16, 16, 16, 16))
+        right_shell, right_layout = self._make_panel("", "panel", titled=False, margins=(16, 8, 16, 12))
         right_shell.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
-        right_layout.addWidget(self._build_settings_panel(), stretch=1)
+        settings_scroll = QScrollArea()
+        settings_scroll.setObjectName("settingsScroll")
+        settings_scroll.setWidgetResizable(True)
+        settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        settings_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        settings_scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        settings_body = self._build_settings_panel()
+        settings_scroll.setWidget(settings_body)
+        right_layout.addWidget(settings_scroll, stretch=1)
 
         progress_wrap = QWidget()
         progress_col = QVBoxLayout(progress_wrap)
@@ -368,41 +416,21 @@ class MainWindow(QMainWindow):
         progress_col.addWidget(self.progress)
         right_layout.addWidget(progress_wrap)
 
-        footer_row = QHBoxLayout()
-        footer_row.setSpacing(10)
-        prev_col = QVBoxLayout()
-        prev_col.setSpacing(6)
-        prev_col.setContentsMargins(0, 0, 0, 0)
-        self.preview_cb = QCheckBox("Podgląd")
-        self.preview_cb.setChecked(True)
-        self.preview_cb.setToolTip(UI_TOOLTIPS["preview"])
-        self.preview_cb.toggled.connect(lambda _v: self._mark_dirty())
-        prev_col.addWidget(self.preview_cb)
-        self.preview_label = QLabel()
-        self.preview_label.setObjectName("previewBox")
-        self.preview_label.setFixedSize(100, 100)
-        self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setScaledContents(False)
-        prev_col.addWidget(self.preview_label, alignment=Qt.AlignLeft)
-        self.size_info = QLabel("")
-        self.size_info.setObjectName("previewMeta")
-        self.size_info.setWordWrap(True)
-        prev_col.addWidget(self.size_info)
-        prev_col.addStretch(1)
-        footer_row.addLayout(prev_col, stretch=1)
-
-        btn_col = QVBoxLayout()
-        btn_col.setSpacing(8)
-        btn_col.setContentsMargins(0, 0, 0, 0)
-        btn_col.addStretch(1)
+        action_bar = QFrame()
+        action_bar.setObjectName("actionFooterBar")
+        action_row = QHBoxLayout(action_bar)
+        action_row.setContentsMargins(10, 8, 10, 8)
+        action_row.setSpacing(10)
+        action_row.addStretch(1)
         self.convert_btn = footer_button("Konwertuj", primary=True, slot=self._start_convert)
         self.convert_btn.setObjectName("footerConvert")
+        self.convert_btn.setFixedSize(132, 36)
         close_btn = footer_button("Zamknij", primary=False, slot=self.close)
         close_btn.setObjectName("footerClose")
-        btn_col.addWidget(self.convert_btn)
-        btn_col.addWidget(close_btn)
-        footer_row.addLayout(btn_col, 0)
-        right_layout.addLayout(footer_row)
+        close_btn.setFixedSize(112, 36)
+        action_row.addWidget(self.convert_btn)
+        action_row.addWidget(close_btn)
+        right_layout.addWidget(action_bar)
 
         splitter.addWidget(right_shell)
         splitter.setStretchFactor(0, 4)
@@ -410,20 +438,92 @@ class MainWindow(QMainWindow):
         splitter.setSizes([648, 552])
         return splitter
 
+    def _build_preview_panel(self) -> QFrame:
+        panel = QFrame()
+        panel.setObjectName("previewPanel")
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(10, 8, 10, 8)
+        outer.setSpacing(6)
+
+        self.preview_cb = QCheckBox("Podgląd zaznaczonego pliku")
+        self.preview_cb.setObjectName("previewToggle")
+        self.preview_cb.setChecked(True)
+        self.preview_cb.setToolTip(UI_TOOLTIPS["preview"])
+        self.preview_cb.toggled.connect(self._on_preview_toggled)
+        outer.addWidget(self.preview_cb)
+
+        body = QWidget()
+        body.setObjectName("previewBody")
+        self._preview_body = body
+        body_row = QHBoxLayout(body)
+        body_row.setContentsMargins(0, 0, 0, 0)
+        body_row.setSpacing(10)
+
+        self.preview_label = QLabel()
+        self.preview_label.setObjectName("previewBox")
+        self.preview_label.setFixedSize(112, 112)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setScaledContents(False)
+        body_row.addWidget(self.preview_label, 0, Qt.AlignmentFlag.AlignTop)
+
+        meta_col = QVBoxLayout()
+        meta_col.setContentsMargins(0, 0, 0, 0)
+        meta_col.setSpacing(4)
+        meta_hint = QLabel("Nazwa, rozmiar i folder źródłowy")
+        meta_hint.setObjectName("previewHint")
+        meta_hint.setWordWrap(True)
+        self.size_info = QLabel("Zaznacz plik na liście")
+        self.size_info.setObjectName("previewMeta")
+        self.size_info.setWordWrap(True)
+        self.size_info.setAlignment(Qt.AlignmentFlag.AlignTop)
+        meta_col.addWidget(meta_hint)
+        meta_col.addWidget(self.size_info, stretch=1)
+        body_row.addLayout(meta_col, stretch=1)
+
+        outer.addWidget(body)
+        return panel
+
+    def _on_preview_toggled(self, checked: bool) -> None:
+        self._mark_dirty()
+        self._preview_body.setVisible(checked)
+        if checked:
+            self._on_selection_changed(self.input_tree.currentItem(), None)
+        else:
+            self.preview_label.clear()
+            self.size_info.setText("Podgląd wyłączony")
+
     def _build_settings_panel(self) -> QWidget:
         body = QWidget()
         self._settings_body = body
         body.setObjectName("settingsBody")
+        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(body)
-        root.setSpacing(0)
-        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(SECTION_GAP)
+        root.setContentsMargins(0, 0, 8, 12)
 
-        # Rozszerzenie + ustawienia formatu
-        ext_section = QWidget()
-        ext_layout = QVBoxLayout(ext_section)
-        ext_layout.setContentsMargins(0, 0, 0, 0)
-        ext_layout.setSpacing(2)
-        ext_layout.addWidget(field_label("Rozszerzenie", UI_TOOLTIPS["extension"]))
+        flow_hint = QLabel(
+            "Krok po kroku: format i jakość, wymiary, na końcu zapis plików."
+        )
+        flow_hint.setObjectName("workflowHint")
+        flow_hint.setWordWrap(True)
+
+        section1_box, section1 = make_step_section(
+            "Format i jakość",
+            "Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
+            step_key="format",
+        )
+        section2_box, section2 = make_step_section(
+            "Wymiary",
+            "Skala, min. krawędź i preset formatu",
+            step_key="dimensions",
+        )
+        section3_box, section3 = make_step_section(
+            "Zapis plików",
+            "Folder wyjściowy i opcje wsadowe",
+            step_key="save",
+        )
+
+        # Rozszerzenie + ustawienia formatu (jeden wiersz jak Jakość / Format)
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(8)
         fmt_row.setContentsMargins(0, 0, 0, 0)
@@ -434,7 +534,7 @@ class MainWindow(QMainWindow):
         fmt_row.addWidget(self.format_combo, stretch=1)
         self.settings_btn = QPushButton("Ustawienia…")
         self.settings_btn.setObjectName("btnSecondary")
-        self.settings_btn.setMinimumHeight(28)
+        self.settings_btn.setMinimumHeight(BTN_H)
         self.settings_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.settings_btn.setToolTip(
             "Szczegóły rozszerzenia: PNG-8/24, tło JPG, kompresja GIF, kadrowanie i opcje zaawansowane."
@@ -444,8 +544,13 @@ class MainWindow(QMainWindow):
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
         self.fmt_wrap = fmt_controls
-        ext_layout.addWidget(fmt_controls)
-        root.addWidget(ext_section)
+        section1.addWidget(compact_row(
+            "Rozszerzenie",
+            fmt_controls,
+            tooltip=UI_TOOLTIPS["extension"],
+            height=COMPACT_CONTROL_ROW_H,
+        ))
+        section1.addSpacing(2)
 
         top_opts_grid = QGridLayout()
         top_opts_grid.setSpacing(4)
@@ -456,47 +561,43 @@ class MainWindow(QMainWindow):
         self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
         top_opts_grid.addWidget(self.segregate_cb, 0, 0)
 
-        bg_opts = QWidget()
-        bg_opts_layout = QHBoxLayout(bg_opts)
-        bg_opts_layout.setContentsMargins(0, 0, 0, 0)
-        bg_opts_layout.setSpacing(6)
+        bg_group = QFrame()
+        bg_group.setObjectName("bgRemoveGroup")
+        bg_group_layout = QHBoxLayout(bg_group)
+        bg_group_layout.setContentsMargins(8, 4, 8, 4)
+        bg_group_layout.setSpacing(4)
         self.remove_bg_cb = QCheckBox("Usuń tło")
         self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
         self.remove_bg_cb.toggled.connect(self._on_remove_bg_toggled)
-        bg_opts_layout.addWidget(self.remove_bg_cb)
+        bg_group_layout.addWidget(self.remove_bg_cb)
         self.bg_model_combo = QComboBox()
         self.bg_model_combo.setObjectName("bgModelCombo")
-        self.bg_model_combo.setMinimumWidth(140)
+        self.bg_model_combo.setMinimumWidth(120)
         self.bg_model_combo.addItem("Szybko", "birefnet-general-lite")
-        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_lite"], Qt.ToolTipRole)
+        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_lite"], Qt.ItemDataRole.ToolTipRole)
         self.bg_model_combo.addItem("Najlepsza Jakość", "birefnet-general")
-        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_general"], Qt.ToolTipRole)
+        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_general"], Qt.ItemDataRole.ToolTipRole)
         self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_lite"])
         self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
         style_dropdown(self.bg_model_combo)
-        bg_opts_layout.addWidget(self.bg_model_combo)
-        top_opts_grid.addWidget(bg_opts, 0, 1)
+        bg_group_layout.addWidget(self.bg_model_combo, stretch=1)
+        top_opts_grid.addWidget(bg_group, 0, 1)
 
         self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
         self.wiz_sequence_cb.setToolTip(UI_TOOLTIPS["wiz"])
         self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
-        top_opts_grid.addWidget(self.wiz_sequence_cb, 1, 0)
+        top_opts_grid.addWidget(self.wiz_sequence_cb, 1, 0, 1, 2)
         top_opts_grid.setColumnStretch(0, 1)
         top_opts_grid.setColumnStretch(1, 1)
-        root.addLayout(top_opts_grid)
-        root.addSpacing(2)
+        section1.addLayout(top_opts_grid)
+        section1.addSpacing(2)
 
-        sliders_block = QWidget()
-        sliders_layout = QVBoxLayout(sliders_block)
-        sliders_layout.setContentsMargins(0, 0, 0, 0)
-        sliders_layout.setSpacing(0)
-
-        self.quality_slider = QSlider(Qt.Horizontal)
+        self.quality_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.quality_slider.setRange(0, 100)
         self.quality_slider.setValue(DEFAULT_QUALITY)
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         self.quality_label = QLabel(str(DEFAULT_QUALITY))
-        sliders_layout.addWidget(compact_row(
+        section1.addWidget(compact_row(
             "Jakość",
             slider_control(
                 self.quality_slider,
@@ -507,7 +608,7 @@ class MainWindow(QMainWindow):
             tight=True,
         ))
 
-        self.png_colors_slider = QSlider(Qt.Horizontal)
+        self.png_colors_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.png_colors_slider.setRange(24, 256)
         self.png_colors_slider.setValue(256)
         self.png_colors_slider.valueChanged.connect(self._on_png_colors_changed)
@@ -529,19 +630,20 @@ class MainWindow(QMainWindow):
         colors_extras.addWidget(self.png_colors_auto_cb)
         colors_wrap = QWidget()
         colors_wrap.setLayout(colors_extras)
-        sliders_layout.addWidget(compact_row(
+        section1.addWidget(compact_row(
             "Liczba kolorów",
             colors_wrap,
             tooltip=UI_TOOLTIPS["color_count"],
             tight=True,
         ))
+        section1.addStretch(1)
 
-        self.scale_slider = QSlider(Qt.Horizontal)
+        self.scale_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.scale_slider.setRange(1, 100)
         self.scale_slider.setValue(100)
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         self.scale_label = QLabel("100%")
-        sliders_layout.addWidget(compact_row(
+        section2.addWidget(compact_row(
             "Skala",
             slider_control(
                 self.scale_slider,
@@ -551,11 +653,9 @@ class MainWindow(QMainWindow):
             tooltip=UI_TOOLTIPS["scale"],
             tight=True,
         ))
-        root.addWidget(sliders_block)
-        root.addSpacing(2)
 
         min_row_widget = QWidget()
-        min_row_widget.setFixedHeight(COMPACT_ROW_H)
+        min_row_widget.setMinimumHeight(COMPACT_CONTROL_ROW_H)
         min_row = QHBoxLayout(min_row_widget)
         min_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
         min_row.setSpacing(6)
@@ -564,7 +664,7 @@ class MainWindow(QMainWindow):
         self.min_longest_cb.setToolTip(UI_TOOLTIPS["min_longest"])
         self.min_longest_cb.toggled.connect(self._on_min_longest_toggled)
         min_row.addWidget(self.min_longest_cb)
-        self.min_longest_edit = QLineEdit("1080")
+        self.min_longest_edit = WheelIntLineEdit("1080", min_val=1, max_val=16384, step=10)
         self.min_longest_edit.setObjectName("minLongestEdit")
         self.min_longest_edit.setValidator(QIntValidator(1, 16384, self))
         self.min_longest_edit.setPlaceholderText("1080 px")
@@ -577,8 +677,8 @@ class MainWindow(QMainWindow):
         px_lbl.setObjectName("hintLabel")
         min_row.addWidget(px_lbl)
         min_row.addStretch(1)
-        root.addWidget(min_row_widget)
-        root.addSpacing(2)
+        section2.addWidget(min_row_widget)
+        section2.addSpacing(2)
 
         self.size_combo = style_dropdown(QComboBox())
         self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
@@ -597,8 +697,9 @@ class MainWindow(QMainWindow):
         format_row_layout.setSpacing(6)
         format_row_layout.addWidget(self.size_combo, stretch=1)
         format_row_layout.addWidget(self.delete_preset_btn)
-        root.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"], tight=True))
+        section2.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"], height=COMPACT_CONTROL_ROW_H))
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
+        section2.addStretch(1)
 
         out_section = QWidget()
         out_section_layout = QVBoxLayout(out_section)
@@ -613,32 +714,45 @@ class MainWindow(QMainWindow):
         self.output_enabled_cb.toggled.connect(self._on_output_enabled_toggled)
         out_section_layout.addWidget(self.output_enabled_cb)
 
-        path_row = QHBoxLayout()
-        path_row.setContentsMargins(0, 0, 0, 0)
-        path_row.setSpacing(6)
         self.output_dir_edit = QLineEdit()
         self.output_dir_edit.setObjectName("outputDirEdit")
         self.output_dir_edit.setPlaceholderText(
-            "Zaznacz „Zapisz do folderu” lub nadpisuj w miejscu plików"
+            "Dodaj zdjęcia, potem kliknij „Aktualizuj ścieżkę”"
         )
         self.output_dir_edit.setToolTip(UI_TOOLTIPS["output_dir"])
         self.output_dir_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.output_dir_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.output_dir_edit.setMinimumHeight(BTN_H)
         self.output_dir_edit.setReadOnly(True)
         self.output_dir_edit.setEnabled(False)
-        path_row.addWidget(self.output_dir_edit, stretch=1)
+        out_section_layout.addWidget(self.output_dir_edit)
+
+        path_btn_row = QHBoxLayout()
+        path_btn_row.setContentsMargins(0, 0, 0, 0)
+        path_btn_row.setSpacing(8)
+        self.update_output_btn = QPushButton("Aktualizuj ścieżkę")
+        self.update_output_btn.setObjectName("btnUpdatePath")
+        self.update_output_btn.setIcon(action_icon_refresh_path())
+        self.update_output_btn.setIconSize(QSize(16, 16))
+        self.update_output_btn.setToolTip(UI_TOOLTIPS["output_update_path"])
+        self.update_output_btn.setMinimumHeight(BTN_H)
+        self.update_output_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.update_output_btn.clicked.connect(self._update_output_path)
+        path_btn_row.addWidget(self.update_output_btn, stretch=1)
         browse_out = browse_button(
             "PRZEGLĄDAJ",
-            tooltip="Przeglądaj folder wyjściowy",
+            tooltip="Wybierz inny folder na gotowe zdjęcia",
             slot=self._browse_output,
         )
-        browse_out.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        path_row.addWidget(browse_out)
-        out_section_layout.addLayout(path_row)
+        browse_out.setIcon(action_icon_folder_orange())
+        browse_out.setIconSize(QSize(16, 16))
+        browse_out.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        path_btn_row.addWidget(browse_out, stretch=1)
+        out_section_layout.addLayout(path_btn_row)
 
         self._out_row = out_section
         self._out_control = out_section
-        root.addWidget(out_section)
+        section3.addWidget(out_section)
         self.output_dir_edit.textChanged.connect(self._sync_output_tooltip)
         self._sync_output_tooltip()
 
@@ -658,7 +772,13 @@ class MainWindow(QMainWindow):
             cb.toggled.connect(lambda _v: self._mark_dirty())
             setattr(self, attr, cb)
             cb_grid.addWidget(cb, i // 2, i % 2)
-        root.addLayout(cb_grid)
+        section3.addLayout(cb_grid)
+        section3.addStretch(1)
+
+        root.addWidget(flow_hint, 0)
+        root.addWidget(section1_box, 1)
+        root.addWidget(section2_box, 1)
+        root.addWidget(section3_box, 1)
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())
@@ -674,6 +794,85 @@ class MainWindow(QMainWindow):
     def _mark_dirty(self) -> None:
         if not self._programmatic_settings:
             self._settings_dirty = True
+
+    def _on_retail_preset_changed(self, _index: int) -> None:
+        preset_id = self.retail_preset_combo.currentData()
+        if not preset_id or preset_id == RETAIL_NONE:
+            self._active_retail_preset_id = RETAIL_NONE
+            self._retail_preset_snapshot = None
+            self.restore_retail_btn.setEnabled(False)
+            return
+        preset = retail_preset_by_id(str(preset_id))
+        if preset is None:
+            return
+        self._active_retail_preset_id = preset.id
+        self._retail_preset_snapshot = retail_snapshot_from_preset(preset)
+        self._apply_settings_snapshot(self._retail_preset_snapshot)
+        self.restore_retail_btn.setEnabled(True)
+        log_event("Preset sieci", preset.label)
+        self.statusBar().showMessage(f"Preset: {preset.label}", 4000)
+
+    def _restore_retail_preset(self) -> None:
+        if not self._retail_preset_snapshot:
+            return
+        self._apply_settings_snapshot(self._retail_preset_snapshot)
+        preset = retail_preset_by_id(self._active_retail_preset_id)
+        if preset:
+            self.statusBar().showMessage(f"Przywrócono preset: {preset.label}", 4000)
+
+    def _apply_settings_snapshot(self, snapshot: dict) -> None:
+        self._lock_output_settings()
+        self._format_opts = snapshot["format_opts"]
+        self._resize = snapshot["resize"]
+        self._transforms = snapshot["transforms"]
+        self._programmatic_settings = True
+        self.format_combo.blockSignals(True)
+        self.size_combo.blockSignals(True)
+        try:
+            fmt_keys = snapshot.get("formats") or [snapshot["output_format"]]
+            self.format_combo.apply_format_state(
+                fmt_keys,
+                alpha_only=bool(snapshot["remove_background"]),
+            )
+            self.quality_slider.setValue(int(snapshot["quality"]))
+            self.quality_label.setText(str(snapshot["quality"]))
+            self.png_colors_auto_cb.setChecked(bool(snapshot["png_colors_auto"]))
+            self.png_colors_slider.setValue(int(snapshot["png_max_colors"]))
+            self.png_colors_slider.setEnabled(not snapshot["png_colors_auto"])
+            self.png_colors_label.setText(str(snapshot["png_max_colors"]))
+            self.scale_slider.setValue(int(round(float(snapshot["scale_percent"]))))
+            self.scale_label.setText(f"{int(round(float(snapshot['scale_percent'])))}%")
+            self.min_longest_cb.setChecked(bool(snapshot["min_longest_enabled"]))
+            self.min_longest_edit.setText(str(snapshot["min_longest_px"]))
+            self.remove_bg_cb.setChecked(bool(snapshot["remove_background"]))
+            model = snapshot.get("bg_model") or "birefnet-general-lite"
+            idx = self.bg_model_combo.findData(model)
+            if idx >= 0:
+                self.bg_model_combo.setCurrentIndex(idx)
+            self.segregate_cb.setChecked(bool(snapshot.get("segregate", False)))
+            self.wiz_sequence_cb.setChecked(bool(snapshot.get("wiz_sequence", False)))
+            self.output_enabled_cb.setChecked(bool(snapshot.get("output_enabled", False)))
+            self.preserve_cb.setChecked(bool(snapshot.get("preserve_structure", True)))
+            self.keep_dates_cb.setChecked(bool(snapshot.get("keep_dates", True)))
+            self.overwrite_cb.setChecked(bool(snapshot.get("overwrite_prompt", True)))
+            self.parallel_cb.setChecked(bool(snapshot.get("parallel", True)))
+            size_id = snapshot.get("size_preset", PRESET_ORIGINAL)
+            self._last_size_preset_id = size_id
+            if size_id in self._size_preset_ids:
+                self.size_combo.setCurrentIndex(self._size_preset_ids.index(size_id))
+            else:
+                self._reload_size_combo(select_id=size_id)
+            self._format_opts.jpeg_matte_mode = snapshot.get(
+                "jpeg_matte_mode", self._format_opts.jpeg_matte_mode
+            )
+        finally:
+            self.format_combo.blockSignals(False)
+            self.size_combo.blockSignals(False)
+            self._programmatic_settings = False
+        self._on_wiz_mode_changed(self.wiz_sequence_cb.isChecked())
+        self._on_output_enabled_toggled(self.output_enabled_cb.isChecked())
+        self._update_delete_preset_btn()
+        self._settings_dirty = False
 
     def _apply_saved_theme(self) -> None:
         from PySide6.QtWidgets import QApplication
@@ -787,6 +986,8 @@ class MainWindow(QMainWindow):
             self.remove_bg_cb.setChecked(False)
             self.output_enabled_cb.setEnabled(False)
             self.output_dir_edit.setEnabled(False)
+            if hasattr(self, "update_output_btn"):
+                self.update_output_btn.setEnabled(False)
             self.convert_btn.setText("Konwertuj wizek")
         else:
             self.segregate_cb.setEnabled(True)
@@ -798,9 +999,16 @@ class MainWindow(QMainWindow):
         self._transforms.remove_background = enabled
         self._programmatic_settings = True
         try:
-            self.format_combo.set_alpha_only_mode(enabled)
             if enabled:
-                self._set_output_format_programmatically("png")
+                current = self.format_combo.selected_formats()
+                if not any(f in ("png", "webp", "avif") for f in current):
+                    current = ["png"]
+                self.format_combo.apply_format_state(current, alpha_only=True)
+            else:
+                current = self.format_combo.selected_formats()
+                if not current or all(f in ("png", "webp", "avif") for f in current):
+                    current = ["jpeg"]
+                self.format_combo.apply_format_state(current, alpha_only=False)
         finally:
             self._programmatic_settings = False
         self._mark_dirty()
@@ -821,11 +1029,10 @@ class MainWindow(QMainWindow):
         idx = self.bg_model_combo.findData(model)
         if idx >= 0:
             self.bg_model_combo.setCurrentIndex(idx)
-        self._programmatic_settings = True
-        try:
-            self.format_combo.set_alpha_only_mode(enabled)
-        finally:
-            self._programmatic_settings = False
+        self.format_combo.apply_format_state(
+            self.format_combo.selected_formats() or ["webp"],
+            alpha_only=enabled,
+        )
 
     def _on_output_enabled_toggled(self, enabled: bool) -> None:
         if not self._programmatic_settings:
@@ -833,8 +1040,8 @@ class MainWindow(QMainWindow):
         can_edit = enabled and not self.wiz_sequence_cb.isChecked()
         self.output_dir_edit.setEnabled(can_edit)
         self.output_dir_edit.setReadOnly(not can_edit)
-        if enabled:
-            self._refresh_output_dir_suggestion()
+        if hasattr(self, "update_output_btn"):
+            self.update_output_btn.setEnabled(bool(self._queue or self._folder_queue))
 
     def _output_path_active(self) -> bool:
         return self.output_enabled_cb.isChecked() and not self.wiz_sequence_cb.isChecked()
@@ -976,24 +1183,40 @@ class MainWindow(QMainWindow):
         except OSError:
             return "-"
 
-    def _default_output_dir(self) -> Path | None:
-        if self._folder_queue:
-            return self._folder_queue[0] / CONVERTED_FOLDER_NAME
+    def _anchor_path_for_output(self) -> Path | None:
+        selected = self._selected_file_paths()
+        if selected:
+            return selected[0]
         if self._queue:
-            return self._queue[0].parent / CONVERTED_FOLDER_NAME
+            return self._queue[0]
+        if self._folder_queue:
+            return self._folder_queue[0]
         return None
 
-    def _refresh_output_dir_suggestion(self) -> None:
-        if not self._output_path_active() or self._output_dir_manual:
-            return
-        suggested = self._default_output_dir()
+    def _suggested_output_dir(self, anchor: Path | None = None) -> Path | None:
+        if anchor is None:
+            anchor = self._anchor_path_for_output()
+        if anchor is None:
+            return None
+        if anchor.is_file():
+            return anchor.parent / CONVERTED_FOLDER_NAME
+        return anchor / CONVERTED_FOLDER_NAME
+
+    def _update_output_path(self) -> None:
+        suggested = self._suggested_output_dir()
         if suggested is None:
+            self.statusBar().showMessage("Najpierw dodaj zdjęcia na listę po lewej", 4000)
             return
+        self._output_dir_manual = False
         self._programmatic_settings = True
         try:
+            self.output_enabled_cb.setChecked(True)
             self.output_dir_edit.setText(str(suggested))
         finally:
             self._programmatic_settings = False
+        self._sync_output_tooltip()
+        log_event("Folder wyjściowy (sugestia)", str(suggested))
+        self.statusBar().showMessage(f"Folder wyjściowy: {suggested}", 5000)
 
     def _structure_root_for(self, path: Path) -> Path:
         return self._file_roots.get(path, path.parent)
@@ -1028,7 +1251,6 @@ class MainWindow(QMainWindow):
         if self._base_root is None:
             self._base_root = path.parent
         self._maybe_auto_format_from_first_file(path)
-        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _import_batch_folder(self, folder: Path) -> None:
@@ -1054,7 +1276,6 @@ class MainWindow(QMainWindow):
             self._base_root = folder
         if self._queue:
             self._maybe_auto_format_from_first_file(self._queue[0])
-        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _add_folder_to_queue(self, folder: Path) -> None:
@@ -1066,7 +1287,6 @@ class MainWindow(QMainWindow):
         self.input_tree.addTopLevelItem(item)
         if self._base_root is None:
             self._base_root = folder
-        self._refresh_output_dir_suggestion()
         self._update_queue_label()
 
     def _paths_from_items(self, items: list[QTreeWidgetItem]) -> list[Path]:
@@ -1217,7 +1437,9 @@ class MainWindow(QMainWindow):
                 idx = self.input_tree.indexOfTopLevelItem(item)
                 if idx >= 0:
                     self.input_tree.takeTopLevelItem(idx)
-        self._refresh_output_dir_suggestion()
+        if not self._queue and not self._folder_queue:
+            self._output_dir_manual = False
+            self.output_dir_edit.clear()
         self._update_queue_label()
 
     def _clear_queue(self) -> None:
@@ -1227,7 +1449,7 @@ class MainWindow(QMainWindow):
         self._base_root = None
         self._output_dir_manual = False
         self.input_tree.clear()
-        self._refresh_output_dir_suggestion()
+        self.output_dir_edit.clear()
         self._update_queue_label()
         self.preview_label.clear()
         self.size_info.clear()
@@ -1256,6 +1478,8 @@ class MainWindow(QMainWindow):
     def _update_queue_label(self) -> None:
         n_files = len(self._queue)
         n_folders = len(self._folder_queue)
+        if hasattr(self, "update_output_btn"):
+            self.update_output_btn.setEnabled(bool(n_files or n_folders))
         if n_folders and not n_files:
             word = "folder" if n_folders == 1 else ("foldery" if 2 <= n_folders % 10 <= 4 else "folderów")
             self.queue_label.setText(f"{n_folders} {word}")
@@ -1265,7 +1489,11 @@ class MainWindow(QMainWindow):
         self.queue_label.setText(f"{n_files} {word}{extra}")
 
     def _on_selection_changed(self, current: QTreeWidgetItem | None, _previous) -> None:
-        if not self.preview_cb.isChecked() or current is None:
+        if not self.preview_cb.isChecked():
+            return
+        if current is None:
+            self.preview_label.clear()
+            self.size_info.setText("Zaznacz plik na liście")
             return
         if self._item_kind(current) == "folder":
             path = Path(current.data(0, Qt.UserRole))
@@ -1279,7 +1507,7 @@ class MainWindow(QMainWindow):
         pix = QPixmap(str(path))
         if not pix.isNull():
             self.preview_label.setPixmap(
-                pix.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pix.scaled(112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             )
         self.size_info.setText(f"{path.name}\n{self._format_size(path)}\n{path.parent}")
 
@@ -1314,8 +1542,13 @@ class MainWindow(QMainWindow):
         return
 
     def _on_size_preset_changed(self) -> None:
-        if not self._programmatic_settings:
-            self._lock_output_settings()
+        if self._programmatic_settings:
+            pid = self._current_size_preset_id()
+            if pid != PRESET_SAVE_CUSTOM:
+                self._last_size_preset_id = pid
+            self._update_delete_preset_btn()
+            return
+        self._lock_output_settings()
         idx = self.size_combo.currentIndex()
         if idx < 0 or idx >= len(self._size_preset_ids):
             return
@@ -1358,8 +1591,6 @@ class MainWindow(QMainWindow):
             return True
         if not self._output_path_active():
             return True
-        if not self.output_dir_edit.text().strip():
-            self._refresh_output_dir_suggestion()
         explicit = self.output_dir_edit.text().strip()
         if explicit:
             self._output_layout = "single"

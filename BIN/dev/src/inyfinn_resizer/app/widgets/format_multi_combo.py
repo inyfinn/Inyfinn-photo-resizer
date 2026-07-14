@@ -23,6 +23,14 @@ from inyfinn_resizer.app.i18n_tooltips import (
 )
 from inyfinn_resizer.core.formats.registry import OUTPUT_FORMATS
 
+
+def canonical_format_key(fmt: str) -> str:
+    key = fmt.lower().strip()
+    if key in ("jpg", "jpeg"):
+        return "jpeg"
+    return key
+
+
 PRIMARY_FORMATS = ("webp", "jpeg", "png", "avif", "gif", "tiff", "heic", "bmp", "jp2", "pdf")
 
 _MULTI_SELECT_TOOLTIP = (
@@ -151,6 +159,8 @@ class FormatMultiCombo(QComboBox):
     def set_alpha_only_mode(self, enabled: bool) -> None:
         """Ogranicza wybór do formatów z kanałem alpha (PNG/WebP/AVIF)."""
         if enabled == self._alpha_only_mode:
+            self._apply_alpha_row_states()
+            self._update_alpha_combo_style()
             return
         self._alpha_only_mode = enabled
         if enabled:
@@ -165,6 +175,20 @@ class FormatMultiCombo(QComboBox):
             self._formats_before_alpha = []
         self._apply_alpha_row_states()
         self._update_alpha_combo_style()
+
+    def apply_format_state(self, keys: list[str], *, alpha_only: bool) -> None:
+        """Atomowo ustawia format i tryb alpha (presety — bez mieszania stanu)."""
+        normalized = [canonical_format_key(k) for k in keys if k]
+        if not normalized:
+            normalized = ["webp"]
+        if alpha_only:
+            normalized = [k for k in normalized if k in ALPHA_OUTPUT_FORMATS] or ["png"]
+        self._alpha_only_mode = alpha_only
+        self._formats_before_alpha = []
+        self._apply_check_states(normalized)
+        self._apply_alpha_row_states()
+        self._update_alpha_combo_style()
+        self._update_summary()
 
     def _update_alpha_combo_style(self) -> None:
         if self._alpha_only_mode:
@@ -259,6 +283,7 @@ class FormatMultiCombo(QComboBox):
     def set_selected(self, keys: list[str]) -> None:
         if not keys:
             keys = ["webp"]
+        keys = [canonical_format_key(k) for k in keys]
         if self._alpha_only_mode:
             keys = [k for k in keys if k in ALPHA_OUTPUT_FORMATS] or ["png"]
         self._apply_check_states(keys)

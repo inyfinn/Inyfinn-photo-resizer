@@ -83,12 +83,18 @@ UI_TOOLTIPS: dict[str, str] = {
         "Mniej = mniejszy plik. „Z jakości” — auto z suwaka Jakość."
     ),
     "output_dir": (
-        "Folder na gotowe zdjęcia. Wymaga zaznaczenia „Zapisz do folderu wyjściowego”. "
-        "Bez tego program zapisuje w miejscu źródła (z pytaniem przed nadpisaniem)."
+        "Folder na gotowe zdjęcia. Zaznacz „Zapisz do folderu wyjściowego”, "
+        "potem kliknij „Aktualizuj ścieżkę” (folder Przekonwertowane obok zdjęć) "
+        "lub „Przeglądaj”, aby wybrać inny folder."
+    ),
+    "output_update_path": (
+        "Ustawia folder wyjściowy na „Przekonwertowane” obok dodanych zdjęć. "
+        "Przykład: zdjęcie z Pulpitu → Pulpit\\Przekonwertowane. "
+        "Przy zaznaczonym pliku na liście bierze folder tego pliku."
     ),
     "output_enabled": (
-        "Gdy włączone — zapis do podanego folderu (lub „Przekonwertowane” obok plików). "
-        "Gdy wyłączone — nadpisanie w miejscu źródłowym."
+        "Gdy włączone — zapis do podanego folderu. "
+        "Gdy wyłączone — nadpisanie w miejscu źródłowym (z pytaniem przed nadpisaniem)."
     ),
     "segregate": "Gdy zapisujesz wiele rozszerzeń naraz, każde trafia do osobnego podfolderu (np. webp/, jpg/).",
     "remove_background": (

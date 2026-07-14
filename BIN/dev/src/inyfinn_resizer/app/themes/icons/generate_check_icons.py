@@ -1,4 +1,4 @@
-"""Generuje ikony checkmark dla QSS checkboxów."""
+"""Generuje ikony checkmark dla QSS checkboxów (global + sekcje kroków)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,12 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 OUT = Path(__file__).resolve().parent
+
+SECTION_ACCENTS = {
+    "check-section1": (99, 102, 241),
+    "check-section2": (13, 148, 136),
+    "check-section3": (234, 88, 12),
+}
 
 
 def _draw_check(path: Path, bg: tuple[int, int, int], fg: tuple[int, int, int]) -> None:
@@ -21,6 +27,8 @@ def _draw_check(path: Path, bg: tuple[int, int, int], fg: tuple[int, int, int]) 
 def main() -> None:
     _draw_check(OUT / "check-light.png", (14, 165, 233), (255, 255, 255))
     _draw_check(OUT / "check-dark.png", (129, 140, 248), (15, 23, 42))
+    for name, rgb in SECTION_ACCENTS.items():
+        _draw_check(OUT / f"{name}.png", rgb, (255, 255, 255))
     print("OK", OUT)
 
 

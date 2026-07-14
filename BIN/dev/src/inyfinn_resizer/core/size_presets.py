@@ -15,6 +15,11 @@ PRESET_LONG_1200 = "long_1200"
 PRESET_SHORT_1200 = "short_1200"
 PRESET_CROP_1200x848 = "crop_1200x848"
 PRESET_BOX_1200 = "box_1200"
+PRESET_BOX_1920 = "box_1920"
+PRESET_BOX_2000 = "box_2000"
+PRESET_BOX_2500 = "box_2500"
+PRESET_BOX_3000 = "box_3000"
+PRESET_LONG_2400 = "long_2400"
 PRESET_SAVE_CUSTOM = "__save_custom__"
 PRESET_CUSTOM_PREFIX = "custom:"
 
@@ -24,6 +29,11 @@ BUILTIN_PRESETS: list[tuple[str, str]] = [
     ("1200 px najkrótszej krawędzi", PRESET_SHORT_1200),
     ("1200×848 — inteligentny crop", PRESET_CROP_1200x848),
     ("1200×1200", PRESET_BOX_1200),
+    ("1920×1920", PRESET_BOX_1920),
+    ("2000×2000", PRESET_BOX_2000),
+    ("2500×2500", PRESET_BOX_2500),
+    ("3000×3000", PRESET_BOX_3000),
+    ("2400 px najdłuższej krawędzi", PRESET_LONG_2400),
 ]
 
 PRESET_TOOLTIPS: dict[str, str] = {
@@ -38,6 +48,11 @@ PRESET_TOOLTIPS: dict[str, str] = {
     ),
     PRESET_CROP_1200x848: "Inteligentny przycięty kadr 1200×848 px (jak baner produktowy).",
     PRESET_BOX_1200: "Dopasowanie do kwadratu 1200×1200 px (cover, proporcje zachowane).",
+    PRESET_BOX_1920: "Kwadrat 1920×1920 px (ALDI CMS online).",
+    PRESET_BOX_2000: "Kwadrat 2000×2000 px (dm.pl).",
+    PRESET_BOX_2500: "Kwadrat 2500×2500 px (Rossmann).",
+    PRESET_BOX_3000: "Kwadrat 3000×3000 px (Amazon zdjęcie główne).",
+    PRESET_LONG_2400: "Najdłuższa krawędź 2400 px (~20 cm @ 300 dpi, ALDI druk).",
 }
 
 
@@ -148,6 +163,36 @@ def apply_size_preset(
     if preset_id == PRESET_BOX_1200:
         return (
             ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=1200, box_h=1200),
+            TransformOptions(),
+        )
+
+    if preset_id == PRESET_BOX_1920:
+        return (
+            ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=1920, box_h=1920),
+            TransformOptions(),
+        )
+
+    if preset_id == PRESET_BOX_2000:
+        return (
+            ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=2000, box_h=2000),
+            TransformOptions(),
+        )
+
+    if preset_id == PRESET_BOX_2500:
+        return (
+            ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=2500, box_h=2500),
+            TransformOptions(),
+        )
+
+    if preset_id == PRESET_BOX_3000:
+        return (
+            ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=3000, box_h=3000),
+            TransformOptions(),
+        )
+
+    if preset_id == PRESET_LONG_2400:
+        return (
+            ResizeOptions(mode=ResizeMode.ONE_SIDE, side="longer", dimension=2400),
             TransformOptions(),
         )
 

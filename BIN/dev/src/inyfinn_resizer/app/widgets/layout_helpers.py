@@ -23,9 +23,11 @@ BTN_H = 28
 FOOTER_BTN_H = 32
 ROW_GAP = 2
 FIELD_GAP = 1
-SECTION_GAP = 3
+SECTION_GAP = 8
+STEP_ICON_SIZE = 40
 COMPACT_LABEL_W = 78
-COMPACT_ROW_H = 24
+COMPACT_SLIDER_ROW_H = 32
+COMPACT_CONTROL_ROW_H = 32
 
 
 def hint_label(text: str) -> QLabel:
@@ -61,21 +63,32 @@ def field_group(label: str, control: QWidget, hint: str = "") -> QWidget:
     return wrap
 
 
-def compact_row(label: str, control: QWidget, *, tooltip: str = "", tight: bool = False) -> QWidget:
+def compact_row(
+    label: str,
+    control: QWidget,
+    *,
+    tooltip: str = "",
+    tight: bool = False,
+    height: int | None = None,
+) -> QWidget:
     """Jeden wiersz: etykieta | kontrolka (kompaktowy formularz)."""
     wrap = QWidget()
     row = QHBoxLayout(wrap)
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(6)
+    row.setAlignment(Qt.AlignVCenter)
     lbl = field_label(label, tooltip)
     lbl.setMinimumWidth(COMPACT_LABEL_W)
     lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
     if tooltip:
         control.setToolTip(tooltip)
-    row.addWidget(lbl)
-    row.addWidget(control, stretch=1)
-    if tight:
-        wrap.setFixedHeight(COMPACT_ROW_H)
+    row.addWidget(lbl, 0, Qt.AlignVCenter)
+    row.addWidget(control, stretch=1, alignment=Qt.AlignVCenter)
+    row_h = height
+    if row_h is None and tight:
+        row_h = COMPACT_SLIDER_ROW_H
+    if row_h is not None:
+        wrap.setMinimumHeight(row_h)
     return wrap
 
 
@@ -93,6 +106,7 @@ def slider_control(
     value_label.setObjectName("qualityValue")
     value_label.setMinimumWidth(value_width)
     value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    slider.setMinimumHeight(20)
     slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     if tooltip:
         slider.setToolTip(tooltip)
@@ -115,6 +129,68 @@ def make_section(title: str, tooltip: str = "") -> tuple[QFrame, QVBoxLayout]:
         box.setToolTip(tooltip)
     lay.addWidget(hdr)
     return box, lay
+
+
+def make_step_section(
+    title: str,
+    subtitle: str,
+    *,
+    step_key: str,
+    tooltip: str = "",
+) -> tuple[QFrame, QVBoxLayout]:
+    """Sekcja kroku z kolorową ikoną (format / dimensions / save)."""
+    from inyfinn_resizer.app.widgets.section_icons import step_pixmap
+
+    object_names = {
+        "format": "sectionBoxStep1",
+        "dimensions": "sectionBoxStep2",
+        "save": "sectionBoxStep3",
+    }
+    box = QFrame()
+    box.setObjectName(object_names.get(step_key, "sectionBox"))
+    box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+    outer = QVBoxLayout(box)
+    outer.setContentsMargins(10, 8, 12, 10)
+    outer.setSpacing(6)
+
+    header = QWidget()
+    header.setObjectName("sectionStepHeader")
+    header_row = QHBoxLayout(header)
+    header_row.setContentsMargins(0, 0, 0, 0)
+    header_row.setSpacing(10)
+
+    icon = QLabel()
+    icon.setObjectName(f"sectionIcon{step_key.capitalize()}")
+    icon.setPixmap(step_pixmap(step_key))
+    icon.setFixedSize(STEP_ICON_SIZE, STEP_ICON_SIZE)
+    header_row.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+
+    text_col = QVBoxLayout()
+    text_col.setContentsMargins(0, 0, 0, 0)
+    text_col.setSpacing(1)
+    title_lbl = QLabel(title)
+    title_lbl.setObjectName("sectionStepTitle")
+    text_col.addWidget(title_lbl)
+    if subtitle:
+        sub_lbl = QLabel(subtitle)
+        sub_lbl.setObjectName("sectionStepHint")
+        sub_lbl.setWordWrap(True)
+        text_col.addWidget(sub_lbl)
+    header_row.addLayout(text_col, stretch=1)
+    outer.addWidget(header)
+
+    content_wrap = QFrame()
+    content_wrap.setObjectName(f"sectionInner{step_key.capitalize()}")
+    content_wrap.setFrameShape(QFrame.Shape.NoFrame)
+    inner = QVBoxLayout(content_wrap)
+    inner.setContentsMargins(2, 0, 2, 2)
+    inner.setSpacing(6)
+    outer.addWidget(content_wrap)
+
+    if tooltip:
+        box.setToolTip(tooltip)
+        title_lbl.setToolTip(tooltip)
+    return box, inner
 
 
 def make_settings_grid() -> QGridLayout:
@@ -161,7 +237,7 @@ def tool_button_row(
 def style_dropdown(combo: QComboBox) -> QComboBox:
     """Niebieski obrys + strzałka listy rozwijanej (QSS)."""
     combo.setMinimumHeight(BTN_H)
-    combo.setMaximumHeight(BTN_H)
+    combo.setMaximumHeight(COMPACT_CONTROL_ROW_H)
     return combo
 
 
