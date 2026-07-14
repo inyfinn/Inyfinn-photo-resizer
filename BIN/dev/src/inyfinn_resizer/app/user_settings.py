@@ -117,7 +117,7 @@ def snapshot_from_window(window: MainWindow) -> dict[str, Any]:
         "sort_mode": window.sort_combo.currentIndex(),
         "formats": window.format_combo.selected_formats(),
         "remove_background": window.remove_bg_cb.isChecked(),
-        "bg_model": window.bg_model_combo.currentData() or "birefnet-general-lite",
+        "bg_model": window.bg_model_combo.currentData() or "birefnet-general",
     }
     return data
 

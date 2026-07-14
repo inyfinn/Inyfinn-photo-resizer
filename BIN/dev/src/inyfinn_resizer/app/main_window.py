@@ -573,11 +573,12 @@ class MainWindow(QMainWindow):
         self.bg_model_combo = QComboBox()
         self.bg_model_combo.setObjectName("bgModelCombo")
         self.bg_model_combo.setMinimumWidth(120)
+        self.bg_model_combo.addItem("Najlepsza jakość", "birefnet-general")
+        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_general"], Qt.ItemDataRole.ToolTipRole)
         self.bg_model_combo.addItem("Szybko", "birefnet-general-lite")
-        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_lite"], Qt.ItemDataRole.ToolTipRole)
-        self.bg_model_combo.addItem("Najlepsza Jakość", "birefnet-general")
-        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_general"], Qt.ItemDataRole.ToolTipRole)
-        self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_lite"])
+        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_lite"], Qt.ItemDataRole.ToolTipRole)
+        self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_combo"])
+        self.bg_model_combo.setCurrentIndex(0)
         self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
         style_dropdown(self.bg_model_combo)
         bg_group_layout.addWidget(self.bg_model_combo, stretch=1)
@@ -845,7 +846,7 @@ class MainWindow(QMainWindow):
             self.min_longest_cb.setChecked(bool(snapshot["min_longest_enabled"]))
             self.min_longest_edit.setText(str(snapshot["min_longest_px"]))
             self.remove_bg_cb.setChecked(bool(snapshot["remove_background"]))
-            model = snapshot.get("bg_model") or "birefnet-general-lite"
+            model = snapshot.get("bg_model") or "birefnet-general"
             idx = self.bg_model_combo.findData(model)
             if idx >= 0:
                 self.bg_model_combo.setCurrentIndex(idx)
@@ -1025,7 +1026,7 @@ class MainWindow(QMainWindow):
     def _sync_remove_bg_ui(self) -> None:
         enabled = self._transforms.remove_background
         self.remove_bg_cb.setChecked(enabled)
-        model = self._transforms.bg_model or "birefnet-general-lite"
+        model = self._transforms.bg_model or "birefnet-general"
         idx = self.bg_model_combo.findData(model)
         if idx >= 0:
             self.bg_model_combo.setCurrentIndex(idx)
@@ -1089,7 +1090,7 @@ class MainWindow(QMainWindow):
             model_is_ready,
         )
 
-        model = self._transforms.bg_model or "birefnet-general-lite"
+        model = self._transforms.bg_model or "birefnet-general"
         if model_is_ready(model):
             return True
         show_warning(self, "Usuń tło", missing_model_message(model))
@@ -1566,7 +1567,7 @@ class MainWindow(QMainWindow):
         return replace(
             transforms,
             remove_background=self.remove_bg_cb.isChecked(),
-            bg_model=str(self.bg_model_combo.currentData() or "birefnet-general-lite"),
+            bg_model=str(self.bg_model_combo.currentData() or "birefnet-general"),
             bg_alpha_matting=True,
             bg_post_process_mask=True,
         )
@@ -1727,7 +1728,12 @@ class MainWindow(QMainWindow):
         )
 
         overlay_items = [(j.input_path.name, j.output_format) for j in jobs]
-        self._conversion_overlay.start_batch(overlay_items)
+        bg_fast = any(
+            j.transforms.remove_background
+            and (j.transforms.bg_model or "birefnet-general") == "birefnet-general-lite"
+            for j in jobs
+        )
+        self._conversion_overlay.start_batch(overlay_items, bg_fast_hint=bg_fast)
 
         worker = BatchWorker(jobs, parallel=self.parallel_cb.isChecked(), overwrite=overwrite)
         worker.progress.connect(self._on_progress)
@@ -1779,12 +1785,12 @@ class MainWindow(QMainWindow):
         self._progress_simulator.start_file(
             index,
             bg_removal=bg,
-            bg_model=job.transforms.bg_model or "birefnet-general-lite",
+            bg_model=job.transforms.bg_model or "birefnet-general",
         )
         detail = f"→ {job.output_format.upper()}"
         if bg:
             model_label = (
-                "Najlepsza Jakość"
+                "Najlepsza jakość"
                 if job.transforms.bg_model == "birefnet-general"
                 else "Szybko"
             )

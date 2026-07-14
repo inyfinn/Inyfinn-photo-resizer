@@ -45,7 +45,7 @@ class RetailPreset:
     quality: int
     size_preset: str
     remove_background: bool
-    bg_model: str = "birefnet-general-lite"
+    bg_model: str = "birefnet-general"
     min_longest_enabled: bool = False
     min_longest_px: int = 1200
     scale_percent: float = 100.0
@@ -74,7 +74,6 @@ RETAIL_PRESETS: list[RetailPreset] = [
         quality=82,
         size_preset=PRESET_BOX_1920,
         remove_background=True,
-        bg_model="birefnet-general-lite",
     ),
     RetailPreset(
         id="aldi_print",

@@ -62,7 +62,7 @@ class TransformOptions:
     grayscale: bool = False
     sepia: bool = False
     remove_background: bool = False
-    bg_model: str = "birefnet-general-lite"
+    bg_model: str = "birefnet-general"
     bg_alpha_matting: bool = True
     bg_post_process_mask: bool = True
 
@@ -340,7 +340,7 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
             grayscale=bool(tr.get("grayscale", False)),
             sepia=bool(tr.get("sepia", False)),
             remove_background=bool(tr.get("remove_background", False)),
-            bg_model=str(tr.get("bg_model", "birefnet-general-lite")),
+            bg_model=str(tr.get("bg_model", "birefnet-general")),
             bg_alpha_matting=bool(tr.get("bg_alpha_matting", True)),
             bg_post_process_mask=bool(tr.get("bg_post_process_mask", True)),
         ),

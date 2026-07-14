@@ -98,11 +98,29 @@ UI_TOOLTIPS: dict[str, str] = {
     ),
     "segregate": "Gdy zapisujesz wiele rozszerzeń naraz, każde trafia do osobnego podfolderu (np. webp/, jpg/).",
     "remove_background": (
-        "Usuwa tło z obrazu (BiRefNet). Wynik ma przezroczystość — wybierz PNG, WebP lub AVIF. "
-        "Przy włączeniu format domyślnie ustawia się na PNG."
+        "Usuwa tło produktu (AI BiRefNet). Wynik ma przezroczystość — wybierz PNG, WebP lub AVIF.\n\n"
+        "Tryb obok:\n"
+        "• Najlepsza jakość — dokładniejsze krawędzie, wolniejszy (zalecany do finalnego eksportu).\n"
+        "• Szybko — krótszy czas, dobry do testów i dużych partii."
     ),
-    "bg_model_lite": "Szybko — model BiRefNet Lite (~220 MB). Szybszy, dobry do produktów i dużych batchy.",
-    "bg_model_general": "Najlepsza Jakość — model BiRefNet General (~950 MB). Dokładniejsze krawędzie, wolniejszy.",
+    "bg_model_combo": (
+        "Model AI do wycinania tła. Domyślnie: Najlepsza jakość.\n"
+        "Szybko — gdy liczy się czas; Najlepsza jakość — gdy liczy się precyzja wycięcia."
+    ),
+    "bg_model_general": (
+        "Najlepsza jakość — model BiRefNet General (~950 MB). "
+        "Najdokładniejsze wycięcie produktu, włoski i cienie na krawędzi. "
+        "Wolniejszy, ale zalecany do finalnego eksportu do sklepu."
+    ),
+    "bg_model_lite": (
+        "Szybko — model BiRefNet Lite (~220 MB). "
+        "Około 2–3× szybszy niż Najlepsza jakość. Dobry do szybkiego podglądu i dużych partii. "
+        "Gdy produkt źle oddziela się od tła, przełącz na Najlepsza jakość."
+    ),
+    "bg_fast_conversion_hint": (
+        "Tryb Szybko: jeśli produkt źle oddzieli się od tła (postrzępione lub obcięte krawędzie), "
+        "przerwij konwersję i powtórz z opcją „Najlepsza jakość”."
+    ),
     "wiz": "Specjalna sekwencja wizualizacji produktów — kompresja w miejscu w folderze XL/L/S/SKLEP.",
     "preserve_structure": "Zachowaj podfoldery z folderu źródłowego w folderze docelowym.",
     "keep_dates": "Data modyfikacji pliku wynikowego taka jak oryginału.",

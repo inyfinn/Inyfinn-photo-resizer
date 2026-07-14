@@ -143,7 +143,7 @@ def get_session(model_name: str, *, force_cpu: bool = False):
 def remove_background(
     image: Image.Image,
     *,
-    model_name: str = "birefnet-general-lite",
+    model_name: str = "birefnet-general",
     alpha_matting: bool = True,
     post_process_mask: bool = True,
 ) -> Image.Image:

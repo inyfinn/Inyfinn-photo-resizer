@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer.app.i18n_pl import FORMAT_LABEL_PL
+from inyfinn_resizer.app.i18n_tooltips import UI_TOOLTIPS
 
 
 @dataclass
@@ -140,6 +141,12 @@ class ConversionOverlay(QWidget):
         self._summary.setObjectName("conversionOverlaySummary")
         panel_lay.addWidget(self._summary)
 
+        self._bg_hint = QLabel("")
+        self._bg_hint.setObjectName("conversionOverlayHint")
+        self._bg_hint.setWordWrap(True)
+        self._bg_hint.hide()
+        panel_lay.addWidget(self._bg_hint)
+
         self._time_label = QLabel("Czas: 00:00  ·  ETA: --:--")
         self._time_label.setObjectName("conversionOverlayTime")
         panel_lay.addWidget(self._time_label)
@@ -190,10 +197,20 @@ class ConversionOverlay(QWidget):
     def _request_abort(self) -> None:
         self.abort_requested.emit()
 
-    def start_batch(self, jobs: list[tuple[str, str]]) -> None:
+    def start_batch(
+        self,
+        jobs: list[tuple[str, str]],
+        *,
+        bg_fast_hint: bool = False,
+    ) -> None:
         self._clear_cards()
         self._started_at = time.monotonic()
         self._eta_sec = None
+        if bg_fast_hint:
+            self._bg_hint.setText(UI_TOOLTIPS["bg_fast_conversion_hint"])
+            self._bg_hint.show()
+        else:
+            self._bg_hint.hide()
         self._items = [FileProgressItem(name=n, fmt=f) for n, f in jobs]
         for item in self._items:
             card = _FileCard(item, self._list_host)
