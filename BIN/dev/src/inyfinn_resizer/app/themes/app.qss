@@ -1350,3 +1350,82 @@ QProgressBar#conversionOverlayOverall::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @ACCENT@, stop:1 #7c3aed);
     border-radius: 4px;
 }
+
+QFrame#updateToast {
+    background-color: @UPDATE_TOAST_BG@;
+    border: 1px solid @UPDATE_TOAST_BORDER@;
+    border-radius: 10px;
+    min-width: 280px;
+    max-width: 360px;
+}
+
+QLabel#updateToastTitle {
+    color: @UPDATE_TOAST_TITLE@;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#updateToastMessage {
+    color: @UPDATE_TOAST_TEXT@;
+    font-size: 12px;
+}
+
+QLabel#updateToastProgress {
+    color: @UPDATE_TOAST_PROGRESS@;
+    font-size: 11px;
+}
+
+QPushButton#updateToastInstall {
+    background-color: @UPDATE_TOAST_INSTALL_BG@;
+    color: @UPDATE_TOAST_INSTALL_TEXT@;
+    border: 1px solid @UPDATE_TOAST_INSTALL_BG@;
+    border-radius: 6px;
+    padding: 4px 14px;
+    font-weight: 600;
+}
+
+QPushButton#updateToastInstall:hover {
+    background-color: @UPDATE_TOAST_INSTALL_HOVER@;
+    border-color: @UPDATE_TOAST_INSTALL_HOVER@;
+}
+
+QPushButton#updateToastInstall:disabled {
+    background-color: @BG_PANEL_ALT@;
+    color: @FG_MUTED@;
+    border-color: @BORDER@;
+}
+
+QPushButton#updateToastLater {
+    background-color: @UPDATE_TOAST_LATER_BG@;
+    color: @UPDATE_TOAST_LATER_TEXT@;
+    border: 1px solid @UPDATE_TOAST_LATER_BORDER@;
+    border-radius: 6px;
+    padding: 4px 14px;
+}
+
+QPushButton#updateToastLater:hover {
+    background-color: @UPDATE_TOAST_LATER_HOVER@;
+    border-color: @UPDATE_TOAST_BORDER@;
+}
+
+QLabel#updateDialogStatus {
+    color: @FG_TEXT@;
+    font-size: 13px;
+}
+
+QLabel#updateDialogHint {
+    color: @FG_MUTED@;
+    font-size: 12px;
+}
+
+QProgressBar#updateDialogProgress {
+    background: @BG_INPUT@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    min-height: 10px;
+}
+
+QProgressBar#updateDialogProgress::chunk {
+    background: @UPDATE_TOAST_INSTALL_BG@;
+    border-radius: 5px;
+}

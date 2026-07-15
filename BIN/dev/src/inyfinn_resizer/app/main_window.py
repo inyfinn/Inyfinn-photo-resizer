@@ -48,6 +48,7 @@ from inyfinn_resizer import __version__
 from inyfinn_resizer.app.dialogs.custom_size_preset import CustomSizePresetDialog
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
 from inyfinn_resizer.app.dialogs.help_guide import show_help_guide
+from inyfinn_resizer.app.update_manager import UpdateManager
 from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
 from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
@@ -202,15 +203,23 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self._app_footer)
         self.statusBar().showMessage("Przeciągnij zdjęcia na listę po lewej")
 
+        self._update_manager = UpdateManager(self)
+        self._update_attach_done = False
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if hasattr(self, "_conversion_overlay") and self.centralWidget():
             self._conversion_overlay.setGeometry(self.centralWidget().rect())
+        if hasattr(self, "_update_manager"):
+            self._update_manager.reposition_toast()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         if hasattr(self, "_conversion_overlay") and self.centralWidget():
             self._conversion_overlay.setGeometry(self.centralWidget().rect())
+        if hasattr(self, "_update_manager") and not self._update_attach_done:
+            self._update_attach_done = True
+            self._update_manager.attach()
         if not self._initial_size_applied:
             self._initial_size_applied = True
             QTimer.singleShot(0, self._fit_initial_window_size)
@@ -268,6 +277,7 @@ class MainWindow(QMainWindow):
         help_menu = menubar.addMenu("Pomo&c")
         help_menu.addAction("Przewodnik użytkownika…", lambda: show_help_guide(self))
         help_menu.addSeparator()
+        help_menu.addAction("Sprawdź aktualizacje…", self._check_updates_manual)
         help_menu.addAction("O programie", self._about)
 
         self._theme_toggle = ThemeToggle(dark=(self._theme == "dark"))
@@ -1975,6 +1985,17 @@ class MainWindow(QMainWindow):
             )
             save_preset(Path(path), data)
             log_event("Zapisano preset JSON", path)
+
+    def _check_updates_manual(self) -> None:
+        if not UpdateManager.is_supported():
+            show_info(
+                self,
+                "Aktualizacje",
+                "Automatyczne aktualizacje działają w wersji EXE (portable).\n"
+                "Uruchom zbudowaną aplikację InyfinnPhotoResizer.exe.",
+            )
+            return
+        self._update_manager.open_manual_dialog()
 
     def _about(self) -> None:
         show_about(

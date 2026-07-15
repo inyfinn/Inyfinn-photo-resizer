@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QSettings
@@ -218,3 +219,37 @@ def persist_all(window: MainWindow) -> None:
     save_geometry(window)
     save_session(window)
     save_theme(window._theme)
+
+
+def load_update_auto_check() -> bool:
+    val = _settings().value("update/auto_check", True)
+    if val is False:
+        return False
+    if isinstance(val, str) and val.lower() in ("0", "false", "no"):
+        return False
+    return True
+
+
+def save_update_auto_check(enabled: bool) -> None:
+    _settings().setValue("update/auto_check", enabled)
+
+
+def load_last_update_check() -> float:
+    raw = _settings().value("update/last_check", 0)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def save_last_update_check(timestamp: float) -> None:
+    _settings().setValue("update/last_check", timestamp)
+
+
+def should_check_for_updates() -> bool:
+    if not load_update_auto_check():
+        return False
+    from inyfinn_resizer.utils.update_config import CHECK_INTERVAL_SEC
+
+    elapsed = time.time() - load_last_update_check()
+    return elapsed >= CHECK_INTERVAL_SEC
