@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.message_boxes import ask_yes_no, show_info
+from inyfinn_resizer.app.dialogs.message_boxes import ask_yes_no, show_critical, show_info
 from inyfinn_resizer.app.dialogs.update_dialog import UpdateDialog
 from inyfinn_resizer.app.user_settings import (
     load_update_auto_check,
@@ -365,18 +365,45 @@ class UpdateManager(QObject):
         ):
             return
 
-        pkg_dir = package_dir(self._ready_version)
-        script = write_apply_script(
-            zip_path=self._ready_zip,
-            install_root=root,
-            version=self._ready_version,
-            launcher=launcher,
-            package_dir=pkg_dir,
-        )
+        try:
+            pkg_dir = package_dir(self._ready_version)
+            script = write_apply_script(
+                zip_path=self._ready_zip,
+                install_root=root,
+                version=self._ready_version,
+                launcher=launcher,
+                package_dir=pkg_dir,
+            )
+            self._launch_installer(script)
+        except Exception as exc:  # noqa: BLE001 — instalator NIGDY nie może cicho paść
+            log_event("Aktualizacja", f"BŁĄD uruchomienia instalatora: {exc!r}")
+            show_critical(
+                self._window,
+                "Instalacja aktualizacji",
+                "Nie udało się uruchomić instalatora aktualizacji.\n\n"
+                f"Szczegóły: {exc}\n\n"
+                "Spróbuj ponownie lub pobierz nową wersję ręcznie z GitHub.",
+            )
+            return
+
         mark_pending_success(self._ready_version)
         log_event("Aktualizacja", f"instalacja v{self._ready_version}")
+        self._toast.hide_toast()
+        if self._status is not None:
+            self._status.hide_bar()
+        QApplication.instance().quit()
 
-        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    def _launch_installer(self, script: Path) -> None:
+        """Uruchamia skrypt PowerShell instalatora w osobnym procesie.
+
+        W wersji EXE (PyInstaller windowed) proces rodzica nie ma prawidłowych
+        uchwytów stdin/stdout/stderr — bez jawnego DEVNULL Popen podnosi
+        OSError [WinError 6] i instalacja cicho pada. Dlatego jawnie
+        przekierowujemy wszystkie strumienie.
+        """
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         subprocess.Popen(
             [
                 "powershell.exe",
@@ -387,13 +414,12 @@ class UpdateManager(QObject):
                 "-File",
                 str(script),
             ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             creationflags=creationflags,
             close_fds=True,
         )
-        self._toast.hide_toast()
-        if self._status is not None:
-            self._status.hide_bar()
-        QApplication.instance().quit()
 
     def reposition_toast(self) -> None:
         self._toast.reposition(self._host)

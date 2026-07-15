@@ -164,6 +164,10 @@ def make_step_section(
     icon.setPixmap(step_pixmap(step_key))
     icon.setFixedSize(STEP_ICON_SIZE, STEP_ICON_SIZE)
     header_row.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+    # Referencje do odświeżenia ikony po zmianie motywu (jasny/ciemny).
+    box.setProperty("stepKey", step_key)
+    box._step_icon_label = icon  # type: ignore[attr-defined]
+    box._step_key = step_key  # type: ignore[attr-defined]
 
     text_col = QVBoxLayout()
     text_col.setContentsMargins(0, 0, 0, 0)

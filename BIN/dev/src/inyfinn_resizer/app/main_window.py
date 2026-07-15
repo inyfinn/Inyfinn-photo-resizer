@@ -798,6 +798,7 @@ class MainWindow(QMainWindow):
         root.addWidget(section1_box, 0)
         root.addWidget(section2_box, 0)
         root.addWidget(section3_box, 0)
+        self._step_section_boxes = [section1_box, section2_box, section3_box]
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())
@@ -899,6 +900,7 @@ class MainWindow(QMainWindow):
         from inyfinn_resizer.app.themes import apply_theme
 
         apply_theme(QApplication.instance(), self._theme)
+        self._refresh_step_icons()
 
     def _set_theme(self, theme: str) -> None:
         from PySide6.QtWidgets import QApplication
@@ -908,11 +910,22 @@ class MainWindow(QMainWindow):
         self._theme = theme
         apply_theme(QApplication.instance(), theme)
         save_theme(theme)
+        self._refresh_step_icons()
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
             self._theme_toggle.set_dark(theme == "dark")
             self._theme_toggle.blockSignals(False)
         self._mark_dirty()
+
+    def _refresh_step_icons(self) -> None:
+        """Przemaluj kolorowe ikony sekcji po zmianie motywu (jasny/ciemny)."""
+        from inyfinn_resizer.app.widgets.section_icons import step_pixmap
+
+        for box in getattr(self, "_step_section_boxes", []):
+            icon = getattr(box, "_step_icon_label", None)
+            key = getattr(box, "_step_key", None)
+            if icon is not None and key:
+                icon.setPixmap(step_pixmap(key))
 
     def _reload_size_combo(self, *, select_id: str | None = None) -> None:
         self.size_combo.blockSignals(True)

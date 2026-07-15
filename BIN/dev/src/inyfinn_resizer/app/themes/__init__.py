@@ -203,11 +203,21 @@ _THEME_TOKENS: dict[str, dict[str, str]] = {
 }
 
 
+_CURRENT_THEME = "light"
+
+
+def current_theme() -> str:
+    """Ostatnio zastosowany motyw ('light' / 'dark')."""
+    return _CURRENT_THEME
+
+
 def _icon_path(name: str) -> Path:
     return Path(__file__).resolve().parent / "icons" / name
 
 
 def apply_theme(app: QApplication, theme: str = "light") -> None:
+    global _CURRENT_THEME
+    _CURRENT_THEME = theme if theme in _THEME_TOKENS else "light"
     base_path = Path(__file__).resolve().parent / "app.qss"
     if not base_path.is_file():
         legacy = Path(__file__).resolve().parent / f"{theme}.qss"

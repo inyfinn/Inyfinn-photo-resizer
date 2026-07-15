@@ -11,6 +11,13 @@ STEP_ACCENTS = {
     "save": ("#ea580c", "#fff7ed"),
 }
 
+# Tryb ciemny: przyciemnione, mniej nasycone warianty — nie rażą na ciemnym tle.
+STEP_ACCENTS_DARK = {
+    "format": "#3b3f7a",
+    "dimensions": "#0f5a54",
+    "save": "#8a4416",
+}
+
 HELP_ACCENTS = {
     "start": ("#2563eb", "#eff6ff"),
     "list": ("#7c3aed", "#f5f3ff"),
@@ -19,6 +26,27 @@ HELP_ACCENTS = {
     "menu": ("#64748b", "#f8fafc"),
     "update": ("#4f46e5", "#eef2ff"),
 }
+
+HELP_ACCENTS_DARK = {
+    "start": "#2c4a86",
+    "list": "#4a3a7a",
+    "compression": "#155e73",
+    "advanced": "#7a5410",
+    "menu": "#3f4a5c",
+    "update": "#3b3f7a",
+    "format": "#3b3f7a",
+    "dimensions": "#0f5a54",
+    "save": "#8a4416",
+}
+
+
+def _is_dark() -> bool:
+    try:
+        from inyfinn_resizer.app.themes import current_theme
+
+        return current_theme() == "dark"
+    except Exception:
+        return False
 
 BADGE_SIZE = 40
 RENDER_SCALE = 2
@@ -97,6 +125,8 @@ def _draw_save_white(painter: QPainter, size: float) -> None:
 
 def step_pixmap(step_key: str, *, size: int | None = None) -> QPixmap:
     accent, _bg = STEP_ACCENTS.get(step_key, STEP_ACCENTS["format"])
+    if _is_dark():
+        accent = STEP_ACCENTS_DARK.get(step_key, accent)
     logical = size or BADGE_SIZE
     px, painter, side = _badge_canvas(logical)
     radius = 10.0
@@ -201,6 +231,8 @@ _HELP_DRAWERS = {
 
 def help_section_pixmap(section_key: str, *, size: int | None = None) -> QPixmap:
     accent, _bg = HELP_ACCENTS.get(section_key, STEP_ACCENTS.get(section_key, STEP_ACCENTS["format"]))
+    if _is_dark():
+        accent = HELP_ACCENTS_DARK.get(section_key, accent)
     logical = size or 32
     px, painter, side = _badge_canvas(logical)
     radius = 8.0
