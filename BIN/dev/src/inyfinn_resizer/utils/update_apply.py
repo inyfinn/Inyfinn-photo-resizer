@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import shutil
+import tempfile
 from pathlib import Path
 
 from inyfinn_resizer.utils.install_layout import install_layout
@@ -35,7 +35,7 @@ def write_apply_script(
     )
 
     # Skrypt w %TEMP% — nie kasuje się razem z folderem pakietu.
-    temp_script = Path(shutil.gettempdir()) / f"inyfinn-apply-update-{version}.ps1"
+    temp_script = Path(tempfile.gettempdir()) / f"inyfinn-apply-update-{version}.ps1"
     # utf-8-sig = UTF-8 z BOM; PowerShell 5.1 rozpoznaje BOM i odczytuje poprawnie
     temp_script.write_text(script_body, encoding="utf-8-sig")
     return temp_script
