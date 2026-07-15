@@ -1,4 +1,4 @@
-"""Pobieranie informacji o release z GitHub API."""
+"""Pobieranie informacji o najnowszym release z GitHub Releases API."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import urllib.request
 from dataclasses import dataclass
 
 from inyfinn_resizer.utils.update_config import (
-    ASSET_PREFIX,
-    ASSET_SUFFIX,
+    ASSET_FILENAME_PREFIX,
+    ASSET_FILENAME_SUFFIX,
     RELEASES_LATEST_URL,
     USER_AGENT,
 )
@@ -21,11 +21,10 @@ class ReleaseInfo:
     version: str
     tag: str
     download_url: str
-    asset_name: str
     size: int
 
 
-def _github_request(url: str) -> dict:
+def _fetch_json(url: str) -> dict:
     req = urllib.request.Request(
         url,
         headers={
@@ -38,7 +37,8 @@ def _github_request(url: str) -> dict:
 
 
 def fetch_latest_release() -> ReleaseInfo:
-    data = _github_request(RELEASES_LATEST_URL)
+    """Pobiera najnowszy release z GitHub API (publiczne repo — bez tokenu)."""
+    data = _fetch_json(RELEASES_LATEST_URL)
     tag = str(data.get("tag_name", "")).strip()
     if not tag:
         raise ValueError("Brak tag_name w odpowiedzi GitHub")
@@ -49,19 +49,15 @@ def fetch_latest_release() -> ReleaseInfo:
         if not isinstance(asset, dict):
             continue
         name = str(asset.get("name", ""))
-        if not name.startswith(ASSET_PREFIX) or not name.endswith(ASSET_SUFFIX):
+        if not (name.startswith(ASSET_FILENAME_PREFIX) and name.endswith(ASSET_FILENAME_SUFFIX)):
             continue
         url = str(asset.get("browser_download_url", ""))
         if not url:
             continue
         size = int(asset.get("size") or 0)
-        return ReleaseInfo(
-            version=version,
-            tag=tag,
-            download_url=url,
-            asset_name=name,
-            size=size,
-        )
+        return ReleaseInfo(version=version, tag=tag, download_url=url, size=size)
 
-    expected = f"{ASSET_PREFIX}{version}{ASSET_SUFFIX}"
-    raise ValueError(f"Brak assetu {expected} w najnowszym release")
+    raise ValueError(
+        f"Brak assetu {ASSET_FILENAME_PREFIX}{version}{ASSET_FILENAME_SUFFIX} "
+        f"w najnowszym release ({tag})"
+    )
