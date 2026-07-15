@@ -49,6 +49,7 @@ from inyfinn_resizer.app.dialogs.custom_size_preset import CustomSizePresetDialo
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
 from inyfinn_resizer.app.dialogs.help_guide import show_help_guide
 from inyfinn_resizer.app.update_manager import UpdateManager
+from inyfinn_resizer.app.widgets.update_status_bar import UpdateStatusBar
 from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
 from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
@@ -201,9 +202,13 @@ class MainWindow(QMainWindow):
         self._app_footer = QLabel(f"Inyfinn Photo Resizer · v{__version__}")
         self._app_footer.setObjectName("appFooter")
         self.statusBar().addPermanentWidget(self._app_footer)
+
+        self._update_status = UpdateStatusBar()
+        self._update_status.hide()
+        self.statusBar().addWidget(self._update_status, 0)
         self.statusBar().showMessage("Przeciągnij zdjęcia na listę po lewej")
 
-        self._update_manager = UpdateManager(self)
+        self._update_manager = UpdateManager(self, self._update_status)
         self._update_attach_done = False
 
     def resizeEvent(self, event) -> None:

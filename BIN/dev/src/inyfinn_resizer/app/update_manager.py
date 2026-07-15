@@ -1,4 +1,4 @@
-"""Orkiestracja auto-update: check, download, toast, dialog, instalacja."""
+"""Orkiestracja auto-update: check, download, status bar, toast, dialog, instalacja."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, QTimer
+from PySide6.QtCore import QObject, Qt, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from inyfinn_resizer import __version__
@@ -18,6 +18,7 @@ from inyfinn_resizer.app.user_settings import (
     save_last_update_check,
     should_check_for_updates,
 )
+from inyfinn_resizer.app.widgets.update_status_bar import UpdateStatusBar
 from inyfinn_resizer.app.widgets.update_toast import UpdateToast
 from inyfinn_resizer.utils.app_log import log_event
 from inyfinn_resizer.utils.install_layout import install_root, launcher_executable
@@ -34,13 +35,18 @@ from inyfinn_resizer.workers.update_worker import UpdateThread, UpdateWorker
 
 
 class UpdateManager(QObject):
-    def __init__(self, window: QWidget) -> None:
+    def __init__(self, window: QWidget, status_bar: UpdateStatusBar | None = None) -> None:
         super().__init__(window)
         self._window = window
         self._host = window.centralWidget() or window
+        self._status = status_bar
         self._toast = UpdateToast(self._host)
         self._toast.install_requested.connect(self._on_install)
         self._toast.dismiss_requested.connect(self._toast.hide_toast)
+
+        if self._status is not None:
+            self._status.cancel_requested.connect(self._on_cancel_download)
+            self._status.install_requested.connect(self._on_install)
 
         self._dialog: UpdateDialog | None = None
         self._manual_flow = False
@@ -55,7 +61,10 @@ class UpdateManager(QObject):
         self._download_thread: QThread | None = None
         self._download_worker: UpdateWorker | None = None
 
-        self._check_scheduled = False
+        self._startup_check_done = False
+        self._last_progress_ui_at = 0.0
+        self._last_progress_received = 0
+        self._last_progress_total = 0
         cleanup_orphans()
 
     @staticmethod
@@ -68,10 +77,11 @@ class UpdateManager(QObject):
         QTimer.singleShot(800, self._show_post_update_notice)
         if not load_update_auto_check():
             return
-        if self._check_scheduled:
+        if self._startup_check_done:
             return
-        self._check_scheduled = True
-        QTimer.singleShot(2500, lambda: self.check_now(force=False))
+        self._startup_check_done = True
+        # Natychmiast po starcie — użytkownik musi od razu widzieć postęp.
+        QTimer.singleShot(400, lambda: self.check_now(force=True))
 
     def _show_post_update_notice(self) -> None:
         version = consume_pending_success(__version__)
@@ -109,6 +119,7 @@ class UpdateManager(QObject):
             self._ready_version, zip_str = cached
             self._ready_zip = Path(zip_str)
             self._dialog.set_update_available(self._ready_version, cached=True)
+            self._show_ready(self._ready_version, self._ready_zip)
             return
 
         save_last_update_check(time.time())
@@ -142,6 +153,8 @@ class UpdateManager(QObject):
         return None
 
     def _start_check_thread(self) -> None:
+        if self._status is not None:
+            self._status.set_checking()
         self._check_worker = UpdateWorker()
         self._check_thread = UpdateThread(self._check_worker)
         self._check_worker.checked.connect(self._on_release_checked)
@@ -149,6 +162,7 @@ class UpdateManager(QObject):
         self._check_thread.finished.connect(self._cleanup_check_thread)
         self._check_worker.moveToThread(self._check_thread)
         self._check_thread.started.connect(self._check_worker.check_release)
+        self._check_thread.setPriority(QThread.Priority.LowPriority)
         self._check_thread.start()
 
     def _cleanup_check_thread(self) -> None:
@@ -161,6 +175,8 @@ class UpdateManager(QObject):
 
     def _on_check_failed(self, message: str) -> None:
         log_event("Aktualizacja", f"sprawdzenie nieudane: {message}")
+        if self._status is not None:
+            self._status.hide_bar()
         if self._dialog and self._manual_flow:
             self._dialog.set_check_failed(message)
 
@@ -169,6 +185,8 @@ class UpdateManager(QObject):
             return
 
         if not is_newer(release.version, __version__):
+            if self._status is not None:
+                self._status.hide_bar()
             if self._dialog and self._manual_flow:
                 self._dialog.set_up_to_date()
             return
@@ -193,9 +211,8 @@ class UpdateManager(QObject):
                 self._start_download(release)
             return
 
-        self._toast.set_downloading(0, release.size or 0)
-        self._toast.show()
-        self._toast.reposition(self._host)
+        if self._status is not None:
+            self._status.set_downloading(release.version, 0, release.size or 0)
         self._start_download(release)
 
     def _on_manual_install_clicked(self) -> None:
@@ -213,23 +230,58 @@ class UpdateManager(QObject):
         self._install_after_download = True
         self._start_check_thread()
 
+    def _on_cancel_download(self) -> None:
+        if self._download_worker is not None:
+            self._download_worker.request_cancel()
+        self._install_after_download = False
+        if self._status is not None:
+            self._status.hide_bar()
+        self._toast.hide_toast()
+        log_event("Aktualizacja", "pobieranie anulowane przez użytkownika")
+
     def _start_download(self, release: ReleaseInfo) -> None:
         if self._download_thread and self._download_thread.isRunning():
             return
+        if self._status is not None:
+            self._status.set_downloading(release.version, 0, release.size or 0)
         self._download_worker = UpdateWorker()
         self._download_thread = QThread()
         self._download_worker.moveToThread(self._download_thread)
-        self._download_worker.download_progress.connect(self._on_download_progress)
-        self._download_worker.download_ready.connect(self._on_download_ready)
-        self._download_worker.failed.connect(self._on_download_failed)
+        self._download_worker.download_progress.connect(
+            self._on_download_progress,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._download_worker.download_ready.connect(
+            self._on_download_ready,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._download_worker.failed.connect(
+            self._on_download_failed,
+            Qt.ConnectionType.QueuedConnection,
+        )
         self._download_thread.started.connect(
             lambda: self._download_worker.download_release(release)
         )
         self._download_thread.finished.connect(self._cleanup_download_thread)
+        self._download_thread.setPriority(QThread.Priority.LowPriority)
+        self._last_progress_ui_at = 0.0
+        self._last_progress_received = 0
+        self._last_progress_total = 0
         self._download_thread.start()
 
     def _on_download_progress(self, received: int, total: int) -> None:
-        self._toast.set_downloading(received, total)
+        self._last_progress_received = received
+        self._last_progress_total = total
+        now = time.monotonic()
+        if now - self._last_progress_ui_at < 0.25 and received < (total or received):
+            return
+        self._last_progress_ui_at = now
+        self._apply_download_progress_ui(received, total)
+
+    def _apply_download_progress_ui(self, received: int, total: int) -> None:
+        version = self._pending_release.version if self._pending_release else (self._ready_version or "")
+        if self._status is not None and version:
+            self._status.set_downloading(version, received, total)
         if self._dialog and self._manual_flow:
             self._dialog.set_downloading(received, total)
 
@@ -242,6 +294,11 @@ class UpdateManager(QObject):
             self._download_worker = None
 
     def _on_download_ready(self, version: str, zip_path: str) -> None:
+        if self._last_progress_received:
+            self._apply_download_progress_ui(
+                self._last_progress_received,
+                self._last_progress_total,
+            )
         self._ready_version = version
         self._ready_zip = Path(zip_path)
         log_event("Aktualizacja", f"pobrano v{version}")
@@ -254,23 +311,24 @@ class UpdateManager(QObject):
             self._on_install()
             return
 
-        if not (self._dialog and self._manual_flow):
-            self._toast.set_ready(version)
-            self._toast.show()
-            self._toast.reposition(self._host)
+        self._show_ready(version, self._ready_zip)
 
     def _on_download_failed(self, message: str) -> None:
         log_event("Aktualizacja", f"pobieranie nieudane: {message}")
         self._install_after_download = False
-        self._toast.hide()
+        self._toast.hide_toast()
+        if self._status is not None:
+            self._status.hide_bar()
         if self._dialog and self._manual_flow:
             self._dialog.set_download_failed(message)
 
     def _show_ready(self, version: str, zip_path: Path) -> None:
         self._ready_version = version
         self._ready_zip = zip_path
+        if self._status is not None:
+            self._status.set_ready(version)
         self._toast.set_ready(version)
-        self._toast.show()
+        self._toast.show_non_blocking()
         self._toast.reposition(self._host)
 
     def _on_install(self) -> None:

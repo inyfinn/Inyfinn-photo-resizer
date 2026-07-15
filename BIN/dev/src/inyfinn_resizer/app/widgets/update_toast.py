@@ -14,6 +14,8 @@ class UpdateToast(QFrame):
         super().__init__(parent)
         self.setObjectName("updateToast")
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.hide()
 
         root = QVBoxLayout(self)
@@ -71,6 +73,12 @@ class UpdateToast(QFrame):
 
     def hide_toast(self) -> None:
         self.hide()
+
+    def show_non_blocking(self) -> None:
+        """Pokaż toast bez przejmowania fokusu — aplikacja pozostaje w pełni używalna."""
+        self.adjustSize()
+        self.show()
+        self.raise_()
 
     def reposition(self, host: QWidget) -> None:
         if not self.isVisible():

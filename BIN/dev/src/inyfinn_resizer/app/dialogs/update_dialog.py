@@ -27,8 +27,9 @@ class UpdateDialog(AppDialog):
         root.addWidget(self._status)
 
         self._hint = QLabel(
-            "Po kliknięciu „Pobierz i zainstaluj” pakiet zostanie pobrany w tle, "
-            "a następnie aplikacja zostanie zamknięta i uruchomiona ponownie."
+            "Pakiet pobiera się w tle — możesz normalnie korzystać z aplikacji. "
+            "Instalacja nastąpi dopiero po kliknięciu „Zainstaluj” (aplikacja "
+            "zostanie wtedy zamknięta i uruchomiona ponownie)."
         )
         self._hint.setWordWrap(True)
         self._hint.setObjectName("updateDialogHint")

@@ -1429,3 +1429,52 @@ QProgressBar#updateDialogProgress::chunk {
     background: @UPDATE_TOAST_INSTALL_BG@;
     border-radius: 5px;
 }
+
+QFrame#updateStatusBar {
+    background: transparent;
+    border: none;
+    padding: 0 4px;
+}
+
+QLabel#updateStatusSpinner {
+    color: @FG_ACCENT@;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QLabel#updateStatusLabel {
+    color: @FG_MUTED@;
+    font-size: 11px;
+    background: transparent;
+}
+
+QPushButton#updateStatusCancel {
+    background: transparent;
+    color: @FG_MUTED@;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 0;
+}
+
+QPushButton#updateStatusCancel:hover {
+    color: @OVERLAY_ABORT_COLOR@;
+    border-color: @OVERLAY_ABORT_BORDER@;
+    background: @OVERLAY_ABORT_HOVER_BG@;
+}
+
+QPushButton#updateStatusInstall {
+    background-color: @UPDATE_TOAST_INSTALL_BG@;
+    color: @UPDATE_TOAST_INSTALL_TEXT@;
+    border: 1px solid @UPDATE_TOAST_INSTALL_BG@;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0 10px;
+}
+
+QPushButton#updateStatusInstall:hover {
+    background-color: @UPDATE_TOAST_INSTALL_HOVER@;
+    border-color: @UPDATE_TOAST_INSTALL_HOVER@;
+}

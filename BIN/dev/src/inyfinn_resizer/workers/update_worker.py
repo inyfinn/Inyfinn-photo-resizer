@@ -104,9 +104,9 @@ class UpdateWorker(QObject):
 
 
 class UpdateThread(QThread):
+    """Wątek tylko do uruchomienia event loop — praca w UpdateWorker przez moveToThread."""
+
     def __init__(self, worker: UpdateWorker) -> None:
         super().__init__()
         self.worker = worker
-
-    def run(self) -> None:
-        self.worker.check_release()
+        self.setPriority(QThread.Priority.LowPriority)
