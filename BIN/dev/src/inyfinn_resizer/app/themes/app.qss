@@ -1431,21 +1431,25 @@ QProgressBar#updateDialogProgress::chunk {
 }
 
 QFrame#updateStatusBar {
-    background: transparent;
-    border: none;
-    padding: 0 4px;
+    background-color: @UPDATE_TOAST_BG@;
+    border: 1px solid @UPDATE_TOAST_BORDER@;
+    border-radius: 6px;
+    padding: 2px 6px;
+    min-width: 340px;
+    max-width: 520px;
 }
 
 QLabel#updateStatusSpinner {
-    color: @FG_ACCENT@;
+    color: @UPDATE_TOAST_INSTALL_BG@;
     font-size: 12px;
     font-weight: 600;
     background: transparent;
 }
 
 QLabel#updateStatusLabel {
-    color: @FG_MUTED@;
+    color: @FG_TEXT@;
     font-size: 11px;
+    font-weight: 500;
     background: transparent;
 }
 

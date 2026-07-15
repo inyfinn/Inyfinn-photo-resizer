@@ -1,7 +1,8 @@
-"""Worker sprawdzania i pobierania aktualizacji (QThread)."""
+"""Worker sprawdzania i pobierania aktualizacji (osobny QThread)."""
 
 from __future__ import annotations
 
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,16 +18,19 @@ from inyfinn_resizer.utils.update_cache import (
 from inyfinn_resizer.utils.update_config import DOWNLOAD_CHUNK_BYTES, USER_AGENT
 from inyfinn_resizer.utils.update_release import ReleaseInfo, fetch_latest_release
 
+_PROGRESS_EMIT_INTERVAL_SEC = 0.5
+
 
 class UpdateWorker(QObject):
     checked = Signal(object)  # ReleaseInfo | None
-    download_progress = Signal(int, int)  # received, total
     download_ready = Signal(str, str)  # version, zip_path
     failed = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
         self._cancelled = False
+        self.progress_received = 0
+        self.progress_total = 0
 
     def request_cancel(self) -> None:
         self._cancelled = True
@@ -41,9 +45,26 @@ class UpdateWorker(QObject):
             self.failed.emit(str(exc))
 
     def download_release(self, release: ReleaseInfo) -> None:
+        self._cancelled = False
+        self.progress_received = 0
+        self.progress_total = release.size or 0
+        last_emit_at = 0.0
+
+        def _touch_progress(received: int, total: int) -> None:
+            nonlocal last_emit_at
+            self.progress_received = received
+            self.progress_total = total
+            now = time.monotonic()
+            if now - last_emit_at < _PROGRESS_EMIT_INTERVAL_SEC and received < total:
+                return
+            last_emit_at = now
+
         try:
             cached = find_cached(release.version, release.size or None)
             if cached is not None:
+                size = cached.path.stat().st_size if cached.path.is_file() else 0
+                self.progress_received = size
+                self.progress_total = size or release.size or 0
                 self.download_ready.emit(release.version, str(cached.path))
                 return
 
@@ -61,7 +82,7 @@ class UpdateWorker(QObject):
             with urllib.request.urlopen(req, timeout=60) as resp:
                 code = getattr(resp, "status", 200) or 200
                 total_header = resp.headers.get("Content-Length")
-                total = int(total_header) if total_header else release.size
+                total = int(total_header) if total_header else (release.size or 0)
                 if code == 206:
                     content_range = resp.headers.get("Content-Range", "")
                     if "/" in content_range:
@@ -70,8 +91,13 @@ class UpdateWorker(QObject):
                     existing = 0
                     part_path.unlink(missing_ok=True)
 
+                if not total:
+                    total = release.size or 0
+
                 mode = "ab" if existing > 0 else "wb"
                 received = existing
+                _touch_progress(received, total or received)
+
                 with part_path.open(mode) as handle:
                     while not self._cancelled:
                         chunk = resp.read(DOWNLOAD_CHUNK_BYTES)
@@ -79,7 +105,7 @@ class UpdateWorker(QObject):
                             break
                         handle.write(chunk)
                         received += len(chunk)
-                        self.download_progress.emit(received, total or received)
+                        _touch_progress(received, total or received)
 
             if self._cancelled:
                 return
@@ -96,6 +122,8 @@ class UpdateWorker(QObject):
 
             part_path.replace(final_path)
             register_download(release.version, final_path, actual_size)
+            self.progress_received = actual_size
+            self.progress_total = actual_size
             self.download_ready.emit(release.version, str(final_path))
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError) as exc:
             self.failed.emit(str(exc))
@@ -103,10 +131,26 @@ class UpdateWorker(QObject):
             self.failed.emit(str(exc))
 
 
-class UpdateThread(QThread):
-    """Wątek tylko do uruchomienia event loop — praca w UpdateWorker przez moveToThread."""
-
+class CheckThread(QThread):
     def __init__(self, worker: UpdateWorker) -> None:
         super().__init__()
-        self.worker = worker
+        self._worker = worker
         self.setPriority(QThread.Priority.LowPriority)
+
+    def run(self) -> None:
+        self._worker.check_release()
+
+
+class DownloadThread(QThread):
+    def __init__(self, worker: UpdateWorker, release: ReleaseInfo) -> None:
+        super().__init__()
+        self._worker = worker
+        self._release = release
+        self.setPriority(QThread.Priority.LowPriority)
+
+    def run(self) -> None:
+        self._worker.download_release(self._release)
+
+
+# Zachowane dla kompatybilności importów.
+UpdateThread = CheckThread

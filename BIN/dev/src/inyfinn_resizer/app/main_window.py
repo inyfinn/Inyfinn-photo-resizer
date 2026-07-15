@@ -146,6 +146,7 @@ RIGHT_PANEL_MIN_WIDTH = 500
 
 
 class MainWindow(QMainWindow):
+    DEFAULT_STATUS_MESSAGE = "Przeciągnij zdjęcia na listę po lewej"
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"Inyfinn Photo Resizer {__version__}")
@@ -206,10 +207,13 @@ class MainWindow(QMainWindow):
         self._update_status = UpdateStatusBar()
         self._update_status.hide()
         self.statusBar().addWidget(self._update_status, 0)
-        self.statusBar().showMessage("Przeciągnij zdjęcia na listę po lewej")
+        self.statusBar().showMessage(self.DEFAULT_STATUS_MESSAGE)
 
         self._update_manager = UpdateManager(self, self._update_status)
         self._update_attach_done = False
+
+    def restore_default_status_message(self) -> None:
+        self.statusBar().showMessage(self.DEFAULT_STATUS_MESSAGE)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

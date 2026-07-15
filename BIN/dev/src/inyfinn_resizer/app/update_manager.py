@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from inyfinn_resizer import __version__
@@ -31,7 +31,7 @@ from inyfinn_resizer.utils.update_cache import (
 from inyfinn_resizer.utils.update_release import ReleaseInfo
 from inyfinn_resizer.utils.update_success import consume_pending_success, mark_pending_success
 from inyfinn_resizer.utils.version_compare import is_newer
-from inyfinn_resizer.workers.update_worker import UpdateThread, UpdateWorker
+from inyfinn_resizer.workers.update_worker import CheckThread, DownloadThread, UpdateWorker
 
 
 class UpdateManager(QObject):
@@ -56,13 +56,16 @@ class UpdateManager(QObject):
         self._ready_zip: Path | None = None
         self._ready_version: str | None = None
 
-        self._check_thread: UpdateThread | None = None
+        self._check_thread: CheckThread | None = None
         self._check_worker: UpdateWorker | None = None
-        self._download_thread: QThread | None = None
+        self._download_thread: DownloadThread | None = None
         self._download_worker: UpdateWorker | None = None
 
+        self._progress_timer = QTimer(self)
+        self._progress_timer.setInterval(500)
+        self._progress_timer.timeout.connect(self._poll_download_progress)
+
         self._startup_check_done = False
-        self._last_progress_ui_at = 0.0
         self._last_progress_received = 0
         self._last_progress_total = 0
         cleanup_orphans()
@@ -70,6 +73,16 @@ class UpdateManager(QObject):
     @staticmethod
     def is_supported() -> bool:
         return getattr(sys, "frozen", False) and install_root() is not None
+
+    def _pin_status_bar(self) -> None:
+        status_bar = getattr(self._window, "statusBar", None)
+        if callable(status_bar):
+            status_bar().clearMessage()
+
+    def _release_status_bar(self) -> None:
+        restore = getattr(self._window, "restore_default_status_message", None)
+        if callable(restore):
+            restore()
 
     def attach(self) -> None:
         if not self.is_supported():
@@ -154,15 +167,13 @@ class UpdateManager(QObject):
 
     def _start_check_thread(self) -> None:
         if self._status is not None:
+            self._pin_status_bar()
             self._status.set_checking()
         self._check_worker = UpdateWorker()
-        self._check_thread = UpdateThread(self._check_worker)
+        self._check_thread = CheckThread(self._check_worker)
         self._check_worker.checked.connect(self._on_release_checked)
         self._check_worker.failed.connect(self._on_check_failed)
         self._check_thread.finished.connect(self._cleanup_check_thread)
-        self._check_worker.moveToThread(self._check_thread)
-        self._check_thread.started.connect(self._check_worker.check_release)
-        self._check_thread.setPriority(QThread.Priority.LowPriority)
         self._check_thread.start()
 
     def _cleanup_check_thread(self) -> None:
@@ -177,6 +188,7 @@ class UpdateManager(QObject):
         log_event("Aktualizacja", f"sprawdzenie nieudane: {message}")
         if self._status is not None:
             self._status.hide_bar()
+            self._release_status_bar()
         if self._dialog and self._manual_flow:
             self._dialog.set_check_failed(message)
 
@@ -187,6 +199,7 @@ class UpdateManager(QObject):
         if not is_newer(release.version, __version__):
             if self._status is not None:
                 self._status.hide_bar()
+                self._release_status_bar()
             if self._dialog and self._manual_flow:
                 self._dialog.set_up_to_date()
             return
@@ -212,6 +225,7 @@ class UpdateManager(QObject):
             return
 
         if self._status is not None:
+            self._pin_status_bar()
             self._status.set_downloading(release.version, 0, release.size or 0)
         self._start_download(release)
 
@@ -233,9 +247,11 @@ class UpdateManager(QObject):
     def _on_cancel_download(self) -> None:
         if self._download_worker is not None:
             self._download_worker.request_cancel()
+        self._progress_timer.stop()
         self._install_after_download = False
         if self._status is not None:
             self._status.hide_bar()
+            self._release_status_bar()
         self._toast.hide_toast()
         log_event("Aktualizacja", "pobieranie anulowane przez użytkownika")
 
@@ -243,14 +259,9 @@ class UpdateManager(QObject):
         if self._download_thread and self._download_thread.isRunning():
             return
         if self._status is not None:
+            self._pin_status_bar()
             self._status.set_downloading(release.version, 0, release.size or 0)
         self._download_worker = UpdateWorker()
-        self._download_thread = QThread()
-        self._download_worker.moveToThread(self._download_thread)
-        self._download_worker.download_progress.connect(
-            self._on_download_progress,
-            Qt.ConnectionType.QueuedConnection,
-        )
         self._download_worker.download_ready.connect(
             self._on_download_ready,
             Qt.ConnectionType.QueuedConnection,
@@ -259,23 +270,23 @@ class UpdateManager(QObject):
             self._on_download_failed,
             Qt.ConnectionType.QueuedConnection,
         )
-        self._download_thread.started.connect(
-            lambda: self._download_worker.download_release(release)
-        )
+        self._download_thread = DownloadThread(self._download_worker, release)
         self._download_thread.finished.connect(self._cleanup_download_thread)
-        self._download_thread.setPriority(QThread.Priority.LowPriority)
-        self._last_progress_ui_at = 0.0
         self._last_progress_received = 0
-        self._last_progress_total = 0
+        self._last_progress_total = release.size or 0
+        self._progress_timer.start()
         self._download_thread.start()
 
-    def _on_download_progress(self, received: int, total: int) -> None:
+    def _poll_download_progress(self) -> None:
+        worker = self._download_worker
+        if worker is None:
+            return
+        received = worker.progress_received
+        total = worker.progress_total
+        if received == self._last_progress_received and total == self._last_progress_total:
+            return
         self._last_progress_received = received
         self._last_progress_total = total
-        now = time.monotonic()
-        if now - self._last_progress_ui_at < 0.25 and received < (total or received):
-            return
-        self._last_progress_ui_at = now
         self._apply_download_progress_ui(received, total)
 
     def _apply_download_progress_ui(self, received: int, total: int) -> None:
@@ -286,6 +297,7 @@ class UpdateManager(QObject):
             self._dialog.set_downloading(received, total)
 
     def _cleanup_download_thread(self) -> None:
+        self._progress_timer.stop()
         if self._download_thread:
             self._download_thread.deleteLater()
             self._download_thread = None
@@ -315,10 +327,12 @@ class UpdateManager(QObject):
 
     def _on_download_failed(self, message: str) -> None:
         log_event("Aktualizacja", f"pobieranie nieudane: {message}")
+        self._progress_timer.stop()
         self._install_after_download = False
         self._toast.hide_toast()
         if self._status is not None:
             self._status.hide_bar()
+            self._release_status_bar()
         if self._dialog and self._manual_flow:
             self._dialog.set_download_failed(message)
 
@@ -326,6 +340,7 @@ class UpdateManager(QObject):
         self._ready_version = version
         self._ready_zip = zip_path
         if self._status is not None:
+            self._pin_status_bar()
             self._status.set_ready(version)
         self._toast.set_ready(version)
         self._toast.show_non_blocking()
