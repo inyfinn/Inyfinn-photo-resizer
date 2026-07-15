@@ -21,7 +21,7 @@ class UpdateDialog(AppDialog):
         root = QVBoxLayout(self)
         root.setSpacing(12)
 
-        self._status = QLabel("Sprawdzanie aktualizacji…")
+        self._status = QLabel("Sprawdzanie nowej wersji…")
         self._status.setWordWrap(True)
         self._status.setObjectName("updateDialogStatus")
         root.addWidget(self._status)
@@ -57,7 +57,7 @@ class UpdateDialog(AppDialog):
         self._ready_version: str | None = None
 
     def set_checking(self) -> None:
-        self._status.setText("Sprawdzanie aktualizacji na GitHub…")
+        self._status.setText("Sprawdzanie nowej wersji na GitHub…")
         self._hint.hide()
         self._progress.hide()
         self._action_btn.hide()
@@ -93,16 +93,19 @@ class UpdateDialog(AppDialog):
     def set_downloading(self, received: int, total: int) -> None:
         self._action_btn.setEnabled(False)
         self._progress.show()
+        version_label = f"v{self._ready_version}" if self._ready_version else "nowej wersji"
         if total > 0:
             pct = min(100, int(received * 100 / total))
             self._progress.setValue(pct)
             mb_r = received / (1024 * 1024)
             mb_t = total / (1024 * 1024)
-            self._status.setText(f"Pobieranie aktualizacji… {pct}% ({mb_r:.0f}/{mb_t:.0f} MB)")
+            self._status.setText(
+                f"Aktualizacja do {version_label}… {pct}% ({mb_r:.0f}/{mb_t:.0f} MB)"
+            )
         else:
             self._progress.setRange(0, 0)
             mb_r = received / (1024 * 1024)
-            self._status.setText(f"Pobieranie aktualizacji… {mb_r:.0f} MB")
+            self._status.setText(f"Aktualizacja do {version_label}… {mb_r:.0f} MB")
 
     def set_ready_to_install(self, version: str) -> None:
         self._ready_version = version

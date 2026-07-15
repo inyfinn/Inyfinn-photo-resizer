@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.message_boxes import show_info
+from inyfinn_resizer.app.dialogs.message_boxes import ask_yes_no, show_info
 from inyfinn_resizer.app.dialogs.update_dialog import UpdateDialog
 from inyfinn_resizer.app.user_settings import (
     load_update_auto_check,
@@ -354,6 +354,17 @@ class UpdateManager(QObject):
         if root is None or launcher is None or not self._ready_zip.is_file():
             return
 
+        current = __version__
+        target = self._ready_version
+        if not ask_yes_no(
+            self._window,
+            "Instalacja aktualizacji",
+            f"Czy zainstalować aktualizację z wersji {current} do wersji {target}?\n\n"
+            f"Aplikacja zostanie zamknięta. Pojawi się okno postępu instalacji, "
+            f"a po zakończeniu program uruchomi się ponownie.",
+        ):
+            return
+
         pkg_dir = package_dir(self._ready_version)
         script = write_apply_script(
             zip_path=self._ready_zip,
@@ -365,19 +376,23 @@ class UpdateManager(QObject):
         mark_pending_success(self._ready_version)
         log_event("Aktualizacja", f"instalacja v{self._ready_version}")
 
-        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         subprocess.Popen(
             [
                 "powershell.exe",
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
+                "-STA",
                 "-File",
                 str(script),
             ],
-            creationflags=flags,
+            creationflags=creationflags,
             close_fds=True,
         )
+        self._toast.hide_toast()
+        if self._status is not None:
+            self._status.hide_bar()
         QApplication.instance().quit()
 
     def reposition_toast(self) -> None:

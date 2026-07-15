@@ -94,6 +94,18 @@ QWidget#helpGuideBody {
     background: transparent;
 }
 
+QFrame#helpGuideSection {
+    background-color: @BG_PANEL@;
+    border: 1px solid @BORDER@;
+    border-radius: 10px;
+}
+
+QLabel#helpGuideBullet {
+    font-size: 13px;
+    color: @FG_ACCENT@;
+    background: transparent;
+}
+
 QScrollArea#helpGuideScroll {
     background: transparent;
     border: none;

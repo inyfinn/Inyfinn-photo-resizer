@@ -22,7 +22,7 @@ class UpdateToast(QFrame):
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(10)
 
-        self._title = QLabel("Dostępna aktualizacja")
+        self._title = QLabel("Aktualizacja do nowej wersji")
         self._title.setObjectName("updateToastTitle")
         root.addWidget(self._title)
 
@@ -52,7 +52,10 @@ class UpdateToast(QFrame):
         root.addLayout(btn_row)
 
     def set_version(self, version: str) -> None:
-        self._message.setText(f"Wersja {version} jest gotowa. Zainstalować teraz?")
+        self._message.setText(
+            f"Nowa wersja {version} jest pobrana i gotowa do instalacji. "
+            f"Zainstalować teraz?"
+        )
 
     def set_downloading(self, received: int, total: int) -> None:
         self._progress.show()
@@ -60,10 +63,12 @@ class UpdateToast(QFrame):
             pct = min(100, int(received * 100 / total))
             mb_r = received / (1024 * 1024)
             mb_t = total / (1024 * 1024)
-            self._progress.setText(f"Pobieranie… {pct}% ({mb_r:.0f}/{mb_t:.0f} MB)")
+            self._progress.setText(
+                f"Pobieranie aktualizacji… {pct}% ({mb_r:.0f}/{mb_t:.0f} MB)"
+            )
         else:
             mb_r = received / (1024 * 1024)
-            self._progress.setText(f"Pobieranie… {mb_r:.0f} MB")
+            self._progress.setText(f"Pobieranie aktualizacji… {mb_r:.0f} MB")
         self._install_btn.setEnabled(False)
 
     def set_ready(self, version: str) -> None:

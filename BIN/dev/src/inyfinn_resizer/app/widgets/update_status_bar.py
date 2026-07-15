@@ -84,16 +84,19 @@ class UpdateStatusBar(QFrame):
             pct = min(100, int(received * 100 / total))
             mb_r = received / (1024 * 1024)
             mb_t = total / (1024 * 1024)
-            return f"Pobieranie v{version}… {pct}% ({mb_r:.0f}/{mb_t:.0f} MB)"
+            return (
+                f"Aktualizacja do v{version}… {pct}% "
+                f"({mb_r:.0f}/{mb_t:.0f} MB)"
+            )
         mb_r = received / (1024 * 1024)
-        return f"Pobieranie v{version}… {mb_r:.0f} MB"
+        return f"Aktualizacja do v{version}… {mb_r:.0f} MB"
 
     def set_checking(self) -> None:
         self._version = ""
         self._install_btn.hide()
         self._cancel_btn.hide()
         self._start_spinner()
-        self._set_label("Sprawdzanie aktualizacji…")
+        self._set_label("Sprawdzanie nowej wersji…")
         self.show()
 
     def set_downloading(self, version: str, received: int, total: int) -> None:
@@ -109,7 +112,7 @@ class UpdateStatusBar(QFrame):
         self._stop_spinner()
         self._cancel_btn.hide()
         self._install_btn.show()
-        self._set_label(f"Dostępna aktualizacja v{version}")
+        self._set_label(f"Gotowa aktualizacja do v{version}")
         self.show()
 
     def hide_bar(self) -> None:

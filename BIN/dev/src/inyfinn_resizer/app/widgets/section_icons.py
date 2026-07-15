@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 STEP_ACCENTS = {
     "format": ("#6366f1", "#eef2ff"),
     "dimensions": ("#0d9488", "#ecfdf5"),
     "save": ("#ea580c", "#fff7ed"),
+}
+
+HELP_ACCENTS = {
+    "start": ("#2563eb", "#eff6ff"),
+    "list": ("#7c3aed", "#f5f3ff"),
+    "compression": ("#0891b2", "#ecfeff"),
+    "advanced": ("#ca8a04", "#fefce8"),
+    "menu": ("#64748b", "#f8fafc"),
+    "update": ("#4f46e5", "#eef2ff"),
 }
 
 BADGE_SIZE = 40
@@ -108,6 +117,99 @@ def step_pixmap(step_key: str, *, size: int | None = None) -> QPixmap:
 
 def step_icon(step_key: str) -> QIcon:
     return QIcon(step_pixmap(step_key))
+
+
+def _draw_start_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.2)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    c = size / 2
+    painter.drawPolygon(
+        [
+            QPointF(c - 4, c - 7),
+            QPointF(c + 8, c),
+            QPointF(c - 4, c + 7),
+        ]
+    )
+
+
+def _draw_list_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    for y in (13.0, 20.0, 27.0):
+        painter.drawLine(11, int(y), 29, int(y))
+    painter.drawLine(11, 13, 11, 27)
+
+
+def _draw_compression_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.drawLine(12, 26, 20, 18)
+    painter.drawLine(20, 18, 28, 22)
+    painter.drawLine(28, 22, 28, 12)
+
+
+def _draw_advanced_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawEllipse(14, 14, 12, 12)
+    painter.drawLine(23, 23, 28, 28)
+
+
+def _draw_menu_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.2)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    for y in (12.0, 20.0, 28.0):
+        painter.drawLine(10, int(y), 30, int(y))
+
+
+def _draw_update_white(painter: QPainter, size: float) -> None:
+    white = QColor("#ffffff")
+    pen = QPen(white, 2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawArc(10, 10, 20, 20, 40 * 16, 280 * 16)
+    painter.drawLine(24, 10, 24, 15)
+    painter.drawLine(24, 10, 19, 10)
+
+
+_HELP_DRAWERS = {
+    "start": _draw_start_white,
+    "list": _draw_list_white,
+    "format": _draw_format_white,
+    "compression": _draw_compression_white,
+    "dimensions": _draw_dimensions_white,
+    "save": _draw_save_white,
+    "advanced": _draw_advanced_white,
+    "menu": _draw_menu_white,
+    "update": _draw_update_white,
+}
+
+
+def help_section_pixmap(section_key: str, *, size: int | None = None) -> QPixmap:
+    accent, _bg = HELP_ACCENTS.get(section_key, STEP_ACCENTS.get(section_key, STEP_ACCENTS["format"]))
+    logical = size or 32
+    px, painter, side = _badge_canvas(logical)
+    radius = 8.0
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(accent))
+    painter.drawRoundedRect(0.5, 0.5, side - 1, side - 1, radius, radius)
+    drawer = _HELP_DRAWERS.get(section_key, _draw_start_white)
+    drawer(painter, side)
+    return _finish_icon(px, painter, logical)
 
 
 def action_icon_refresh_path() -> QIcon:

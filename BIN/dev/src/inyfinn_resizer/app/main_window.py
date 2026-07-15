@@ -139,9 +139,9 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
 DEFAULT_WINDOW_WIDTH = 1200
-DEFAULT_WINDOW_HEIGHT = 765
+DEFAULT_WINDOW_HEIGHT = 800
 MIN_WINDOW_WIDTH = DEFAULT_WINDOW_WIDTH
-MIN_WINDOW_HEIGHT = DEFAULT_WINDOW_HEIGHT
+MIN_WINDOW_HEIGHT = 720
 RIGHT_PANEL_MIN_WIDTH = 500
 
 
@@ -515,7 +515,7 @@ class MainWindow(QMainWindow):
         body = QWidget()
         self._settings_body = body
         body.setObjectName("settingsBody")
-        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         root = QVBoxLayout(body)
         root.setSpacing(SECTION_GAP)
         root.setContentsMargins(0, 0, 8, 12)
@@ -793,12 +793,11 @@ class MainWindow(QMainWindow):
             setattr(self, attr, cb)
             cb_grid.addWidget(cb, i // 2, i % 2)
         section3.addLayout(cb_grid)
-        section3.addStretch(1)
 
         root.addWidget(flow_hint, 0)
-        root.addWidget(section1_box, 1)
-        root.addWidget(section2_box, 1)
-        root.addWidget(section3_box, 1)
+        root.addWidget(section1_box, 0)
+        root.addWidget(section2_box, 0)
+        root.addWidget(section3_box, 0)
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())

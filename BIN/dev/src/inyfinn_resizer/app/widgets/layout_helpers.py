@@ -148,7 +148,7 @@ def make_step_section(
     }
     box = QFrame()
     box.setObjectName(object_names.get(step_key, "sectionBox"))
-    box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+    box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
     outer = QVBoxLayout(box)
     outer.setContentsMargins(10, 8, 12, 10)
     outer.setSpacing(6)
