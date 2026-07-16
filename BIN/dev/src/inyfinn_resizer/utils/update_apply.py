@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -10,6 +11,20 @@ from inyfinn_resizer.utils.install_layout import install_layout
 
 def _ps_literal(path: Path) -> str:
     return str(path.resolve()).replace("'", "''")
+
+
+def _temp_dir() -> Path:
+    """Katalog %TEMP% — wyłącznie przez tempfile / zmienne środowiskowe OS."""
+    try:
+        return Path(tempfile.gettempdir())
+    except Exception:
+        for key in ("TEMP", "TMP", "LOCALAPPDATA"):
+            raw = os.environ.get(key)
+            if raw:
+                candidate = Path(raw) if key != "LOCALAPPDATA" else Path(raw) / "Temp"
+                if candidate.is_dir():
+                    return candidate
+        return Path.cwd()
 
 
 def write_apply_script(
@@ -35,7 +50,7 @@ def write_apply_script(
     )
 
     # Skrypt w %TEMP% — nie kasuje się razem z folderem pakietu.
-    temp_script = Path(tempfile.gettempdir()) / f"inyfinn-apply-update-{version}.ps1"
+    temp_script = _temp_dir() / f"inyfinn-apply-update-{version}.ps1"
     # utf-8-sig = UTF-8 z BOM; PowerShell 5.1 rozpoznaje BOM i odczytuje poprawnie
     temp_script.write_text(script_body, encoding="utf-8-sig")
     return temp_script
