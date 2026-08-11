@@ -40,8 +40,9 @@ class ResizeOptions:
     skip_if_smaller: bool = True
     filter_name: str = "lanczos3"
     scale_percent: float = 100.0
-    min_longest_enabled: bool = True
+    min_longest_enabled: bool = False
     min_longest_px: int = 1080
+    crop_anchor: str = "center"
 
 
 @dataclass
@@ -241,6 +242,7 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "scale_percent": ro.scale_percent,
             "min_longest_enabled": ro.min_longest_enabled,
             "min_longest_px": ro.min_longest_px,
+            "crop_anchor": ro.crop_anchor,
         },
         "transforms": {
             "rotate": tr.rotate,
@@ -323,8 +325,9 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
             skip_if_smaller=bool(ro.get("skip_if_smaller", True)),
             filter_name=str(ro.get("filter_name", "lanczos3")),
             scale_percent=float(ro.get("scale_percent", 100.0)),
-            min_longest_enabled=bool(ro.get("min_longest_enabled", True)),
+            min_longest_enabled=bool(ro.get("min_longest_enabled", False)),
             min_longest_px=int(ro.get("min_longest_px", 1080)),
+            crop_anchor=str(ro.get("crop_anchor", "center")),
         ),
         transforms=TransformOptions(
             rotate=int(tr.get("rotate", 0)),

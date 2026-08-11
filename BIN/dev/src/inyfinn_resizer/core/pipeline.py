@@ -312,7 +312,10 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
         target_kb = opts.target_kb
         force_colors = resolve_png_max_colors(opts)
         if opts.png_mode == "png8":
-            force_colors = min(force_colors, 256)
+            force_colors = min(force_colors or MAX_PALETTE_COLORS, 256)
+        if force_colors is None:
+            optimize_png_oxipng(path)
+            return detail or "oxipng (pełna głębia)"
         ok, detail = apply_pngquant(
             path,
             target_kb=target_kb,

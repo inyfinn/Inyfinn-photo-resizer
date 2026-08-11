@@ -102,6 +102,7 @@ from inyfinn_resizer.core.job import (
     JobSpec,
     MetadataPolicy,
     RenameRule,
+    ResizeMode,
     ResizeOptions,
     TransformOptions,
 )
@@ -133,6 +134,7 @@ from inyfinn_resizer.core.size_presets import (
 )
 from inyfinn_resizer.utils.app_log import log_event
 from inyfinn_resizer.core.rename.templates import preview_rename
+from inyfinn_resizer.app.widgets.crop_anchor_picker import CropAnchorPicker
 from inyfinn_resizer.app.widgets.wheel_controls import WheelIntLineEdit, WheelSlider
 from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
@@ -533,7 +535,7 @@ class MainWindow(QMainWindow):
         )
         section2_box, section2 = make_step_section(
             "Wymiary",
-            "Skala, min. krawędź i preset formatu",
+            "Skala, własny format i kadr przycięcia",
             step_key="dimensions",
         )
         section3_box, section3 = make_step_section(
@@ -650,12 +652,13 @@ class MainWindow(QMainWindow):
         colors_extras.addWidget(self.png_colors_auto_cb)
         colors_wrap = QWidget()
         colors_wrap.setLayout(colors_extras)
-        section1.addWidget(compact_row(
+        self._colors_row = compact_row(
             "Liczba kolorów",
             colors_wrap,
             tooltip=UI_TOOLTIPS["color_count"],
             tight=True,
-        ))
+        )
+        section1.addWidget(self._colors_row)
         section1.addStretch(1)
 
         self.scale_slider = WheelSlider(Qt.Orientation.Horizontal)
@@ -680,7 +683,7 @@ class MainWindow(QMainWindow):
         min_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
         min_row.setSpacing(6)
         self.min_longest_cb = QCheckBox("Min. najdłuższa krawędź")
-        self.min_longest_cb.setChecked(True)
+        self.min_longest_cb.setChecked(False)
         self.min_longest_cb.setToolTip(UI_TOOLTIPS["min_longest"])
         self.min_longest_cb.toggled.connect(self._on_min_longest_toggled)
         min_row.addWidget(self.min_longest_cb)
@@ -698,6 +701,37 @@ class MainWindow(QMainWindow):
         min_row.addWidget(px_lbl)
         min_row.addStretch(1)
         section2.addWidget(min_row_widget)
+        section2.addSpacing(2)
+
+        custom_row_widget = QWidget()
+        custom_row_widget.setMinimumHeight(COMPACT_CONTROL_ROW_H)
+        custom_row = QHBoxLayout(custom_row_widget)
+        custom_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
+        custom_row.setSpacing(6)
+        self.custom_format_cb = QCheckBox("Własny format")
+        self.custom_format_cb.setToolTip(UI_TOOLTIPS["custom_format"])
+        self.custom_format_cb.toggled.connect(self._on_custom_format_toggled)
+        custom_row.addWidget(self.custom_format_cb)
+        self.custom_w_edit = WheelIntLineEdit("1200", min_val=1, max_val=16384, step=10)
+        self.custom_w_edit.setObjectName("customFormatEdit")
+        self.custom_w_edit.setValidator(QIntValidator(1, 16384, self))
+        self.custom_w_edit.setMaximumWidth(64)
+        self.custom_w_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.custom_w_edit.setToolTip(UI_TOOLTIPS["custom_format_dims"])
+        self.custom_w_edit.textChanged.connect(self._on_custom_format_dims_changed)
+        custom_row.addWidget(self.custom_w_edit)
+        custom_row.addWidget(QLabel("×"))
+        self.custom_h_edit = WheelIntLineEdit("1200", min_val=1, max_val=16384, step=10)
+        self.custom_h_edit.setObjectName("customFormatEdit")
+        self.custom_h_edit.setValidator(QIntValidator(1, 16384, self))
+        self.custom_h_edit.setMaximumWidth(64)
+        self.custom_h_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.custom_h_edit.setToolTip(UI_TOOLTIPS["custom_format_dims"])
+        self.custom_h_edit.textChanged.connect(self._on_custom_format_dims_changed)
+        custom_row.addWidget(self.custom_h_edit)
+        custom_row.addWidget(QLabel("px"))
+        custom_row.addStretch(1)
+        section2.addWidget(custom_row_widget)
         section2.addSpacing(2)
 
         self.size_combo = style_dropdown(QComboBox())
@@ -718,7 +752,19 @@ class MainWindow(QMainWindow):
         format_row_layout.addWidget(self.size_combo, stretch=1)
         format_row_layout.addWidget(self.delete_preset_btn)
         section2.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"], height=COMPACT_CONTROL_ROW_H))
+        self.crop_anchor_picker = CropAnchorPicker()
+        self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
+        self.crop_anchor_picker.anchorChanged.connect(self._on_crop_anchor_changed)
+        self._crop_anchor_row = compact_row(
+            "Kadr",
+            self.crop_anchor_picker,
+            tooltip=UI_TOOLTIPS["crop_anchor"],
+            height=COMPACT_CONTROL_ROW_H,
+        )
+        section2.addWidget(self._crop_anchor_row)
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
+        self._sync_dimensions_ui()
+        self._update_palette_controls_visibility()
         section2.addStretch(1)
 
         out_section = QWidget()
@@ -859,7 +905,7 @@ class MainWindow(QMainWindow):
             self.png_colors_auto_cb.setChecked(bool(snapshot["png_colors_auto"]))
             self.png_colors_slider.setValue(int(snapshot["png_max_colors"]))
             self.png_colors_slider.setEnabled(not snapshot["png_colors_auto"])
-            self.png_colors_label.setText(str(snapshot["png_max_colors"]))
+            self.png_colors_label.setText(self._format_color_count_label(int(snapshot["png_max_colors"])))
             self.scale_slider.setValue(int(round(float(snapshot["scale_percent"]))))
             self.scale_label.setText(f"{int(round(float(snapshot['scale_percent'])))}%")
             self.min_longest_cb.setChecked(bool(snapshot["min_longest_enabled"]))
@@ -1099,6 +1145,7 @@ class MainWindow(QMainWindow):
         self._auto_format_pending = False
 
     def _on_formats_changed(self) -> None:
+        self._update_palette_controls_visibility()
         if not self._programmatic_settings:
             self._lock_output_settings()
             self._mark_dirty()
@@ -1152,6 +1199,7 @@ class MainWindow(QMainWindow):
             self._lock_output_settings()
         self._mark_dirty()
         self._resize.min_longest_enabled = enabled
+        self.min_longest_edit.setEnabled(enabled and self._min_longest_applicable())
 
     def _on_min_longest_px_changed(self, v: int) -> None:
         if not self._programmatic_settings:
@@ -1172,12 +1220,117 @@ class MainWindow(QMainWindow):
         if text.strip().isdigit():
             self._resize.min_longest_px = int(text)
 
+    def _format_color_count_label(self, value: int) -> str:
+        if value >= 256:
+            return "Pełna"
+        return str(value)
+
+    def _update_palette_controls_visibility(self) -> None:
+        fmts = self._selected_formats()
+        show = any(fmt in ("png", "gif") for fmt in fmts)
+        self._colors_row.setVisible(show)
+
+    def _resize_uses_crop_anchor(self, resize: ResizeOptions | None = None) -> bool:
+        opts = resize or self._effective_resize_options()
+        return opts.mode in (ResizeMode.FIT_BOX, ResizeMode.CROP_SMART)
+
+    def _min_longest_applicable(self, resize: ResizeOptions | None = None) -> bool:
+        if self.custom_format_cb.isChecked():
+            return False
+        opts = resize or self._resize
+        if opts.mode in (ResizeMode.FIT_BOX, ResizeMode.CROP_SMART):
+            return False
+        if opts.mode == ResizeMode.NONE:
+            return True
+        return opts.mode == ResizeMode.ONE_SIDE
+
+    def _custom_format_w(self) -> int:
+        try:
+            return max(1, min(16384, int(self.custom_w_edit.text() or "1200")))
+        except ValueError:
+            return 1200
+
+    def _custom_format_h(self) -> int:
+        try:
+            return max(1, min(16384, int(self.custom_h_edit.text() or "1200")))
+        except ValueError:
+            return 1200
+
+    def _effective_resize_options(self) -> ResizeOptions:
+        if self.custom_format_cb.isChecked():
+            return ResizeOptions(
+                mode=ResizeMode.FIT_BOX,
+                box_w=self._custom_format_w(),
+                box_h=self._custom_format_h(),
+                crop_anchor=self.crop_anchor_picker.value(),
+            )
+        return self._resize
+
+    def _sync_dimensions_ui(self) -> None:
+        custom_on = self.custom_format_cb.isChecked()
+        self.custom_w_edit.setEnabled(custom_on)
+        self.custom_h_edit.setEnabled(custom_on)
+        self.size_combo.setEnabled(not custom_on)
+        self.delete_preset_btn.setEnabled(not custom_on and is_custom_preset(self._current_size_preset_id()))
+
+        min_applicable = self._min_longest_applicable()
+        self.min_longest_cb.setEnabled(min_applicable)
+        self.min_longest_edit.setEnabled(min_applicable and self.min_longest_cb.isChecked())
+        if not min_applicable:
+            self.min_longest_cb.setToolTip(UI_TOOLTIPS["min_longest_disabled"])
+        else:
+            self.min_longest_cb.setToolTip(UI_TOOLTIPS["min_longest"])
+
+        uses_crop = self._resize_uses_crop_anchor()
+        self._crop_anchor_row.setVisible(uses_crop)
+        if uses_crop:
+            anchor = self.crop_anchor_picker.value()
+            if self.custom_format_cb.isChecked():
+                self._resize = ResizeOptions(
+                    mode=ResizeMode.FIT_BOX,
+                    box_w=self._custom_format_w(),
+                    box_h=self._custom_format_h(),
+                    crop_anchor=anchor,
+                )
+            else:
+                self._resize = replace(self._resize, crop_anchor=anchor)
+
+    def _on_custom_format_toggled(self, enabled: bool) -> None:
+        if not self._programmatic_settings:
+            self._lock_output_settings()
+            self._mark_dirty()
+        self._sync_dimensions_ui()
+
+    def _on_custom_format_dims_changed(self, _text: str) -> None:
+        if not self._programmatic_settings:
+            self._lock_output_settings()
+            self._mark_dirty()
+        if self.custom_format_cb.isChecked():
+            self._resize = ResizeOptions(
+                mode=ResizeMode.FIT_BOX,
+                box_w=self._custom_format_w(),
+                box_h=self._custom_format_h(),
+                crop_anchor=self.crop_anchor_picker.value(),
+            )
+
+    def _on_crop_anchor_changed(self, anchor: str) -> None:
+        if not self._programmatic_settings:
+            self._lock_output_settings()
+            self._mark_dirty()
+        self._resize = replace(self._effective_resize_options(), crop_anchor=anchor)
+
     def _resize_for_job(self) -> ResizeOptions:
+        base = self._effective_resize_options()
+        min_enabled = (
+            self.min_longest_cb.isChecked()
+            and self._min_longest_applicable(base)
+        )
         return replace(
-            self._resize,
+            base,
             scale_percent=float(self.scale_slider.value()),
-            min_longest_enabled=self.min_longest_cb.isChecked(),
+            min_longest_enabled=min_enabled,
             min_longest_px=self._min_longest_px_value(),
+            crop_anchor=self.crop_anchor_picker.value() if self._resize_uses_crop_anchor(base) else "center",
         )
 
     def _sync_png_colors_from_quality(self) -> None:
@@ -1187,14 +1340,14 @@ class MainWindow(QMainWindow):
         self.png_colors_slider.blockSignals(True)
         self.png_colors_slider.setValue(colors)
         self.png_colors_slider.blockSignals(False)
-        self.png_colors_label.setText(str(colors))
+        self.png_colors_label.setText(self._format_color_count_label(colors))
         self._format_opts.png_max_colors = colors
 
     def _on_png_colors_changed(self, v: int) -> None:
         if not self._programmatic_settings:
             self._lock_output_settings()
         self._mark_dirty()
-        self.png_colors_label.setText(str(v))
+        self.png_colors_label.setText(self._format_color_count_label(v))
         self._format_opts.png_max_colors = v
 
     def _on_png_colors_auto(self, enabled: bool) -> None:
@@ -1604,6 +1757,9 @@ class MainWindow(QMainWindow):
         )
 
     def _apply_resize_preset(self) -> None:
+        if self.custom_format_cb.isChecked():
+            self._sync_dimensions_ui()
+            return
         pid = self._current_size_preset_id()
         if pid == PRESET_SAVE_CUSTOM:
             return
@@ -1614,6 +1770,7 @@ class MainWindow(QMainWindow):
             self._transforms = self._preserve_bg_transform_fields(preset_transforms)
         else:
             self._transforms = self._preserve_bg_transform_fields(self._transforms)
+        self._sync_dimensions_ui()
 
     def _apply_size_preset(self) -> None:
         self._apply_resize_preset()
@@ -1986,7 +2143,9 @@ class MainWindow(QMainWindow):
                 self.png_colors_auto_cb.setChecked(self._format_opts.png_colors_auto)
                 self.png_colors_slider.setValue(self._format_opts.png_max_colors)
                 self.png_colors_slider.setEnabled(not self._format_opts.png_colors_auto)
-                self.png_colors_label.setText(str(self._format_opts.png_max_colors))
+                self.png_colors_label.setText(
+                    self._format_color_count_label(self._format_opts.png_max_colors)
+                )
                 self.scale_slider.setValue(int(round(self._resize.scale_percent)))
                 self.scale_label.setText(f"{int(round(self._resize.scale_percent))}%")
                 self.min_longest_cb.setChecked(self._resize.min_longest_enabled)

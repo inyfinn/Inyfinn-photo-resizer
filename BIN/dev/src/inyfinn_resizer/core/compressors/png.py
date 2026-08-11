@@ -40,10 +40,17 @@ def png_max_colors_for_quality(quality_pct: int) -> int:
     return int(round(MIN_PALETTE_COLORS + (q - 10) * (160 - MIN_PALETTE_COLORS) / (50 - 10)))
 
 
-def resolve_png_max_colors(opts: FormatOptions) -> int:
+def resolve_png_max_colors(opts: FormatOptions) -> int | None:
+    """Zwraca liczbę kolorów palety lub None = pełna głębia (PNG-24, bez pngquant)."""
+    if opts.png_mode == "png24":
+        return None
     if opts.png_colors_auto:
-        return png_max_colors_for_quality(opts.quality)
-    return max(MIN_PALETTE_COLORS, min(MAX_PALETTE_COLORS, int(opts.png_max_colors)))
+        colors = png_max_colors_for_quality(opts.quality)
+    else:
+        colors = int(opts.png_max_colors)
+    if colors >= MAX_PALETTE_COLORS:
+        return None
+    return max(MIN_PALETTE_COLORS, colors)
 
 
 def count_rare_green_accents(path: Path) -> int:

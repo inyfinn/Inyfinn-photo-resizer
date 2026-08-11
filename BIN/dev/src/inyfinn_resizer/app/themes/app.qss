@@ -430,6 +430,26 @@ QFrame#sectionBoxStep2 QPushButton#toolBtn:hover {
     color: #ffffff;
 }
 
+QFrame#sectionBoxStep2 QPushButton#cropAnchorBtn {
+    background-color: @BG_INPUT@;
+    border: 1px solid @S2_CTRL_BORDER@;
+    border-radius: 4px;
+    color: @S2_VALUE@;
+    padding: 0;
+    font-size: 11px;
+}
+
+QFrame#sectionBoxStep2 QPushButton#cropAnchorBtn:hover {
+    background-color: @S2_HOVER_BG@;
+    border-color: @S2_HOVER_BORDER@;
+}
+
+QFrame#sectionBoxStep2 QPushButton#cropAnchorBtn:checked {
+    background-color: @S2_CHECK_BG@;
+    border-color: @S2_CHECK_BORDER_ON@;
+    color: #ffffff;
+}
+
 /* —— Sekcja 3: Zapis (pomarańcz) —— */
 QFrame#sectionBoxStep3 {
     background-color: @SECTION3_BG@;

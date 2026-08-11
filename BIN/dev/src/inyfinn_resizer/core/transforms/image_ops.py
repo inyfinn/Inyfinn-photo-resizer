@@ -9,6 +9,27 @@ from inyfinn_resizer.core.job import ResizeMode, ResizeOptions, TransformOptions
 if TYPE_CHECKING:
     import pyvips
 
+_CROP_ANCHOR_FRACTIONS: dict[str, tuple[float, float]] = {
+    "top-left": (0.0, 0.0),
+    "top": (0.5, 0.0),
+    "top-right": (1.0, 0.0),
+    "left": (0.0, 0.5),
+    "center": (0.5, 0.5),
+    "right": (1.0, 0.5),
+    "bottom-left": (0.0, 1.0),
+    "bottom": (0.5, 1.0),
+    "bottom-right": (1.0, 1.0),
+}
+
+
+def _anchor_origin(sw: int, sh: int, tw: int, th: int, anchor: str) -> tuple[int, int]:
+    ax, ay = _CROP_ANCHOR_FRACTIONS.get((anchor or "center").lower(), (0.5, 0.5))
+    left = int(round((sw - tw) * ax))
+    top = int(round((sh - th) * ay))
+    left = max(0, min(left, max(0, sw - tw)))
+    top = max(0, min(top, max(0, sh - th)))
+    return left, top
+
 
 def _kernel(name: str):
     import pyvips
@@ -24,9 +45,9 @@ def _kernel(name: str):
 
 def apply_resize(image: "pyvips.Image", opts: ResizeOptions) -> "pyvips.Image":
     if opts.mode == ResizeMode.CROP_SMART:
-        return _crop_smart(image, opts.box_w, opts.box_h, opts.smart_margin)
+        return _crop_smart(image, opts.box_w, opts.box_h, opts.smart_margin, opts.crop_anchor)
     if opts.mode == ResizeMode.FIT_BOX:
-        return _fit_box_cover(image, opts.box_w, opts.box_h)
+        return _fit_box_cover(image, opts.box_w, opts.box_h, opts.crop_anchor)
 
     if opts.mode == ResizeMode.NONE:
         return image
@@ -131,7 +152,12 @@ def _content_bbox(image: "pyvips.Image", margin: int = 0) -> tuple[int, int, int
     return x0, y0, max(1, x1 - x0), max(1, y1 - y0)
 
 
-def _fit_cover_crop(image: "pyvips.Image", target_w: int, target_h: int) -> "pyvips.Image":
+def _fit_cover_crop(
+    image: "pyvips.Image",
+    target_w: int,
+    target_h: int,
+    anchor: str = "center",
+) -> "pyvips.Image":
     kernel = _kernel("lanczos3")
     w, h = image.width, image.height
     if w <= 0 or h <= 0:
@@ -139,8 +165,7 @@ def _fit_cover_crop(image: "pyvips.Image", target_w: int, target_h: int) -> "pyv
     scale = max(target_w / w, target_h / h)
     scaled = image.resize(scale, kernel=kernel)
     sw, sh = scaled.width, scaled.height
-    left = max(0, (sw - target_w) // 2)
-    top = max(0, (sh - target_h) // 2)
+    left, top = _anchor_origin(sw, sh, target_w, target_h, anchor)
     crop_w = min(target_w, sw - left)
     crop_h = min(target_h, sh - top)
     cropped = scaled.crop(left, top, crop_w, crop_h)
@@ -149,7 +174,13 @@ def _fit_cover_crop(image: "pyvips.Image", target_w: int, target_h: int) -> "pyv
     return cropped
 
 
-def _crop_smart(image: "pyvips.Image", target_w: int, target_h: int, margin: int) -> "pyvips.Image":
+def _crop_smart(
+    image: "pyvips.Image",
+    target_w: int,
+    target_h: int,
+    margin: int,
+    anchor: str = "center",
+) -> "pyvips.Image":
     if target_w <= 0 or target_h <= 0:
         return image
     x, y, cw, ch = _content_bbox(image, margin)
@@ -158,11 +189,11 @@ def _crop_smart(image: "pyvips.Image", target_w: int, target_h: int, margin: int
         work = image.crop(x, y, cw, ch)
     else:
         work = image
-    return _fit_cover_crop(work, target_w, target_h)
+    return _fit_cover_crop(work, target_w, target_h, anchor)
 
 
-def _fit_box_cover(image: "pyvips.Image", box_w: int, box_h: int) -> "pyvips.Image":
-    return _fit_cover_crop(image, box_w, box_h)
+def _fit_box_cover(image: "pyvips.Image", box_w: int, box_h: int, anchor: str = "center") -> "pyvips.Image":
+    return _fit_cover_crop(image, box_w, box_h, anchor)
 
 
 def apply_transforms(image: "pyvips.Image", opts: TransformOptions) -> "pyvips.Image":

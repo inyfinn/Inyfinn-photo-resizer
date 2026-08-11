@@ -119,6 +119,10 @@ def snapshot_from_window(window: MainWindow) -> dict[str, Any]:
         "formats": window.format_combo.selected_formats(),
         "remove_background": window.remove_bg_cb.isChecked(),
         "bg_model": window.bg_model_combo.currentData() or "birefnet-general",
+        "custom_format": window.custom_format_cb.isChecked(),
+        "custom_format_w": window._custom_format_w(),
+        "custom_format_h": window._custom_format_h(),
+        "crop_anchor": window.crop_anchor_picker.value(),
     }
     return data
 
@@ -144,7 +148,9 @@ def restore_to_window(window: MainWindow, data: dict[str, Any]) -> None:
         window.png_colors_auto_cb.setChecked(window._format_opts.png_colors_auto)
         window.png_colors_slider.setValue(window._format_opts.png_max_colors)
         window.png_colors_slider.setEnabled(not window._format_opts.png_colors_auto)
-        window.png_colors_label.setText(str(window._format_opts.png_max_colors))
+        window.png_colors_label.setText(
+            window._format_color_count_label(window._format_opts.png_max_colors)
+        )
         window.scale_slider.setValue(int(round(window._resize.scale_percent)))
         window.scale_label.setText(f"{int(round(window._resize.scale_percent))}%")
         window.min_longest_cb.setChecked(window._resize.min_longest_enabled)
@@ -192,7 +198,17 @@ def restore_to_window(window: MainWindow, data: dict[str, Any]) -> None:
             window._transforms.remove_background = bool(ui["remove_background"])
         if "bg_model" in ui:
             window._transforms.bg_model = str(ui["bg_model"])
+        if "custom_format" in ui:
+            window.custom_format_cb.setChecked(bool(ui["custom_format"]))
+        if "custom_format_w" in ui:
+            window.custom_w_edit.setText(str(int(ui["custom_format_w"])))
+        if "custom_format_h" in ui:
+            window.custom_h_edit.setText(str(int(ui["custom_format_h"])))
+        if "crop_anchor" in ui:
+            window.crop_anchor_picker.set_value(str(ui["crop_anchor"]))
         window._sync_remove_bg_ui()
+        window._sync_dimensions_ui()
+        window._update_palette_controls_visibility()
     finally:
         window._programmatic_settings = False
     window._update_advanced_summary()

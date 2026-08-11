@@ -32,8 +32,14 @@ def test_resolve_auto_and_manual() -> None:
     auto = FormatOptions(quality=50, png_colors_auto=True)
     assert resolve_png_max_colors(auto) == 160
 
+    auto_full = FormatOptions(quality=100, png_colors_auto=True)
+    assert resolve_png_max_colors(auto_full) is None
+
     manual = FormatOptions(quality=50, png_colors_auto=False, png_max_colors=128)
     assert resolve_png_max_colors(manual) == 128
+
+    manual_full = FormatOptions(quality=50, png_colors_auto=False, png_max_colors=256)
+    assert resolve_png_max_colors(manual_full) is None
 
 
 def test_accent_palette_boost_detects_green(tmp_path) -> None:

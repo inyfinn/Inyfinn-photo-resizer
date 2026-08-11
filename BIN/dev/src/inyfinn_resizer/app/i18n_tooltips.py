@@ -71,7 +71,21 @@ UI_TOOLTIPS: dict[str, str] = {
     ),
     "min_longest": (
         "Gdy włączone — obraz nie będzie mniejszy niż podana długość najdłuższej krawędzi. "
-        "Domyślnie 1080 px (docelowy rozmiar do internetu)."
+        "Działa tylko przy „Oryginalny” lub presetach „najdłuższa/najkrótsza krawędź”. "
+        "Przy kwadracie lub własnym formacie jest wyłączone — wymiary wyniku są już ustalone."
+    ),
+    "min_longest_disabled": (
+        "Niedostępne przy wybranym formacie o stałych wymiarach (np. 1200×1200 lub własny format). "
+        "Użyj „Oryginalny” lub presetu „najdłuższa krawędź”, jeśli chcesz tylko podnieść minimalny rozmiar."
+    ),
+    "custom_format": (
+        "Własne wymiary wyniku w pikselach. Obraz zostanie dopasowany metodą cover "
+        "(wypełnienie kadru z przycięciem nadmiaru). Kotwicę kadru wybierz w „Kadr”."
+    ),
+    "custom_format_dims": "Szerokość i wysokość wyniku w pikselach (np. 1200 × 848).",
+    "crop_anchor": (
+        "Punkt odniesienia przy przycinaniu do wybranego formatu. "
+        "Środek = klasyczny crop, góra = zachowuje górną część zdjęcia itd."
     ),
     "min_longest_px": "Minimalna długość najdłuższej krawędzi w pikselach (domyślnie 1080 px).",
     "png_colors": (
@@ -79,8 +93,9 @@ UI_TOOLTIPS: dict[str, str] = {
         "Przy „Z jakości” program sam dobiera liczbę z suwaka Jakość."
     ),
     "color_count": (
-        "Maksymalna liczba kolorów w palecie (PNG-8, GIF i inne formaty indeksowane). "
-        "Mniej = mniejszy plik. „Z jakości” — auto z suwaka Jakość."
+        "Ograniczenie palety kolorów — tylko dla PNG i GIF. "
+        "Mniej kolorów = mniejszy plik. „Pełna” = maksymalna głębia (PNG-24). "
+        "JPG, WebP i inne formaty zapisują się zawsze w pełnej jakości kolorów."
     ),
     "output_dir": (
         "Folder na gotowe zdjęcia. Zaznacz „Zapisz do folderu wyjściowego”, "

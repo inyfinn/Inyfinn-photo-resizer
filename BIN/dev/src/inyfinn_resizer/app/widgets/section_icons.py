@@ -7,14 +7,14 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 STEP_ACCENTS = {
     "format": ("#6366f1", "#eef2ff"),
-    "dimensions": ("#0d9488", "#ecfdf5"),
+    "dimensions": ("#6a7a74", "#f4f6f5"),
     "save": ("#ea580c", "#fff7ed"),
 }
 
 # Tryb ciemny: przyciemnione, mniej nasycone warianty — nie rażą na ciemnym tle.
 STEP_ACCENTS_DARK = {
     "format": "#3b3f7a",
-    "dimensions": "#0f5a54",
+    "dimensions": "#4a5a54",
     "save": "#8a4416",
 }
 
@@ -35,7 +35,7 @@ HELP_ACCENTS_DARK = {
     "menu": "#3f4a5c",
     "update": "#3b3f7a",
     "format": "#3b3f7a",
-    "dimensions": "#0f5a54",
+    "dimensions": "#4a5a54",
     "save": "#8a4416",
 }
 

@@ -5,15 +5,38 @@ from __future__ import annotations
 from PIL import Image, ImageOps
 
 from inyfinn_resizer.core.job import ResizeMode, ResizeOptions, TransformOptions
+from inyfinn_resizer.core.transforms.image_ops import _anchor_origin
 
 _RESAMPLE = Image.Resampling.LANCZOS
 
 
-def apply_resize_pil(image: Image.Image, opts: ResizeOptions) -> Image.Image:
-    if opts.mode in (ResizeMode.NONE, ResizeMode.CROP_SMART, ResizeMode.FIT_BOX):
-        if opts.mode == ResizeMode.FIT_BOX and opts.box_w > 0 and opts.box_h > 0:
-            return ImageOps.fit(image, (opts.box_w, opts.box_h), method=_RESAMPLE)
+def _fit_box_cover_pil(
+    image: Image.Image,
+    box_w: int,
+    box_h: int,
+    anchor: str = "center",
+) -> Image.Image:
+    w, h = image.size
+    if w <= 0 or h <= 0 or box_w <= 0 or box_h <= 0:
         return image
+    scale = max(box_w / w, box_h / h)
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    scaled = image.resize((nw, nh), _RESAMPLE)
+    left, top = _anchor_origin(nw, nh, box_w, box_h, anchor)
+    return scaled.crop((left, top, left + box_w, top + box_h))
+
+
+def apply_resize_pil(image: Image.Image, opts: ResizeOptions) -> Image.Image:
+    if opts.mode == ResizeMode.NONE:
+        return image
+    if opts.mode == ResizeMode.CROP_SMART:
+        if opts.box_w > 0 and opts.box_h > 0:
+            work = trim_transparent_pil(image, opts.smart_margin) if image.mode in ("RGBA", "LA") else image
+            return _fit_box_cover_pil(work, opts.box_w, opts.box_h, opts.crop_anchor)
+        return image
+    if opts.mode == ResizeMode.FIT_BOX and opts.box_w > 0 and opts.box_h > 0:
+        return _fit_box_cover_pil(image, opts.box_w, opts.box_h, opts.crop_anchor)
 
     w, h = image.size
     if opts.mode == ResizeMode.PERCENT:
