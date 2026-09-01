@@ -146,9 +146,9 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
 DEFAULT_WINDOW_WIDTH = 1280
-DEFAULT_WINDOW_HEIGHT = 860
+DEFAULT_WINDOW_HEIGHT = 920
 MIN_WINDOW_WIDTH = 1180
-MIN_WINDOW_HEIGHT = 760
+MIN_WINDOW_HEIGHT = 800
 RIGHT_PANEL_MIN_WIDTH = 620
 DEFAULT_SPLITTER_SIZES = (600, 680)
 
@@ -232,6 +232,7 @@ class MainWindow(QMainWindow):
             self._conversion_overlay.setGeometry(self.centralWidget().rect())
         if hasattr(self, "_update_manager"):
             self._update_manager.reposition_toast()
+        self._sync_settings_panel_geometry()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -431,7 +432,7 @@ class MainWindow(QMainWindow):
 
         settings_scroll = QScrollArea()
         settings_scroll.setObjectName("settingsScroll")
-        settings_scroll.setWidgetResizable(True)
+        settings_scroll.setWidgetResizable(False)
         settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         settings_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -554,6 +555,9 @@ class MainWindow(QMainWindow):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
+        grid.setRowStretch(0, 0)
+        grid.setRowStretch(1, 0)
+        grid.setRowStretch(2, 0)
         self._bento_grid = grid
 
         # Wiersz 0: Format i jakość (span 2)
@@ -781,7 +785,7 @@ class MainWindow(QMainWindow):
         crop_row.addStretch(1)
         lay_crop.addLayout(crop_row)
 
-        self._bento_left_lay.addWidget(tile_dims, 1)
+        self._bento_left_lay.addWidget(tile_dims, 0)
 
         # Wiersz 2: Zapis plików (span 2)
         tile_save, lay_save = make_tile(
@@ -865,7 +869,6 @@ class MainWindow(QMainWindow):
 
         grid.addWidget(tile_save, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
         root.addLayout(grid, 0)
-        root.addStretch(1)
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
         self._sync_dimensions_ui()
@@ -877,8 +880,22 @@ class MainWindow(QMainWindow):
         self.output_dir_edit.textChanged.connect(lambda _v: self._mark_dirty())
 
         self._finalize_checkbox_indicators()
+        QTimer.singleShot(0, self._sync_settings_panel_geometry)
 
         return body
+
+    def _sync_settings_panel_geometry(self) -> None:
+        """Szerokość panelu = viewport scrolla; wysokość naturalna — scroll gdy treść nie mieści się."""
+        body = self._settings_body
+        scroll = getattr(self, "_settings_scroll", None)
+        if body is None or scroll is None:
+            return
+        viewport_w = scroll.viewport().width()
+        if viewport_w <= 0:
+            return
+        body.setFixedWidth(viewport_w)
+        body.adjustSize()
+        scroll.widget().updateGeometry()
 
     def _finalize_checkbox_indicators(self) -> None:
         """Odśwież styl wskaźników QCheckBox po zbudowaniu layoutu i nałożeniu motywu."""
@@ -913,10 +930,9 @@ class MainWindow(QMainWindow):
         self._bento_tile_crop.setVisible(show_crop)
 
         if show_colors:
-            self._bento_right_lay.addWidget(self._bento_tile_colors, 1)
+            self._bento_right_lay.addWidget(self._bento_tile_colors, 0)
         if show_crop:
-            if not show_colors:
-                self._bento_right_lay.addStretch(1)
+            self._bento_right_lay.addStretch(1)
             self._bento_right_lay.addWidget(
                 self._bento_tile_crop,
                 0,
@@ -928,11 +944,13 @@ class MainWindow(QMainWindow):
         grid = self._bento_grid
         grid.removeWidget(self._bento_left_col)
         grid.removeWidget(self._bento_right_col)
+        top = Qt.AlignmentFlag.AlignTop
         if has_right:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 1)
-            grid.addWidget(self._bento_right_col, 1, 1, 1, 1)
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 1, top)
+            grid.addWidget(self._bento_right_col, 1, 1, 1, 1, top)
         else:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 2)
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 2, top)
+        self._sync_settings_panel_geometry()
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)

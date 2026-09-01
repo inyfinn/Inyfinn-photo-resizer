@@ -2,4 +2,4 @@
 Wersja: 2.2.3
 Typ: one-dir (BIN/)
 Uruchom: InyfinnPhotoResizer.exe w korzeniu projektu
-Zbudowano: 2026-09-01 12:00:14
+Zbudowano: 2026-09-01 12:26:21
