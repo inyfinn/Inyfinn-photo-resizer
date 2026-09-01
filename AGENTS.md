@@ -14,18 +14,23 @@ encoders come from the system `PATH` instead of the bundled Windows `.exe`s).
 - Package source: `BIN/dev/src/inyfinn_resizer/`. Entry point: `inyfinn_resizer.main:main`
   (console script `inyfinn-resizer`, GUI script `inyfinn-photo-resizer`).
 
-### Environment (already set up by the startup update script)
+### Environment (repo-managed via `.cursor/environment.json`)
+- The Cloud Agent environment is named **`Inyfinn-photo-resizer`** and is defined in
+  `.cursor/environment.json`. It is **repo-file managed** (takes precedence over any
+  dashboard snapshot). System dependencies come from `.cursor/Dockerfile`; the Python
+  deps are installed by the `install` script into a venv.
+- System packages baked into `.cursor/Dockerfile`: `libvips42`, `pngquant`, `webp`
+  (`cwebp`), `gifsicle`, `xvfb`, and the Qt xcb libraries (incl. `libxcb-cursor0`).
+  Do not rely on a snapshot for these — edit the Dockerfile if you need more.
 - A Python venv lives at **`BIN/dev/.venv`**. Activate with
   `source BIN/dev/.venv/bin/activate` before running anything.
 - **Non-obvious dependency caveat:** `pyproject.toml` pins `onnxruntime-directml`,
-  which is **Windows-only and cannot install on Linux**. The update script therefore
+  which is **Windows-only and cannot install on Linux**. The `install` script therefore
   installs the Linux-compatible dependency subset explicitly and then runs
   `pip install -e BIN/dev --no-deps`. Do **not** run a plain `pip install -e ".[dev]"`
   on this VM — it will fail on `onnxruntime-directml`.
 - Consequence: the **AI background-removal** feature (`rembg` + ONNX) and its test
   `tests/test_background_removal.py` are **not available** on Linux (optional feature).
-- System packages `libvips42`, `pngquant`, `webp` (`cwebp`), `gifsicle`, `xvfb`, and the
-  Qt xcb libraries (incl. `libxcb-cursor0`) are preinstalled in the VM snapshot.
 
 ### Run / lint / test (from `BIN/dev/`, venv activated)
 - **Lint:** `ruff check src tests` — the tool works, but the repo currently has
