@@ -25,8 +25,11 @@ ROW_GAP = 6
 FIELD_GAP = 4
 SECTION_GAP = 6
 TILE_PADDING = 22
+TILE_PADDING_TOP = TILE_PADDING - 8  # nagłówki 8 px wyżej w kafelku
 TILE_HEADER_SPACING = 6
 TILE_INNER_SPACING = 6
+TILE_TITLE_HEIGHT = 18
+CROP_PICKER_HEIGHT = 90
 STEP_ICON_SIZE = 24
 COMPACT_LABEL_W = 78
 COMPACT_SLIDER_ROW_H = 28
@@ -156,18 +159,17 @@ def make_tile(
     icon_key: str = "",
     tooltip: str = "",
     compact: bool = False,
+    compact_content_h: int = 0,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Płaski kafelek Bento — jednolite tło, bez ramek."""
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
     box = QFrame()
     box.setObjectName("bentoTile")
-    v_policy = (
-        QSizePolicy.Policy.Maximum if compact else QSizePolicy.Policy.Expanding
-    )
+    v_policy = QSizePolicy.Policy.Fixed if compact else QSizePolicy.Policy.Expanding
     box.setSizePolicy(QSizePolicy.Policy.Expanding, v_policy)
     outer = QVBoxLayout(box)
-    outer.setContentsMargins(TILE_PADDING, TILE_PADDING, TILE_PADDING, TILE_PADDING)
+    outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
     outer.setSpacing(TILE_HEADER_SPACING)
 
     header = QWidget()
@@ -210,6 +212,16 @@ def make_tile(
     inner.setContentsMargins(0, 0, 0, 0)
     inner.setSpacing(TILE_INNER_SPACING)
     outer.addWidget(content, 0 if compact else 1)
+
+    if compact and compact_content_h > 0:
+        header_h = STEP_ICON_SIZE if icon_key else TILE_TITLE_HEIGHT
+        box.setFixedHeight(
+            TILE_PADDING_TOP
+            + header_h
+            + TILE_HEADER_SPACING
+            + compact_content_h
+            + TILE_PADDING
+        )
 
     if tooltip:
         box.setToolTip(tooltip)

@@ -65,6 +65,8 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     COMPACT_LABEL_W,
     SECTION_GAP,
     TILE_PADDING,
+    TILE_PADDING_TOP,
+    CROP_PICKER_HEIGHT,
     browse_button,
     compact_row,
     field_label,
@@ -482,7 +484,7 @@ class MainWindow(QMainWindow):
         panel = QFrame()
         panel.setObjectName("bentoTile")
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(TILE_PADDING, TILE_PADDING, TILE_PADDING, TILE_PADDING)
+        outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
         outer.setSpacing(6)
 
         self.preview_cb = QCheckBox("Podgląd zaznaczonego pliku")
@@ -767,7 +769,7 @@ class MainWindow(QMainWindow):
         dims_opts_col.addWidget(custom_control)
         lay_dims.addWidget(dims_opts_wrap)
 
-        tile_crop, lay_crop = make_tile("Kadr", compact=True)
+        tile_crop, lay_crop = make_tile("Kadr", compact=True, compact_content_h=CROP_PICKER_HEIGHT)
         self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
@@ -912,19 +914,19 @@ class MainWindow(QMainWindow):
         grid.removeWidget(self._bento_tile_colors)
         self._bento_tile_colors.setVisible(show_colors)
         if show_colors:
-            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 1)
-            grid.addWidget(self._bento_tile_colors, 1, 1, 1, 1)
+            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
+            grid.addWidget(self._bento_tile_colors, 1, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
         else:
-            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 2)
+            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
 
         grid.removeWidget(self._bento_tile_dims)
         grid.removeWidget(self._bento_tile_crop)
         self._bento_tile_crop.setVisible(show_crop)
         if show_crop:
-            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 1)
-            grid.addWidget(self._bento_tile_crop, 2, 1, 1, 1)
+            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
+            grid.addWidget(self._bento_tile_crop, 2, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
         else:
-            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 2)
+            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)
