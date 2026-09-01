@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMainWindow,
     QMenu,
     QMenuBar,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -161,6 +163,8 @@ class MainWindow(QMainWindow):
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
         self.setAcceptDrops(True)
+        self._ui_mode = "simple"
+        self._syncing_quality = False
         self._initial_size_applied = False
         self._settings_body: QWidget | None = None
         self._main_splitter: QSplitter | None = None
@@ -304,17 +308,25 @@ class MainWindow(QMainWindow):
         self._theme_toggle = ThemeToggle(dark=(self._theme == "dark"))
         self._theme_toggle.toggled.connect(self._on_theme_toggle)
 
+        self._menubar = menubar
+
         menu_strip = QWidget()
         menu_strip.setObjectName("menuStrip")
         menu_strip.setMinimumHeight(32)
         strip_lay = QHBoxLayout(menu_strip)
         strip_lay.setContentsMargins(0, 0, 12, 0)
         strip_lay.setSpacing(8)
-        strip_lay.addWidget(menubar, stretch=1)
+        self._app_title_label = QLabel(f"Inyfinn Photo Resizer {__version__}")
+        self._app_title_label.setObjectName("menuPresetLabel")
+        self._app_title_label.setToolTip("Tryb prosty — wrzuć zdjęcia, wybierz jakość i folder")
+        strip_lay.addWidget(self._app_title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        strip_lay.addWidget(menubar)
+        strip_lay.addStretch(1)
         strip_lay.addSpacing(24)
         preset_lbl = QLabel("Presety")
         preset_lbl.setObjectName("menuPresetLabel")
         preset_lbl.setToolTip("Preset sieci handlowej — ustawia format, wymiary i tło")
+        self._preset_lbl = preset_lbl
         strip_lay.addWidget(preset_lbl, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.retail_preset_combo = style_dropdown(QComboBox())
         self.retail_preset_combo.setObjectName("retailPresetCombo")
@@ -334,6 +346,13 @@ class MainWindow(QMainWindow):
         self.restore_retail_btn.setEnabled(False)
         self.restore_retail_btn.clicked.connect(self._restore_retail_preset)
         strip_lay.addWidget(self.restore_retail_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
+        self._mode_btn = QPushButton("Zaawansowany tryb")
+        self._mode_btn.setObjectName("btnSecondary")
+        self._mode_btn.setToolTip("Przełącz między trybem prostym a zaawansowanym")
+        self._mode_btn.setMinimumHeight(BTN_H)
+        self._mode_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._mode_btn.clicked.connect(self._toggle_ui_mode)
+        strip_lay.addWidget(self._mode_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
         theme_lbl = QLabel("Motyw")
         theme_lbl.setObjectName("themeToggleLabel")
         theme_lbl.setToolTip("Przełącz jasny lub ciemny motyw")
@@ -343,6 +362,7 @@ class MainWindow(QMainWindow):
         self._theme_toggle.setVisible(True)
         strip_lay.addWidget(self._theme_toggle, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.setMenuWidget(menu_strip)
+        self._apply_header_for_mode()
 
     def _on_theme_toggle(self, dark: bool) -> None:
         self._set_theme("dark" if dark else "light")
@@ -354,13 +374,277 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(16, 8, 16, 8)
         root.setSpacing(0)
-        root.addWidget(self._build_convert_body(), stretch=1)
+        self._view_stack = QStackedWidget()
+        self._view_stack.setObjectName("viewStack")
+        advanced_body = self._build_convert_body()
+        self._simple_view = self._build_simple_view()
+        self._view_stack.addWidget(self._simple_view)   # index 0 — tryb prosty
+        self._view_stack.addWidget(advanced_body)         # index 1 — tryb zaawansowany
+        self._view_stack.setCurrentIndex(0 if self._ui_mode == "simple" else 1)
+        root.addWidget(self._view_stack, stretch=1)
         self._conversion_overlay = ConversionOverlay(central)
         self._conversion_overlay.hide()
         self._conversion_overlay.abort_requested.connect(self._on_overlay_abort)
         self._progress_simulator = FileProgressSimulator(self)
         self._progress_simulator.tick.connect(self._on_simulated_progress)
         self._batch_cancelled = False
+
+    # ————————————————————————————————————————————————————————————————
+    #  Tryb prosty (Simple mode)
+    # ————————————————————————————————————————————————————————————————
+    def _build_simple_view(self) -> QWidget:
+        """Prosty widok: wrzuć pliki → wybierz jakość → wybierz folder → konwertuj."""
+        outer = QWidget()
+        outer.setObjectName("simpleView")
+        outer_lay = QVBoxLayout(outer)
+        outer_lay.setContentsMargins(0, 8, 0, 8)
+        outer_lay.setSpacing(SECTION_GAP)
+
+        center = QWidget()
+        center.setMinimumWidth(480)
+        center.setMaximumWidth(860)
+        center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        col = QVBoxLayout(center)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(SECTION_GAP)
+
+        # 1 — pliki
+        files_tile, files_lay = make_tile(
+            "1. Wrzuć zdjęcia",
+            "Przeciągnij pliki tutaj lub dodaj z dysku",
+        )
+        files_lay.addLayout(tool_button_row([
+            ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
+            ("Dodaj folder", self._add_folder_dialog, icon_folder_green()),
+            ("Wyczyść", self._clear_queue, icon_clear_gray()),
+        ]))
+        self.simple_queue_label = QLabel("0 plików")
+        self.simple_queue_label.setObjectName("queueCount")
+        files_lay.addWidget(self.simple_queue_label)
+        self.simple_file_list = QListWidget()
+        self.simple_file_list.setObjectName("simpleFileList")
+        self.simple_file_list.setMinimumHeight(160)
+        self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.simple_file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        files_lay.addWidget(self.simple_file_list, stretch=1)
+        # Kafelek listy wypełnia dostępną wysokość (bez pustej przestrzeni pod nagłówkiem).
+        files_content = files_lay.parentWidget()
+        if files_content is not None:
+            files_content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        files_tile.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        files_tile.layout().setStretch(1, 1)
+        col.addWidget(files_tile, stretch=1)
+
+        # 2 — jakość
+        q_tile, q_lay = make_tile(
+            "2. Wybierz jakość",
+            "Im niżej, tym mniejszy plik. Kolory zostają bez zmian (bez redukcji palety).",
+        )
+        self.simple_quality_slider = WheelSlider(Qt.Horizontal)
+        self.simple_quality_slider.setRange(1, 100)
+        start_q = self.quality_slider.value() if hasattr(self, "quality_slider") else DEFAULT_QUALITY
+        self.simple_quality_slider.setValue(start_q)
+        self.simple_quality_label = QLabel(str(start_q))
+        self.simple_quality_slider.valueChanged.connect(self._on_simple_quality_changed)
+        q_lay.addWidget(slider_control(
+            self.simple_quality_slider, self.simple_quality_label,
+            tooltip="Jakość kompresji (1–100)",
+        ))
+        col.addWidget(q_tile)
+
+        # 3 — folder zapisu
+        out_tile, out_lay = make_tile(
+            "3. Zapisz do folderu",
+            "Gotowe pliki trafią do wybranego folderu (format jak oryginał).",
+        )
+        out_row = QHBoxLayout()
+        out_row.setContentsMargins(0, 0, 0, 0)
+        out_row.setSpacing(8)
+        self.simple_output_edit = QLineEdit()
+        self.simple_output_edit.setObjectName("outputDirEdit")
+        self.simple_output_edit.setReadOnly(True)
+        self.simple_output_edit.setPlaceholderText("Nie wybrano folderu…")
+        self.simple_output_edit.setMinimumHeight(BTN_H)
+        self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        simple_browse = browse_button(
+            "Wybierz folder…",
+            tooltip="Wybierz folder na gotowe zdjęcia",
+            slot=self._browse_output_simple,
+        )
+        simple_browse.setIcon(action_icon_folder_orange())
+        simple_browse.setIconSize(QSize(16, 16))
+        out_row.addWidget(self.simple_output_edit, stretch=1)
+        out_row.addWidget(simple_browse)
+        out_lay.addLayout(out_row)
+        col.addWidget(out_tile)
+
+        # przycisk konwersji
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.addStretch(1)
+        self.simple_convert_btn = footer_button(
+            "Konwertuj", primary=True, slot=self._start_simple_convert,
+        )
+        self.simple_convert_btn.setObjectName("footerConvert")
+        self.simple_convert_btn.setMinimumWidth(200)
+        action_row.addWidget(self.simple_convert_btn)
+        action_row.addStretch(1)
+        col.addLayout(action_row)
+
+        h = QHBoxLayout()
+        h.setContentsMargins(0, 0, 0, 0)
+        h.addStretch(1)
+        h.addWidget(center, stretch=100)  # kolumna wypełnia szerokość aż do maxWidth, potem centruje
+        h.addStretch(1)
+        outer_lay.addLayout(h, stretch=1)
+        return outer
+
+    def _apply_header_for_mode(self) -> None:
+        """Widoczność elementów paska górnego zależnie od trybu."""
+        simple = self._ui_mode == "simple"
+        for w in (
+            getattr(self, "_menubar", None),
+            getattr(self, "_preset_lbl", None),
+            getattr(self, "retail_preset_combo", None),
+            getattr(self, "restore_retail_btn", None),
+        ):
+            if w is not None:
+                w.setVisible(not simple)
+        if getattr(self, "_app_title_label", None) is not None:
+            self._app_title_label.setVisible(simple)
+        if getattr(self, "_mode_btn", None) is not None:
+            self._mode_btn.setText("Zaawansowany tryb" if simple else "Tryb prosty")
+
+    def _toggle_ui_mode(self) -> None:
+        self._set_ui_mode("advanced" if self._ui_mode == "simple" else "simple")
+
+    def _set_ui_mode(self, mode: str, *, mark_dirty: bool = True) -> None:
+        self._ui_mode = "advanced" if mode == "advanced" else "simple"
+        simple = self._ui_mode == "simple"
+        self._apply_header_for_mode()
+        if hasattr(self, "_view_stack"):
+            self._view_stack.setCurrentIndex(0 if simple else 1)
+        if simple:
+            self._sync_simple_from_state()
+        if mark_dirty:
+            self._mark_dirty()
+
+    def _sync_simple_from_state(self) -> None:
+        """Odśwież kontrolki trybu prostego na podstawie wspólnego stanu."""
+        if hasattr(self, "simple_quality_slider") and hasattr(self, "quality_slider"):
+            self._syncing_quality = True
+            try:
+                self.simple_quality_slider.setValue(self.quality_slider.value())
+                self.simple_quality_label.setText(str(self.quality_slider.value()))
+            finally:
+                self._syncing_quality = False
+        self._refresh_simple_file_list()
+        self._refresh_simple_output()
+
+    def _refresh_simple_file_list(self) -> None:
+        if not hasattr(self, "simple_file_list"):
+            return
+        self.simple_file_list.clear()
+        for p in self._queue:
+            self.simple_file_list.addItem(p.name)
+        self.simple_queue_label.setText(self.queue_label.text())
+
+    def _refresh_simple_output(self) -> None:
+        if hasattr(self, "simple_output_edit"):
+            self.simple_output_edit.setText(self.output_dir_edit.text())
+
+    def _on_simple_quality_changed(self, v: int) -> None:
+        self.simple_quality_label.setText(str(v))
+        if self._syncing_quality:
+            return
+        # jedno źródło prawdy — suwak zaawansowany (aktualizuje _format_opts)
+        self._syncing_quality = True
+        try:
+            self.quality_slider.setValue(v)
+        finally:
+            self._syncing_quality = False
+
+    def _browse_output_simple(self) -> None:
+        self._browse_output()
+        self._refresh_simple_output()
+
+    def _start_simple_convert(self) -> None:
+        if not self._queue:
+            show_warning(self, "Konwersja", "Najpierw dodaj zdjęcia.")
+            return
+        out_text = self.output_dir_edit.text().strip()
+        if not out_text:
+            show_warning(self, "Konwersja", "Wybierz folder, w którym zapisać gotowe pliki.")
+            return
+        self.output_enabled_cb.setChecked(True)
+        out_dir = Path(out_text)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            show_critical(self, "Błąd", f"Nie można utworzyć folderu:\n{exc}")
+            return
+
+        quality = self.simple_quality_slider.value()
+        # Tryb prosty: bez zmiany rozmiaru, bez usuwania tła, PNG-24 (bez redukcji kolorów).
+        fmt_opts = replace(
+            self._format_opts,
+            quality=quality,
+            png_mode="png24",
+            png_colors_auto=False,
+            lossless=False,
+        )
+        resize = ResizeOptions(mode=ResizeMode.NONE, scale_percent=100.0, min_longest_enabled=False)
+        transforms = TransformOptions()
+
+        jobs: list[JobSpec] = []
+        for inp in self._queue:
+            fmt = output_format_for_input(inp)
+            out = build_output_path(inp, out_dir, fmt, preserve_structure=False)
+            jobs.append(JobSpec(
+                input_path=inp,
+                output_path=out,
+                output_format=fmt,
+                resize=resize,
+                transforms=transforms,
+                metadata=self._metadata,
+                format_opts=fmt_opts,
+            ))
+        self._run_jobs(jobs, overwrite=True, log_label="tryb prosty")
+
+    def _run_jobs(self, jobs: list[JobSpec], *, overwrite: bool, log_label: str | None = None) -> None:
+        """Wspólny silnik uruchamiania zadań (overlay + worker + wątek)."""
+        if not jobs:
+            return
+        self.convert_btn.setEnabled(False)
+        if hasattr(self, "simple_convert_btn"):
+            self.simple_convert_btn.setEnabled(False)
+        self.progress.setVisible(False)
+        self.progress_label.setVisible(False)
+        self._batch_cancelled = False
+        self._convert_start = time.time()
+        self._active_jobs = jobs
+        fmts = log_label or "+".join(sorted({j.output_format for j in jobs}))
+        log_event("Start konwersji", f"{len(jobs)} zadań, formaty: {fmts}")
+
+        overlay_items = [(j.input_path.name, j.output_format) for j in jobs]
+        bg_fast = any(
+            j.transforms.remove_background
+            and (j.transforms.bg_model or "birefnet-general") == "birefnet-general-lite"
+            for j in jobs
+        )
+        self._conversion_overlay.start_batch(overlay_items, bg_fast_hint=bg_fast)
+
+        parallel = self.parallel_cb.isChecked() if hasattr(self, "parallel_cb") else True
+        worker = BatchWorker(jobs, parallel=parallel, overwrite=overwrite)
+        worker.progress.connect(self._on_progress)
+        worker.file_started.connect(self._on_file_started)
+        worker.file_finished.connect(self._on_file_finished)
+        worker.finished.connect(self._on_finished)
+        worker.error.connect(self._on_batch_error)
+        worker.cancelled.connect(self._on_batch_cancelled)
+        self._progress_simulator.tick.connect(self._on_simulated_progress)
+        self._batch_thread = BatchThread(worker)
+        self._batch_thread.start()
 
     def _build_convert_body(self) -> QWidget:
         splitter = QSplitter(Qt.Horizontal)
@@ -1764,6 +2048,7 @@ class MainWindow(QMainWindow):
         word = "plik" if n_files == 1 else ("pliki" if 2 <= n_files % 10 <= 4 and (n_files % 100 < 10 or n_files % 100 >= 20) else "plików")
         extra = f", {n_folders} folderów" if n_folders else ""
         self.queue_label.setText(f"{n_files} {word}{extra}")
+        self._refresh_simple_file_list()
 
     def _on_selection_changed(self, current: QTreeWidgetItem | None, _previous) -> None:
         if not self.preview_cb.isChecked():
@@ -1994,37 +2279,12 @@ class MainWindow(QMainWindow):
                 ):
                     overwrite = False
 
-        self.convert_btn.setEnabled(False)
-        self.progress.setVisible(False)
-        self.progress_label.setVisible(False)
-        self._batch_cancelled = False
-        self._convert_start = time.time()
-        self._active_jobs = jobs
-        fmts = "+".join(self._selected_formats())
         preset = self._current_size_preset_id()
-        log_event(
-            "Start konwersji",
-            f"{len(jobs)} zadań, formaty: {fmts}, preset: {preset}",
+        self._run_jobs(
+            jobs,
+            overwrite=overwrite,
+            log_label=f"{'+'.join(self._selected_formats())}, preset: {preset}",
         )
-
-        overlay_items = [(j.input_path.name, j.output_format) for j in jobs]
-        bg_fast = any(
-            j.transforms.remove_background
-            and (j.transforms.bg_model or "birefnet-general") == "birefnet-general-lite"
-            for j in jobs
-        )
-        self._conversion_overlay.start_batch(overlay_items, bg_fast_hint=bg_fast)
-
-        worker = BatchWorker(jobs, parallel=self.parallel_cb.isChecked(), overwrite=overwrite)
-        worker.progress.connect(self._on_progress)
-        worker.file_started.connect(self._on_file_started)
-        worker.file_finished.connect(self._on_file_finished)
-        worker.finished.connect(self._on_finished)
-        worker.error.connect(self._on_batch_error)
-        worker.cancelled.connect(self._on_batch_cancelled)
-        self._progress_simulator.tick.connect(self._on_simulated_progress)
-        self._batch_thread = BatchThread(worker)
-        self._batch_thread.start()
 
     def _on_overlay_abort(self) -> None:
         if not self._batch_thread or not self._batch_thread.isRunning():
@@ -2102,6 +2362,8 @@ class MainWindow(QMainWindow):
     def _on_batch_error(self, message: str) -> None:
         log_event("Błąd konwersji", message, status="ERROR")
         self.convert_btn.setEnabled(True)
+        if hasattr(self, "simple_convert_btn"):
+            self.simple_convert_btn.setEnabled(True)
         self._progress_simulator.stop()
         self._conversion_overlay.finish()
         self._active_jobs = []
@@ -2199,6 +2461,8 @@ class MainWindow(QMainWindow):
     def _on_finished(self, results) -> None:
         elapsed = time.time() - self._convert_start
         self.convert_btn.setEnabled(True)
+        if hasattr(self, "simple_convert_btn"):
+            self.simple_convert_btn.setEnabled(True)
         self._progress_simulator.stop()
         self._conversion_overlay.set_overall(len(results), max(len(results), len(self._active_jobs)))
         self._conversion_overlay.finish()
