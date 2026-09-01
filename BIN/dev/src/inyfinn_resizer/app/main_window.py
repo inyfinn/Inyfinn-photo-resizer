@@ -66,12 +66,12 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     SECTION_GAP,
     TILE_PADDING,
     TILE_PADDING_TOP,
-    CROP_PICKER_HEIGHT,
     browse_button,
     compact_row,
     field_label,
     footer_button,
     h_separator,
+    make_bento_column,
     make_tile,
     slider_control,
     stacked_field,
@@ -560,7 +560,6 @@ class MainWindow(QMainWindow):
         tile_fmt, lay_fmt = make_tile(
             "Format i jakość",
             tooltip="Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
-            icon_key="format",
         )
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(8)
@@ -664,14 +663,14 @@ class MainWindow(QMainWindow):
         )
         lay_colors.addWidget(self._colors_row)
 
-        grid.addWidget(tile_bg, 1, 0, 1, 1)
-        grid.addWidget(tile_colors, 1, 1, 1, 1)
+        self._bento_left_col, self._bento_left_lay = make_bento_column()
+        self._bento_left_lay.addWidget(tile_bg, 0)
+        self._bento_right_col, self._bento_right_lay = make_bento_column()
 
-        # Wiersz 2: Wymiary | Kadr
+        # Wymiary (lewa kolumna, pod Tło)
         tile_dims, lay_dims = make_tile(
             "Wymiary",
             tooltip="Skala, własny format i kadr przycięcia",
-            icon_key="dimensions",
         )
         self._bento_tile_dims = tile_dims
 
@@ -769,7 +768,7 @@ class MainWindow(QMainWindow):
         dims_opts_col.addWidget(custom_control)
         lay_dims.addWidget(dims_opts_wrap)
 
-        tile_crop, lay_crop = make_tile("Kadr", compact=True, compact_content_h=CROP_PICKER_HEIGHT)
+        tile_crop, lay_crop = make_tile("Kadr", compact=True)
         self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
@@ -782,14 +781,12 @@ class MainWindow(QMainWindow):
         crop_row.addStretch(1)
         lay_crop.addLayout(crop_row)
 
-        grid.addWidget(tile_dims, 2, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
-        grid.addWidget(tile_crop, 2, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
+        self._bento_left_lay.addWidget(tile_dims, 1)
 
-        # Wiersz 3: Zapis plików (span 2)
+        # Wiersz 2: Zapis plików (span 2)
         tile_save, lay_save = make_tile(
             "Zapis plików",
             tooltip="Folder wyjściowy i opcje wsadowe",
-            icon_key="save",
         )
         self._bento_tile_save = tile_save
 
@@ -866,15 +863,14 @@ class MainWindow(QMainWindow):
             cb_grid.addWidget(cb, i // 2, i % 2)
         lay_save.addLayout(cb_grid)
 
-        grid.addWidget(tile_save, 3, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(tile_save, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
         root.addLayout(grid, 0)
         root.addStretch(1)
-
-        self._step_section_boxes = [tile_fmt, tile_dims, tile_save]
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
         self._sync_dimensions_ui()
         self._update_palette_controls_visibility()
+        self._relayout_bento()
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())
@@ -905,28 +901,38 @@ class MainWindow(QMainWindow):
             cb.update()
 
     def _relayout_bento(self) -> None:
-        """Dynamiczna rozpiętość kafelków — źródło prawdy: flagi stanu, nie isVisible()."""
-        grid = self._bento_grid
+        """Układ Bento w kolumnach — Kolory rozciąga się, Kadr przykleja się do dołu prawej kolumny."""
         show_colors = self._show_colors_tile
         show_crop = self._show_crop_tile
+        has_right = show_colors or show_crop
 
-        grid.removeWidget(self._bento_tile_bg)
-        grid.removeWidget(self._bento_tile_colors)
+        while self._bento_right_lay.count():
+            self._bento_right_lay.takeAt(0)
+
         self._bento_tile_colors.setVisible(show_colors)
-        if show_colors:
-            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
-            grid.addWidget(self._bento_tile_colors, 1, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
-        else:
-            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
-
-        grid.removeWidget(self._bento_tile_dims)
-        grid.removeWidget(self._bento_tile_crop)
         self._bento_tile_crop.setVisible(show_crop)
+
+        if show_colors:
+            self._bento_right_lay.addWidget(self._bento_tile_colors, 1)
         if show_crop:
-            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
-            grid.addWidget(self._bento_tile_crop, 2, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
+            if not show_colors:
+                self._bento_right_lay.addStretch(1)
+            self._bento_right_lay.addWidget(
+                self._bento_tile_crop,
+                0,
+                Qt.AlignmentFlag.AlignBottom,
+            )
+
+        self._bento_right_col.setVisible(has_right)
+
+        grid = self._bento_grid
+        grid.removeWidget(self._bento_left_col)
+        grid.removeWidget(self._bento_right_col)
+        if has_right:
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 1)
+            grid.addWidget(self._bento_right_col, 1, 1, 1, 1)
         else:
-            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 2)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)
@@ -1022,7 +1028,6 @@ class MainWindow(QMainWindow):
         from inyfinn_resizer.app.themes import apply_theme
 
         apply_theme(QApplication.instance(), self._theme)
-        self._refresh_step_icons()
         self._finalize_checkbox_indicators()
 
     def _set_theme(self, theme: str) -> None:
@@ -1033,23 +1038,12 @@ class MainWindow(QMainWindow):
         self._theme = theme
         apply_theme(QApplication.instance(), theme)
         save_theme(theme)
-        self._refresh_step_icons()
         self._finalize_checkbox_indicators()
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
             self._theme_toggle.set_dark(theme == "dark")
             self._theme_toggle.blockSignals(False)
         self._mark_dirty()
-
-    def _refresh_step_icons(self) -> None:
-        """Przemaluj kolorowe ikony sekcji po zmianie motywu (jasny/ciemny)."""
-        from inyfinn_resizer.app.widgets.section_icons import step_pixmap
-
-        for box in getattr(self, "_step_section_boxes", []):
-            icon = getattr(box, "_step_icon_label", None)
-            key = getattr(box, "_step_key", None)
-            if icon is not None and key:
-                icon.setPixmap(step_pixmap(key))
 
     def _reload_size_combo(self, *, select_id: str | None = None) -> None:
         self.size_combo.blockSignals(True)

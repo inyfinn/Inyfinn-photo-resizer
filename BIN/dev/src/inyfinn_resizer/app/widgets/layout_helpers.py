@@ -229,6 +229,16 @@ def make_tile(
     return box, inner
 
 
+def make_bento_column() -> tuple[QWidget, QVBoxLayout]:
+    """Pionowa kolumna Bento — kafelki sklejają się bez pustych przerw między wierszami siatki."""
+    col = QWidget()
+    col.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+    lay = QVBoxLayout(col)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(SECTION_GAP)
+    return col, lay
+
+
 def make_settings_grid() -> QGridLayout:
     grid = QGridLayout()
     grid.setHorizontalSpacing(ROW_GAP)
