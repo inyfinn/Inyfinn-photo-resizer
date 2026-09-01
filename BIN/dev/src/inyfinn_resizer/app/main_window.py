@@ -401,7 +401,9 @@ class MainWindow(QMainWindow):
         outer_lay.setSpacing(SECTION_GAP)
 
         center = QWidget()
-        center.setMaximumWidth(760)
+        center.setMinimumWidth(480)
+        center.setMaximumWidth(860)
+        center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         col = QVBoxLayout(center)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(SECTION_GAP)
@@ -421,10 +423,17 @@ class MainWindow(QMainWindow):
         files_lay.addWidget(self.simple_queue_label)
         self.simple_file_list = QListWidget()
         self.simple_file_list.setObjectName("simpleFileList")
-        self.simple_file_list.setMinimumHeight(150)
+        self.simple_file_list.setMinimumHeight(160)
+        self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.simple_file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        files_lay.addWidget(self.simple_file_list)
-        col.addWidget(files_tile)
+        files_lay.addWidget(self.simple_file_list, stretch=1)
+        # Kafelek listy wypełnia dostępną wysokość (bez pustej przestrzeni pod nagłówkiem).
+        files_content = files_lay.parentWidget()
+        if files_content is not None:
+            files_content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        files_tile.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        files_tile.layout().setStretch(1, 1)
+        col.addWidget(files_tile, stretch=1)
 
         # 2 — jakość
         q_tile, q_lay = make_tile(
@@ -481,15 +490,13 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.simple_convert_btn)
         action_row.addStretch(1)
         col.addLayout(action_row)
-        col.addStretch(1)
 
         h = QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
         h.addStretch(1)
-        h.addWidget(center)
+        h.addWidget(center, stretch=100)  # kolumna wypełnia szerokość aż do maxWidth, potem centruje
         h.addStretch(1)
-        outer_lay.addLayout(h)
-        outer_lay.addStretch(1)
+        outer_lay.addLayout(h, stretch=1)
         return outer
 
     def _apply_header_for_mode(self) -> None:
