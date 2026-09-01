@@ -75,6 +75,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     h_separator,
     make_bento_column,
     make_tile,
+    set_tile_fill,
     slider_control,
     stacked_field,
     style_dropdown,
@@ -236,7 +237,6 @@ class MainWindow(QMainWindow):
             self._conversion_overlay.setGeometry(self.centralWidget().rect())
         if hasattr(self, "_update_manager"):
             self._update_manager.reposition_toast()
-        self._sync_settings_panel_geometry()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -376,6 +376,7 @@ class MainWindow(QMainWindow):
         root.setSpacing(0)
         self._view_stack = QStackedWidget()
         self._view_stack.setObjectName("viewStack")
+        self._view_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         advanced_body = self._build_convert_body()
         self._simple_view = self._build_simple_view()
         self._view_stack.addWidget(self._simple_view)   # index 0 — tryb prosty
@@ -412,6 +413,7 @@ class MainWindow(QMainWindow):
         files_tile, files_lay = make_tile(
             "1. Wrzuć zdjęcia",
             "Przeciągnij pliki tutaj lub dodaj z dysku",
+            fill=True,
         )
         files_lay.addLayout(tool_button_row([
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
@@ -427,12 +429,6 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.simple_file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         files_lay.addWidget(self.simple_file_list, stretch=1)
-        # Kafelek listy wypełnia dostępną wysokość (bez pustej przestrzeni pod nagłówkiem).
-        files_content = files_lay.parentWidget()
-        if files_content is not None:
-            files_content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        files_tile.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        files_tile.layout().setStretch(1, 1)
         col.addWidget(files_tile, stretch=1)
 
         # 2 — jakość
@@ -655,11 +651,12 @@ class MainWindow(QMainWindow):
         # —— Lewy panel: dwa kafelki na kanwie ——
         left_column = QWidget()
         left_column.setObjectName("leftColumn")
+        left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(SECTION_GAP)
 
-        list_tile, list_layout = make_tile("Lista plików")
+        list_tile, list_layout = make_tile("Lista plików", fill=True)
 
         meta_row = QHBoxLayout()
         meta_row.setSpacing(10)
@@ -700,6 +697,7 @@ class MainWindow(QMainWindow):
         self.input_tree.currentItemChanged.connect(self._on_selection_changed)
         self.input_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.input_tree.customContextMenuRequested.connect(self._show_file_context_menu)
+        self.input_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         list_layout.addWidget(self.input_tree, stretch=1)
 
         left_layout.addWidget(list_tile, stretch=1)
@@ -710,13 +708,14 @@ class MainWindow(QMainWindow):
         # —— Prawy panel: ustawienia na kanwie ——
         right_column = QWidget()
         right_column.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
+        right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(SECTION_GAP)
 
         settings_scroll = QScrollArea()
         settings_scroll.setObjectName("settingsScroll")
-        settings_scroll.setWidgetResizable(False)
+        settings_scroll.setWidgetResizable(True)
         settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         settings_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -763,6 +762,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
         splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
+        splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         return splitter
 
     def _build_preview_panel(self) -> QFrame:
@@ -823,7 +823,7 @@ class MainWindow(QMainWindow):
         body = QWidget()
         self._settings_body = body
         body.setObjectName("settingsBody")
-        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(body)
         root.setSpacing(SECTION_GAP)
         root.setContentsMargins(0, 0, 0, 0)
@@ -840,7 +840,7 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         grid.setRowStretch(0, 0)
-        grid.setRowStretch(1, 0)
+        grid.setRowStretch(1, 1)
         grid.setRowStretch(2, 0)
         self._bento_grid = grid
 
@@ -891,7 +891,7 @@ class MainWindow(QMainWindow):
             tooltip=UI_TOOLTIPS["quality"],
             tight=True,
         ))
-        grid.addWidget(tile_fmt, 0, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(tile_fmt, 0, 0, 1, 2)
 
         # Wiersz 1: Tło i warianty | Kolory
         tile_bg, lay_bg = make_tile("Tło i warianty")
@@ -959,6 +959,7 @@ class MainWindow(QMainWindow):
         tile_dims, lay_dims = make_tile(
             "Wymiary",
             tooltip="Skala, własny format i kadr przycięcia",
+            fill=True,
         )
         self._bento_tile_dims = tile_dims
 
@@ -1056,7 +1057,7 @@ class MainWindow(QMainWindow):
         dims_opts_col.addWidget(custom_control)
         lay_dims.addWidget(dims_opts_wrap)
 
-        tile_crop, lay_crop = make_tile("Kadr", compact=True)
+        tile_crop, lay_crop = make_tile("Kadr", fill=True)
         self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
@@ -1067,9 +1068,11 @@ class MainWindow(QMainWindow):
         crop_row.addStretch(1)
         crop_row.addWidget(self.crop_anchor_picker)
         crop_row.addStretch(1)
+        lay_crop.addStretch(1)
         lay_crop.addLayout(crop_row)
+        lay_crop.addStretch(1)
 
-        self._bento_left_lay.addWidget(tile_dims, 0)
+        self._bento_left_lay.addWidget(tile_dims, 1)
 
         # Wiersz 2: Zapis plików (span 2)
         tile_save, lay_save = make_tile(
@@ -1151,8 +1154,8 @@ class MainWindow(QMainWindow):
             cb_grid.addWidget(cb, i // 2, i % 2)
         lay_save.addLayout(cb_grid)
 
-        grid.addWidget(tile_save, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
-        root.addLayout(grid, 0)
+        grid.addWidget(tile_save, 2, 0, 1, 2)
+        root.addLayout(grid, 1)
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
         self._sync_dimensions_ui()
@@ -1164,22 +1167,8 @@ class MainWindow(QMainWindow):
         self.output_dir_edit.textChanged.connect(lambda _v: self._mark_dirty())
 
         self._finalize_checkbox_indicators()
-        QTimer.singleShot(0, self._sync_settings_panel_geometry)
 
         return body
-
-    def _sync_settings_panel_geometry(self) -> None:
-        """Szerokość panelu = viewport scrolla; wysokość naturalna — scroll gdy treść nie mieści się."""
-        body = self._settings_body
-        scroll = getattr(self, "_settings_scroll", None)
-        if body is None or scroll is None:
-            return
-        viewport_w = scroll.viewport().width()
-        if viewport_w <= 0:
-            return
-        body.setFixedWidth(viewport_w)
-        body.adjustSize()
-        scroll.widget().updateGeometry()
 
     def _finalize_checkbox_indicators(self) -> None:
         """Odśwież styl wskaźników QCheckBox po zbudowaniu layoutu i nałożeniu motywu."""
@@ -1202,39 +1191,41 @@ class MainWindow(QMainWindow):
             cb.update()
 
     def _relayout_bento(self) -> None:
-        """Układ Bento w kolumnach — Kolory rozciąga się, Kadr przykleja się do dołu prawej kolumny."""
+        """Kolumny Bento tej samej wysokości — kafelki wypełniają dziury, nie tło okna."""
         show_colors = self._show_colors_tile
         show_crop = self._show_crop_tile
         has_right = show_colors or show_crop
 
         while self._bento_right_lay.count():
-            self._bento_right_lay.takeAt(0)
+            item = self._bento_right_lay.takeAt(0)
+            if item.widget() is None:
+                del item
 
         self._bento_tile_colors.setVisible(show_colors)
         self._bento_tile_crop.setVisible(show_crop)
 
-        if show_colors:
+        if show_colors and show_crop:
+            set_tile_fill(self._bento_tile_colors, False)
+            set_tile_fill(self._bento_tile_crop, True)
             self._bento_right_lay.addWidget(self._bento_tile_colors, 0)
-        if show_crop:
-            self._bento_right_lay.addStretch(1)
-            self._bento_right_lay.addWidget(
-                self._bento_tile_crop,
-                0,
-                Qt.AlignmentFlag.AlignBottom,
-            )
+            self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
+        elif show_colors:
+            set_tile_fill(self._bento_tile_colors, True)
+            self._bento_right_lay.addWidget(self._bento_tile_colors, 1)
+        elif show_crop:
+            set_tile_fill(self._bento_tile_crop, True)
+            self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
 
         self._bento_right_col.setVisible(has_right)
 
         grid = self._bento_grid
         grid.removeWidget(self._bento_left_col)
         grid.removeWidget(self._bento_right_col)
-        top = Qt.AlignmentFlag.AlignTop
         if has_right:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 1, top)
-            grid.addWidget(self._bento_right_col, 1, 1, 1, 1, top)
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 1)
+            grid.addWidget(self._bento_right_col, 1, 1, 1, 1)
         else:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 2, top)
-        self._sync_settings_panel_geometry()
+            grid.addWidget(self._bento_left_col, 1, 0, 1, 2)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)

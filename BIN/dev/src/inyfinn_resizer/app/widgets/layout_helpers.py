@@ -152,6 +152,22 @@ def stacked_field(label: str, control: QWidget, *, tooltip: str = "") -> QWidget
     return wrap
 
 
+def set_tile_fill(box: QFrame, fill: bool) -> None:
+    """Kafelek wypełnia wolną wysokość kolumny (biała karta zamiast dziury w siatce)."""
+    v_policy = QSizePolicy.Policy.Expanding if fill else QSizePolicy.Policy.Preferred
+    box.setSizePolicy(QSizePolicy.Policy.Expanding, v_policy)
+    outer = box.layout()
+    if outer is None or outer.count() < 2:
+        return
+    content = outer.itemAt(1).widget()
+    if content is not None:
+        content.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding if fill else QSizePolicy.Policy.Maximum,
+        )
+        outer.setStretch(1, 1 if fill else 0)
+
+
 def make_tile(
     title: str,
     subtitle: str = "",
@@ -160,13 +176,19 @@ def make_tile(
     tooltip: str = "",
     compact: bool = False,
     compact_content_h: int = 0,
+    fill: bool = False,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Płaski kafelek Bento — jednolite tło, bez ramek."""
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
     box = QFrame()
     box.setObjectName("bentoTile")
-    v_policy = QSizePolicy.Policy.Maximum if compact else QSizePolicy.Policy.Preferred
+    if fill:
+        v_policy = QSizePolicy.Policy.Expanding
+    elif compact:
+        v_policy = QSizePolicy.Policy.Maximum
+    else:
+        v_policy = QSizePolicy.Policy.Preferred
     box.setSizePolicy(QSizePolicy.Policy.Expanding, v_policy)
     outer = QVBoxLayout(box)
     outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
@@ -204,11 +226,14 @@ def make_tile(
     outer.addWidget(header, 0, Qt.AlignmentFlag.AlignTop)
 
     content = QWidget()
-    content.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+    content.setSizePolicy(
+        QSizePolicy.Policy.Preferred,
+        QSizePolicy.Policy.Expanding if fill else QSizePolicy.Policy.Maximum,
+    )
     inner = QVBoxLayout(content)
     inner.setContentsMargins(0, 0, 0, 0)
     inner.setSpacing(TILE_INNER_SPACING)
-    outer.addWidget(content, 0)
+    outer.addWidget(content, 1 if fill else 0)
 
     if compact and compact_content_h > 0:
         header_h = STEP_ICON_SIZE if icon_key else TILE_TITLE_HEIGHT
@@ -229,7 +254,7 @@ def make_tile(
 def make_bento_column() -> tuple[QWidget, QVBoxLayout]:
     """Pionowa kolumna Bento — kafelki sklejają się bez pustych przerw między wierszami siatki."""
     col = QWidget()
-    col.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    col.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     lay = QVBoxLayout(col)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(SECTION_GAP)

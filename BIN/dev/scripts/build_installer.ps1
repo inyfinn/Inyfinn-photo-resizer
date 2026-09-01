@@ -38,13 +38,15 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "ISCC zakończył się kodem $LASTEXITCODE"
 }
 
-$setup = Get-ChildItem $outDir -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+$venvPy = Join-Path $DevRoot ".venv\Scripts\python.exe"
+$version = "unknown"
+if (Test-Path $venvPy) {
+    $version = & $venvPy -c "from inyfinn_resizer import __version__; print(__version__)"
+}
+$expectedName = "InyfinnPhotoResizer-$version-setup.exe"
+$setup = Get-ChildItem $outDir -Filter $expectedName -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $setup) {
-    $setup = Get-ChildItem (Join-Path $AppRoot "installer-output") -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+    $setup = Get-ChildItem (Join-Path $AppRoot "installer-output") -Filter $expectedName -ErrorAction SilentlyContinue | Select-Object -First 1
 }
 if (-not $setup) {
     Write-Error "Nie znaleziono pliku setup w $outDir"

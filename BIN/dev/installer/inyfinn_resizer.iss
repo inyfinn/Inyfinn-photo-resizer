@@ -1,6 +1,6 @@
 ; Inno Setup script for Inyfinn Photo Resizer
 #define MyAppName "Inyfinn Photo Resizer"
-#define MyAppVersion "2.3.0"
+#define MyAppVersion "2.3.1"
 #define MyAppPublisher "Inyfinn"
 #define MyAppExeName "InyfinnPhotoResizer.exe"
 #define MyAppMutex "InyfinnPhotoResizerAppMutex"

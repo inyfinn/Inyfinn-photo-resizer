@@ -79,6 +79,7 @@ def main() -> int:
     queue: list[tuple[str, str, str, str]] = [
         ("main", "light", "main", "avif"),
         ("main", "light", "main-png", "png"),
+        ("main", "light", "main-webp", "webp"),
         ("format", "light", "format", ""),
         ("advanced", "light", "advanced", ""),
         ("main", "dark", "main", "avif"),
@@ -97,6 +98,7 @@ def main() -> int:
         if kind == "main":
             widget = MainWindow()
             widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+            widget._set_ui_mode("advanced", mark_dirty=False)
         elif kind == "format":
             widget = FormatSettingsDialog("webp", FormatOptions())
         else:
