@@ -17,8 +17,8 @@ def _draw_chevron(path: Path, color: tuple[int, int, int, int]) -> None:
 
 
 def main() -> None:
-    _draw_chevron(OUT / "combo-down-light.png", (2, 132, 199, 255))
-    _draw_chevron(OUT / "combo-down-dark.png", (125, 211, 252, 255))
+    _draw_chevron(OUT / "combo-down-light.png", (99, 102, 241, 255))
+    _draw_chevron(OUT / "combo-down-dark.png", (129, 140, 248, 255))
     print("OK", OUT)
 
 

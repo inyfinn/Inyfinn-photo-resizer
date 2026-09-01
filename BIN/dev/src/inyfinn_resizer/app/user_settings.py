@@ -67,15 +67,20 @@ def save_geometry(window: MainWindow) -> None:
 
 
 def restore_geometry(window: MainWindow) -> bool:
+    from inyfinn_resizer.app.main_window import DEFAULT_SPLITTER_SIZES, RIGHT_PANEL_MIN_WIDTH
+
     s = _settings()
     sizes = s.value("ui/splitter")
     if sizes and window._main_splitter:
         try:
             parsed = [int(x) for x in sizes]
             if len(parsed) == 2:
-                right = max(500, parsed[1])
-                left = max(400, parsed[0])
-                window._main_splitter.setSizes([left, right])
+                right = parsed[1]
+                if right < RIGHT_PANEL_MIN_WIDTH:
+                    window._main_splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
+                else:
+                    left = max(400, parsed[0])
+                    window._main_splitter.setSizes([left, right])
             else:
                 window._main_splitter.setSizes(parsed)
         except (TypeError, ValueError):

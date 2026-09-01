@@ -5,17 +5,19 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
+STEP_ACCENT_LIGHT = "#6366f1"
+STEP_ACCENT_DARK = "#818cf8"
+
 STEP_ACCENTS = {
-    "format": ("#6366f1", "#eef2ff"),
-    "dimensions": ("#6a7a74", "#f4f6f5"),
-    "save": ("#ea580c", "#fff7ed"),
+    "format": (STEP_ACCENT_LIGHT, "#eef2ff"),
+    "dimensions": (STEP_ACCENT_LIGHT, "#eef2ff"),
+    "save": (STEP_ACCENT_LIGHT, "#eef2ff"),
 }
 
-# Tryb ciemny: przyciemnione, mniej nasycone warianty — nie rażą na ciemnym tle.
 STEP_ACCENTS_DARK = {
-    "format": "#3b3f7a",
-    "dimensions": "#4a5a54",
-    "save": "#8a4416",
+    "format": STEP_ACCENT_DARK,
+    "dimensions": STEP_ACCENT_DARK,
+    "save": STEP_ACCENT_DARK,
 }
 
 HELP_ACCENTS = {

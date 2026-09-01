@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-08-11 · **Wersja aplikacji:** 2.1.0
+**Ostatnia aktualizacja:** 2026-09-01 · **Wersja aplikacji:** 2.2.0
 
 ---
 

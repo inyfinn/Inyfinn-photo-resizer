@@ -19,15 +19,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-BTN_H = 28
+BTN_H = 26
 FOOTER_BTN_H = 32
 ROW_GAP = 2
 FIELD_GAP = 1
-SECTION_GAP = 8
-STEP_ICON_SIZE = 40
+SECTION_GAP = 4
+TILE_PADDING = 12
+TILE_HEADER_SPACING = 4
+TILE_INNER_SPACING = 2
+STEP_ICON_SIZE = 24
 COMPACT_LABEL_W = 78
-COMPACT_SLIDER_ROW_H = 32
-COMPACT_CONTROL_ROW_H = 32
+COMPACT_SLIDER_ROW_H = 28
+COMPACT_CONTROL_ROW_H = 28
 
 
 def hint_label(text: str) -> QLabel:
@@ -131,43 +134,54 @@ def make_section(title: str, tooltip: str = "") -> tuple[QFrame, QVBoxLayout]:
     return box, lay
 
 
-def make_step_section(
+def stacked_field(label: str, control: QWidget, *, tooltip: str = "") -> QWidget:
+    """Etykieta nad kontrolką (siatka 2-kolumnowa)."""
+    wrap = QWidget()
+    lay = QVBoxLayout(wrap)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(FIELD_GAP)
+    lbl = field_label(label, tooltip)
+    control.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    if tooltip:
+        control.setToolTip(tooltip)
+    lay.addWidget(lbl)
+    lay.addWidget(control)
+    return wrap
+
+
+def make_tile(
     title: str,
-    subtitle: str,
+    subtitle: str = "",
     *,
-    step_key: str,
+    icon_key: str = "",
     tooltip: str = "",
 ) -> tuple[QFrame, QVBoxLayout]:
-    """Sekcja kroku z kolorową ikoną (format / dimensions / save)."""
+    """Płaski kafelek Bento — jednolite tło, bez ramek."""
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
-    object_names = {
-        "format": "sectionBoxStep1",
-        "dimensions": "sectionBoxStep2",
-        "save": "sectionBoxStep3",
-    }
     box = QFrame()
-    box.setObjectName(object_names.get(step_key, "sectionBox"))
-    box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+    box.setObjectName("bentoTile")
+    box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     outer = QVBoxLayout(box)
-    outer.setContentsMargins(10, 8, 12, 10)
-    outer.setSpacing(6)
+    outer.setContentsMargins(TILE_PADDING, TILE_PADDING, TILE_PADDING, TILE_PADDING)
+    outer.setSpacing(TILE_HEADER_SPACING)
 
     header = QWidget()
     header.setObjectName("sectionStepHeader")
+    header.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     header_row = QHBoxLayout(header)
     header_row.setContentsMargins(0, 0, 0, 0)
-    header_row.setSpacing(10)
+    header_row.setSpacing(TILE_HEADER_SPACING)
 
-    icon = QLabel()
-    icon.setObjectName(f"sectionIcon{step_key.capitalize()}")
-    icon.setPixmap(step_pixmap(step_key))
-    icon.setFixedSize(STEP_ICON_SIZE, STEP_ICON_SIZE)
-    header_row.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
-    # Referencje do odświeżenia ikony po zmianie motywu (jasny/ciemny).
-    box.setProperty("stepKey", step_key)
-    box._step_icon_label = icon  # type: ignore[attr-defined]
-    box._step_key = step_key  # type: ignore[attr-defined]
+    if icon_key:
+        icon = QLabel()
+        icon.setObjectName(f"sectionIcon{icon_key.capitalize()}")
+        icon.setPixmap(step_pixmap(icon_key))
+        icon.setFixedSize(STEP_ICON_SIZE, STEP_ICON_SIZE)
+        header_row.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+        box.setProperty("stepKey", icon_key)
+        box._step_icon_label = icon  # type: ignore[attr-defined]
+        box._step_key = icon_key  # type: ignore[attr-defined]
 
     text_col = QVBoxLayout()
     text_col.setContentsMargins(0, 0, 0, 0)
@@ -181,15 +195,14 @@ def make_step_section(
         sub_lbl.setWordWrap(True)
         text_col.addWidget(sub_lbl)
     header_row.addLayout(text_col, stretch=1)
-    outer.addWidget(header)
+    outer.addWidget(header, 0, Qt.AlignmentFlag.AlignTop)
 
-    content_wrap = QFrame()
-    content_wrap.setObjectName(f"sectionInner{step_key.capitalize()}")
-    content_wrap.setFrameShape(QFrame.Shape.NoFrame)
-    inner = QVBoxLayout(content_wrap)
-    inner.setContentsMargins(2, 0, 2, 2)
-    inner.setSpacing(6)
-    outer.addWidget(content_wrap)
+    content = QWidget()
+    content.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+    inner = QVBoxLayout(content)
+    inner.setContentsMargins(0, 0, 0, 0)
+    inner.setSpacing(TILE_INNER_SPACING)
+    outer.addWidget(content, 1)
 
     if tooltip:
         box.setToolTip(tooltip)
@@ -248,7 +261,8 @@ def style_dropdown(combo: QComboBox) -> QComboBox:
 def footer_button(text: str, *, primary: bool, slot: Callable[[], None], parent=None) -> QPushButton:
     btn = QPushButton(text, parent)
     btn.setObjectName("footerPrimary" if primary else "footerSecondary")
-    btn.setFixedSize(108, FOOTER_BTN_H)
+    btn.setFixedHeight(FOOTER_BTN_H)
+    btn.setMinimumWidth(140 if primary else 108)
     btn.clicked.connect(slot)
     return btn
 

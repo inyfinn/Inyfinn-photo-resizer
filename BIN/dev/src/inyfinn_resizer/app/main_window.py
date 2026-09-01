@@ -68,8 +68,10 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     compact_row,
     field_label,
     footer_button,
-    make_step_section,
+    h_separator,
+    make_tile,
     slider_control,
+    stacked_field,
     style_dropdown,
     tool_button_row,
 )
@@ -140,11 +142,12 @@ from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
-DEFAULT_WINDOW_WIDTH = 1200
-DEFAULT_WINDOW_HEIGHT = 800
-MIN_WINDOW_WIDTH = DEFAULT_WINDOW_WIDTH
-MIN_WINDOW_HEIGHT = 720
-RIGHT_PANEL_MIN_WIDTH = 500
+DEFAULT_WINDOW_WIDTH = 1280
+DEFAULT_WINDOW_HEIGHT = 860
+MIN_WINDOW_WIDTH = 1180
+MIN_WINDOW_HEIGHT = 760
+RIGHT_PANEL_MIN_WIDTH = 620
+DEFAULT_SPLITTER_SIZES = (600, 680)
 
 
 class MainWindow(QMainWindow):
@@ -158,6 +161,8 @@ class MainWindow(QMainWindow):
         self._initial_size_applied = False
         self._settings_body: QWidget | None = None
         self._main_splitter: QSplitter | None = None
+        self._show_colors_tile = False
+        self._show_crop_tile = True
 
         self._queue: list[Path] = []
         self._file_roots: dict[Path, Path] = {}
@@ -191,6 +196,7 @@ class MainWindow(QMainWindow):
         self._update_advanced_summary()
         self._apply_saved_theme()
         load_session(self)
+        self._finalize_checkbox_indicators()
         self._sync_remove_bg_ui()
         if self.output_dir_edit.text().strip():
             self._output_dir_manual = True
@@ -296,7 +302,7 @@ class MainWindow(QMainWindow):
 
         menu_strip = QWidget()
         menu_strip.setObjectName("menuStrip")
-        menu_strip.setMinimumHeight(40)
+        menu_strip.setMinimumHeight(32)
         strip_lay = QHBoxLayout(menu_strip)
         strip_lay.setContentsMargins(0, 0, 12, 0)
         strip_lay.setSpacing(8)
@@ -342,7 +348,7 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(20, 12, 20, 12)
+        root.setContentsMargins(16, 8, 16, 8)
         root.setSpacing(0)
         root.addWidget(self._build_convert_body(), stretch=1)
         self._conversion_overlay = ConversionOverlay(central)
@@ -358,8 +364,14 @@ class MainWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
         self._main_splitter = splitter
 
-        # —— Lewy panel: lista plików ——
-        left_box, left_layout = self._make_panel("Lista plików", "dropPanel")
+        # —— Lewy panel: dwa kafelki na kanwie ——
+        left_column = QWidget()
+        left_column.setObjectName("leftColumn")
+        left_layout = QVBoxLayout(left_column)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(SECTION_GAP)
+
+        list_tile, list_layout = make_tile("Lista plików")
 
         meta_row = QHBoxLayout()
         meta_row.setSpacing(10)
@@ -375,9 +387,9 @@ class MainWindow(QMainWindow):
         self.sort_combo.currentIndexChanged.connect(self._sort_queue)
         meta_row.addWidget(sort_lbl)
         meta_row.addWidget(self.sort_combo)
-        left_layout.addLayout(meta_row)
+        list_layout.addLayout(meta_row)
 
-        left_layout.addLayout(tool_button_row([
+        list_layout.addLayout(tool_button_row([
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
             ("Dodaj folder", self._add_folder_dialog, icon_folder_green()),
             ("Usuń", self._remove_selected, icon_minus_red()),
@@ -400,15 +412,20 @@ class MainWindow(QMainWindow):
         self.input_tree.currentItemChanged.connect(self._on_selection_changed)
         self.input_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.input_tree.customContextMenuRequested.connect(self._show_file_context_menu)
-        left_layout.addWidget(self.input_tree, stretch=1)
+        list_layout.addWidget(self.input_tree, stretch=1)
 
+        left_layout.addWidget(list_tile, stretch=1)
         left_layout.addWidget(self._build_preview_panel())
 
-        splitter.addWidget(left_box)
+        splitter.addWidget(left_column)
 
-        # —— Prawy panel: ustawienia (płasko jak FastStone) ——
-        right_shell, right_layout = self._make_panel("", "panel", titled=False, margins=(16, 8, 16, 12))
-        right_shell.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
+        # —— Prawy panel: ustawienia na kanwie ——
+        right_column = QWidget()
+        right_column.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(2)
+
         settings_scroll = QScrollArea()
         settings_scroll.setObjectName("settingsScroll")
         settings_scroll.setWidgetResizable(True)
@@ -418,6 +435,7 @@ class MainWindow(QMainWindow):
         settings_scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         settings_body = self._build_settings_panel()
         settings_scroll.setWidget(settings_body)
+        self._settings_scroll = settings_scroll
         right_layout.addWidget(settings_scroll, stretch=1)
 
         progress_wrap = QWidget()
@@ -437,33 +455,33 @@ class MainWindow(QMainWindow):
         progress_col.addWidget(self.progress)
         right_layout.addWidget(progress_wrap)
 
-        action_bar = QFrame()
-        action_bar.setObjectName("actionFooterBar")
-        action_row = QHBoxLayout(action_bar)
-        action_row.setContentsMargins(10, 8, 10, 8)
-        action_row.setSpacing(10)
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(8)
         action_row.addStretch(1)
         self.convert_btn = footer_button("Konwertuj", primary=True, slot=self._start_convert)
         self.convert_btn.setObjectName("footerConvert")
-        self.convert_btn.setFixedSize(132, 36)
+        self.convert_btn.setMinimumWidth(140)
+        self.convert_btn.setFixedHeight(32)
         close_btn = footer_button("Zamknij", primary=False, slot=self.close)
         close_btn.setObjectName("footerClose")
-        close_btn.setFixedSize(112, 36)
+        close_btn.setMinimumWidth(112)
+        close_btn.setFixedHeight(32)
         action_row.addWidget(self.convert_btn)
         action_row.addWidget(close_btn)
-        right_layout.addWidget(action_bar)
+        right_layout.addLayout(action_row)
 
-        splitter.addWidget(right_shell)
+        splitter.addWidget(right_column)
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
-        splitter.setSizes([648, 552])
+        splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
         return splitter
 
     def _build_preview_panel(self) -> QFrame:
         panel = QFrame()
-        panel.setObjectName("previewPanel")
+        panel.setObjectName("bentoTile")
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(10, 8, 10, 8)
+        outer.setContentsMargins(12, 12, 12, 12)
         outer.setSpacing(6)
 
         self.preview_cb = QCheckBox("Podgląd zaznaczonego pliku")
@@ -520,31 +538,27 @@ class MainWindow(QMainWindow):
         body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         root = QVBoxLayout(body)
         root.setSpacing(SECTION_GAP)
-        root.setContentsMargins(0, 0, 8, 12)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        flow_hint = QLabel(
-            "Krok po kroku: format i jakość, wymiary, na końcu zapis plików."
-        )
+        flow_hint = QLabel("Krok po kroku: format i jakość → wymiary → zapis plików.")
         flow_hint.setObjectName("workflowHint")
-        flow_hint.setWordWrap(True)
+        flow_hint.setWordWrap(False)
+        root.addWidget(flow_hint)
 
-        section1_box, section1 = make_step_section(
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(2)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        self._bento_grid = grid
+
+        # Wiersz 0: Format i jakość (span 2)
+        tile_fmt, lay_fmt = make_tile(
             "Format i jakość",
-            "Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
-            step_key="format",
+            tooltip="Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
+            icon_key="format",
         )
-        section2_box, section2 = make_step_section(
-            "Wymiary",
-            "Skala, własny format i kadr przycięcia",
-            step_key="dimensions",
-        )
-        section3_box, section3 = make_step_section(
-            "Zapis plików",
-            "Folder wyjściowy i opcje wsadowe",
-            step_key="save",
-        )
-
-        # Rozszerzenie + ustawienia formatu (jeden wiersz jak Jakość / Format)
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(8)
         fmt_row.setContentsMargins(0, 0, 0, 0)
@@ -565,32 +579,37 @@ class MainWindow(QMainWindow):
         fmt_controls = QWidget()
         fmt_controls.setLayout(fmt_row)
         self.fmt_wrap = fmt_controls
-        section1.addWidget(compact_row(
+        lay_fmt.addWidget(compact_row(
             "Rozszerzenie",
             fmt_controls,
             tooltip=UI_TOOLTIPS["extension"],
             height=COMPACT_CONTROL_ROW_H,
         ))
-        section1.addSpacing(2)
 
-        top_opts_grid = QGridLayout()
-        top_opts_grid.setSpacing(4)
-        top_opts_grid.setContentsMargins(0, 0, 0, 0)
+        self.quality_slider = WheelSlider(Qt.Orientation.Horizontal)
+        self.quality_slider.setRange(0, 100)
+        self.quality_slider.setValue(DEFAULT_QUALITY)
+        self.quality_slider.valueChanged.connect(self._on_quality_changed)
+        self.quality_label = QLabel(str(DEFAULT_QUALITY))
+        lay_fmt.addWidget(compact_row(
+            "Jakość",
+            slider_control(
+                self.quality_slider,
+                self.quality_label,
+                tooltip=UI_TOOLTIPS["quality"],
+            ),
+            tooltip=UI_TOOLTIPS["quality"],
+            tight=True,
+        ))
+        grid.addWidget(tile_fmt, 0, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
 
-        self.segregate_cb = QCheckBox("Segreguj do podfolderów")
-        self.segregate_cb.setChecked(False)
-        self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
-        top_opts_grid.addWidget(self.segregate_cb, 0, 0)
-
-        bg_group = QFrame()
-        bg_group.setObjectName("bgRemoveGroup")
-        bg_group_layout = QHBoxLayout(bg_group)
-        bg_group_layout.setContentsMargins(8, 4, 8, 4)
-        bg_group_layout.setSpacing(4)
+        # Wiersz 1: Tło i warianty | Kolory
+        tile_bg, lay_bg = make_tile("Tło i warianty")
+        self._bento_tile_bg = tile_bg
         self.remove_bg_cb = QCheckBox("Usuń tło")
         self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
         self.remove_bg_cb.toggled.connect(self._on_remove_bg_toggled)
-        bg_group_layout.addWidget(self.remove_bg_cb)
+        lay_bg.addWidget(self.remove_bg_cb)
         self.bg_model_combo = QComboBox()
         self.bg_model_combo.setObjectName("bgModelCombo")
         self.bg_model_combo.setMinimumWidth(120)
@@ -602,34 +621,18 @@ class MainWindow(QMainWindow):
         self.bg_model_combo.setCurrentIndex(0)
         self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
         style_dropdown(self.bg_model_combo)
-        bg_group_layout.addWidget(self.bg_model_combo, stretch=1)
-        top_opts_grid.addWidget(bg_group, 0, 1)
-
+        lay_bg.addWidget(self.bg_model_combo)
+        self.segregate_cb = QCheckBox("Segreguj do podfolderów")
+        self.segregate_cb.setChecked(False)
+        self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
+        lay_bg.addWidget(self.segregate_cb)
         self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
         self.wiz_sequence_cb.setToolTip(UI_TOOLTIPS["wiz"])
         self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
-        top_opts_grid.addWidget(self.wiz_sequence_cb, 1, 0, 1, 2)
-        top_opts_grid.setColumnStretch(0, 1)
-        top_opts_grid.setColumnStretch(1, 1)
-        section1.addLayout(top_opts_grid)
-        section1.addSpacing(2)
+        lay_bg.addWidget(self.wiz_sequence_cb)
 
-        self.quality_slider = WheelSlider(Qt.Orientation.Horizontal)
-        self.quality_slider.setRange(0, 100)
-        self.quality_slider.setValue(DEFAULT_QUALITY)
-        self.quality_slider.valueChanged.connect(self._on_quality_changed)
-        self.quality_label = QLabel(str(DEFAULT_QUALITY))
-        section1.addWidget(compact_row(
-            "Jakość",
-            slider_control(
-                self.quality_slider,
-                self.quality_label,
-                tooltip=UI_TOOLTIPS["quality"],
-            ),
-            tooltip=UI_TOOLTIPS["quality"],
-            tight=True,
-        ))
-
+        tile_colors, lay_colors = make_tile("Kolory")
+        self._bento_tile_colors = tile_colors
         self.png_colors_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.png_colors_slider.setRange(24, 256)
         self.png_colors_slider.setValue(256)
@@ -645,28 +648,55 @@ class MainWindow(QMainWindow):
         colors_extras.setSpacing(4)
         colors_extras.addWidget(colors_slider_row, stretch=1)
         self.png_colors_auto_cb = QCheckBox("Z jakości")
-        self.png_colors_auto_cb.setChecked(True)
         self.png_colors_auto_cb.setToolTip(UI_TOOLTIPS["color_count"])
         self.png_colors_auto_cb.toggled.connect(self._on_png_colors_auto)
         self.png_colors_slider.setEnabled(False)
         colors_extras.addWidget(self.png_colors_auto_cb)
         colors_wrap = QWidget()
         colors_wrap.setLayout(colors_extras)
-        self._colors_row = compact_row(
+        self._colors_row = stacked_field(
             "Liczba kolorów",
             colors_wrap,
             tooltip=UI_TOOLTIPS["color_count"],
-            tight=True,
         )
-        section1.addWidget(self._colors_row)
-        section1.addStretch(1)
+        lay_colors.addWidget(self._colors_row)
+
+        grid.addWidget(tile_bg, 1, 0, 1, 1)
+        grid.addWidget(tile_colors, 1, 1, 1, 1)
+
+        # Wiersz 2: Wymiary | Kadr
+        tile_dims, lay_dims = make_tile(
+            "Wymiary",
+            tooltip="Skala, własny format i kadr przycięcia",
+            icon_key="dimensions",
+        )
+        self._bento_tile_dims = tile_dims
+
+        self.size_combo = style_dropdown(QComboBox())
+        self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
+        self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
+        self.delete_preset_btn = QPushButton()
+        self.delete_preset_btn.setObjectName("toolBtn")
+        self.delete_preset_btn.setIcon(icon_minus_red())
+        self.delete_preset_btn.setIconSize(self.delete_preset_btn.iconSize())
+        self.delete_preset_btn.setFixedSize(BTN_H, BTN_H)
+        self.delete_preset_btn.setToolTip("Usuń własny preset wymiarów")
+        self.delete_preset_btn.clicked.connect(self._delete_custom_size_preset)
+        self.delete_preset_btn.setEnabled(False)
+        format_row = QWidget()
+        format_row_layout = QHBoxLayout(format_row)
+        format_row_layout.setContentsMargins(0, 0, 0, 0)
+        format_row_layout.setSpacing(6)
+        format_row_layout.addWidget(self.size_combo, stretch=1)
+        format_row_layout.addWidget(self.delete_preset_btn)
+        lay_dims.addWidget(stacked_field("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"]))
 
         self.scale_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.scale_slider.setRange(1, 100)
         self.scale_slider.setValue(100)
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         self.scale_label = QLabel("100%")
-        section2.addWidget(compact_row(
+        lay_dims.addWidget(stacked_field(
             "Skala",
             slider_control(
                 self.scale_slider,
@@ -674,13 +704,11 @@ class MainWindow(QMainWindow):
                 tooltip=UI_TOOLTIPS["scale"],
             ),
             tooltip=UI_TOOLTIPS["scale"],
-            tight=True,
         ))
 
-        min_row_widget = QWidget()
-        min_row_widget.setMinimumHeight(COMPACT_CONTROL_ROW_H)
-        min_row = QHBoxLayout(min_row_widget)
-        min_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
+        min_control = QWidget()
+        min_row = QHBoxLayout(min_control)
+        min_row.setContentsMargins(0, 0, 0, 0)
         min_row.setSpacing(6)
         self.min_longest_cb = QCheckBox("Min. najdłuższa krawędź")
         self.min_longest_cb.setChecked(False)
@@ -700,20 +728,18 @@ class MainWindow(QMainWindow):
         px_lbl.setObjectName("hintLabel")
         min_row.addWidget(px_lbl)
         min_row.addStretch(1)
-        section2.addWidget(min_row_widget)
-        section2.addSpacing(2)
 
-        custom_row_widget = QWidget()
-        custom_row_widget.setMinimumHeight(COMPACT_CONTROL_ROW_H)
-        custom_row = QHBoxLayout(custom_row_widget)
-        custom_row.setContentsMargins(COMPACT_LABEL_W + 8, 0, 0, 0)
+        custom_control = QWidget()
+        custom_row = QHBoxLayout(custom_control)
+        custom_row.setContentsMargins(0, 0, 0, 0)
         custom_row.setSpacing(6)
         self.custom_format_cb = QCheckBox("Własny format")
+        self.custom_format_cb.setChecked(False)
         self.custom_format_cb.setToolTip(UI_TOOLTIPS["custom_format"])
         self.custom_format_cb.toggled.connect(self._on_custom_format_toggled)
         custom_row.addWidget(self.custom_format_cb)
         self.custom_w_edit = WheelIntLineEdit("1200", min_val=1, max_val=16384, step=10)
-        self.custom_w_edit.setObjectName("customFormatEdit")
+        self.custom_w_edit.setObjectName("customFormatW")
         self.custom_w_edit.setValidator(QIntValidator(1, 16384, self))
         self.custom_w_edit.setMaximumWidth(64)
         self.custom_w_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -722,7 +748,7 @@ class MainWindow(QMainWindow):
         custom_row.addWidget(self.custom_w_edit)
         custom_row.addWidget(QLabel("×"))
         self.custom_h_edit = WheelIntLineEdit("1200", min_val=1, max_val=16384, step=10)
-        self.custom_h_edit.setObjectName("customFormatEdit")
+        self.custom_h_edit.setObjectName("customFormatH")
         self.custom_h_edit.setValidator(QIntValidator(1, 16384, self))
         self.custom_h_edit.setMaximumWidth(64)
         self.custom_h_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -731,48 +757,46 @@ class MainWindow(QMainWindow):
         custom_row.addWidget(self.custom_h_edit)
         custom_row.addWidget(QLabel("px"))
         custom_row.addStretch(1)
-        section2.addWidget(custom_row_widget)
-        section2.addSpacing(2)
 
-        self.size_combo = style_dropdown(QComboBox())
-        self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
-        self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
-        self.delete_preset_btn = QPushButton()
-        self.delete_preset_btn.setObjectName("toolBtn")
-        self.delete_preset_btn.setIcon(icon_minus_red())
-        self.delete_preset_btn.setIconSize(self.delete_preset_btn.iconSize())
-        self.delete_preset_btn.setFixedSize(BTN_H, BTN_H)
-        self.delete_preset_btn.setToolTip("Usuń własny preset wymiarów")
-        self.delete_preset_btn.clicked.connect(self._delete_custom_size_preset)
-        self.delete_preset_btn.setEnabled(False)
-        format_row = QWidget()
-        format_row_layout = QHBoxLayout(format_row)
-        format_row_layout.setContentsMargins(0, 0, 0, 0)
-        format_row_layout.setSpacing(6)
-        format_row_layout.addWidget(self.size_combo, stretch=1)
-        format_row_layout.addWidget(self.delete_preset_btn)
-        section2.addWidget(compact_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"], height=COMPACT_CONTROL_ROW_H))
+        dims_opts_wrap = QWidget()
+        dims_opts_col = QVBoxLayout(dims_opts_wrap)
+        dims_opts_col.setContentsMargins(0, 0, 0, 0)
+        dims_opts_col.setSpacing(6)
+        dims_opts_col.addWidget(min_control)
+        dims_opts_col.addWidget(custom_control)
+        lay_dims.addWidget(dims_opts_wrap)
+
+        tile_crop, lay_crop = make_tile("Kadr")
+        self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
         self.crop_anchor_picker.anchorChanged.connect(self._on_crop_anchor_changed)
-        self._crop_anchor_row = compact_row(
-            "Kadr",
-            self.crop_anchor_picker,
-            tooltip=UI_TOOLTIPS["crop_anchor"],
-            height=COMPACT_CONTROL_ROW_H,
+        crop_row = QHBoxLayout()
+        crop_row.setContentsMargins(0, 0, 0, 0)
+        crop_row.setSpacing(0)
+        crop_row.addStretch(1)
+        crop_row.addWidget(self.crop_anchor_picker)
+        crop_row.addStretch(1)
+        lay_crop.addStretch(1)
+        lay_crop.addLayout(crop_row)
+        lay_crop.addStretch(1)
+
+        grid.addWidget(tile_dims, 2, 0, 1, 1)
+        grid.addWidget(tile_crop, 2, 1, 1, 1)
+
+        # Wiersz 3: Zapis plików (span 2)
+        tile_save, lay_save = make_tile(
+            "Zapis plików",
+            tooltip="Folder wyjściowy i opcje wsadowe",
+            icon_key="save",
         )
-        section2.addWidget(self._crop_anchor_row)
-        self._reload_size_combo(select_id=PRESET_ORIGINAL)
-        self._sync_dimensions_ui()
-        self._update_palette_controls_visibility()
-        section2.addStretch(1)
+        self._bento_tile_save = tile_save
 
         out_section = QWidget()
+        out_section.setToolTip(UI_TOOLTIPS["output_dir"])
         out_section_layout = QVBoxLayout(out_section)
         out_section_layout.setContentsMargins(0, 0, 0, 0)
-        out_section_layout.setSpacing(2)
-        wyjscie_lbl = field_label("Wyjście", UI_TOOLTIPS["output_dir"])
-        out_section_layout.addWidget(wyjscie_lbl)
+        out_section_layout.setSpacing(0)
 
         self.output_enabled_cb = QCheckBox("Zapisz do folderu wyjściowego")
         self.output_enabled_cb.setChecked(False)
@@ -795,7 +819,7 @@ class MainWindow(QMainWindow):
 
         path_btn_row = QHBoxLayout()
         path_btn_row.setContentsMargins(0, 0, 0, 0)
-        path_btn_row.setSpacing(8)
+        path_btn_row.setSpacing(6)
         self.update_output_btn = QPushButton("Aktualizuj ścieżkę")
         self.update_output_btn.setObjectName("btnUpdatePath")
         self.update_output_btn.setIcon(action_icon_refresh_path())
@@ -818,14 +842,15 @@ class MainWindow(QMainWindow):
 
         self._out_row = out_section
         self._out_control = out_section
-        section3.addWidget(out_section)
+        lay_save.addWidget(out_section)
         self.output_dir_edit.textChanged.connect(self._sync_output_tooltip)
         self._sync_output_tooltip()
 
-        # Opcje wsadowe — siatka 2×2 (bez ucinania etykiet)
+        lay_save.addWidget(h_separator())
+
         cb_grid = QGridLayout()
-        cb_grid.setSpacing(6)
-        cb_grid.setContentsMargins(0, 4, 0, 0)
+        cb_grid.setSpacing(4)
+        cb_grid.setContentsMargins(0, 2, 0, 0)
         for i, (text, attr, tip_key, checked) in enumerate([
             ("Zachowaj strukturę folderów", "preserve_cb", "preserve_structure", True),
             ("Zachowaj datę i godzinę", "keep_dates_cb", "keep_dates", True),
@@ -838,19 +863,69 @@ class MainWindow(QMainWindow):
             cb.toggled.connect(lambda _v: self._mark_dirty())
             setattr(self, attr, cb)
             cb_grid.addWidget(cb, i // 2, i % 2)
-        section3.addLayout(cb_grid)
+        lay_save.addLayout(cb_grid)
 
-        root.addWidget(flow_hint, 0)
-        root.addWidget(section1_box, 0)
-        root.addWidget(section2_box, 0)
-        root.addWidget(section3_box, 0)
-        self._step_section_boxes = [section1_box, section2_box, section3_box]
+        grid.addWidget(tile_save, 3, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
+        root.addLayout(grid, 0)
+        root.addStretch(1)
+
+        self._step_section_boxes = [tile_fmt, tile_dims, tile_save]
+
+        self._reload_size_combo(select_id=PRESET_ORIGINAL)
+        self._sync_dimensions_ui()
+        self._update_palette_controls_visibility()
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.output_dir_edit.textChanged.connect(lambda _v: self._mark_dirty())
 
+        self._finalize_checkbox_indicators()
+
         return body
+
+    def _finalize_checkbox_indicators(self) -> None:
+        """Odśwież styl wskaźników QCheckBox po zbudowaniu layoutu i nałożeniu motywu."""
+        if not hasattr(self, "png_colors_auto_cb"):
+            return
+        if not self.png_colors_auto_cb.isChecked():
+            self.png_colors_auto_cb.setChecked(True)
+        for cb in (
+            self.png_colors_auto_cb,
+            self.min_longest_cb,
+            self.custom_format_cb,
+            self.remove_bg_cb,
+            getattr(self, "preserve_cb", None),
+        ):
+            if cb is None:
+                continue
+            style = cb.style()
+            style.unpolish(cb)
+            style.polish(cb)
+            cb.update()
+
+    def _relayout_bento(self) -> None:
+        """Dynamiczna rozpiętość kafelków — źródło prawdy: flagi stanu, nie isVisible()."""
+        grid = self._bento_grid
+        show_colors = self._show_colors_tile
+        show_crop = self._show_crop_tile
+
+        grid.removeWidget(self._bento_tile_bg)
+        grid.removeWidget(self._bento_tile_colors)
+        self._bento_tile_colors.setVisible(show_colors)
+        if show_colors:
+            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 1)
+            grid.addWidget(self._bento_tile_colors, 1, 1, 1, 1)
+        else:
+            grid.addWidget(self._bento_tile_bg, 1, 0, 1, 2)
+
+        grid.removeWidget(self._bento_tile_dims)
+        grid.removeWidget(self._bento_tile_crop)
+        self._bento_tile_crop.setVisible(show_crop)
+        if show_crop:
+            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 1)
+            grid.addWidget(self._bento_tile_crop, 2, 1, 1, 1)
+        else:
+            grid.addWidget(self._bento_tile_dims, 2, 0, 1, 2)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)
@@ -947,6 +1022,7 @@ class MainWindow(QMainWindow):
 
         apply_theme(QApplication.instance(), self._theme)
         self._refresh_step_icons()
+        self._finalize_checkbox_indicators()
 
     def _set_theme(self, theme: str) -> None:
         from PySide6.QtWidgets import QApplication
@@ -957,6 +1033,7 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), theme)
         save_theme(theme)
         self._refresh_step_icons()
+        self._finalize_checkbox_indicators()
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
             self._theme_toggle.set_dark(theme == "dark")
@@ -1227,8 +1304,9 @@ class MainWindow(QMainWindow):
 
     def _update_palette_controls_visibility(self) -> None:
         fmts = self._selected_formats()
-        show = any(fmt in ("png", "gif") for fmt in fmts)
-        self._colors_row.setVisible(show)
+        self._show_colors_tile = any(fmt in ("png", "gif") for fmt in fmts)
+        self._colors_row.setVisible(self._show_colors_tile)
+        self._relayout_bento()
 
     def _resize_uses_crop_anchor(self, resize: ResizeOptions | None = None) -> bool:
         opts = resize or self._effective_resize_options()
@@ -1282,7 +1360,8 @@ class MainWindow(QMainWindow):
             self.min_longest_cb.setToolTip(UI_TOOLTIPS["min_longest"])
 
         uses_crop = self._resize_uses_crop_anchor()
-        self._crop_anchor_row.setVisible(uses_crop)
+        self._show_crop_tile = uses_crop
+        self._relayout_bento()
         if uses_crop:
             anchor = self.crop_anchor_picker.value()
             if self.custom_format_cb.isChecked():

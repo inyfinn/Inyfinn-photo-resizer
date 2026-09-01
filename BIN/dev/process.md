@@ -443,3 +443,34 @@
 **Test/Ewaluacja:** pytest `test_background_removal` + `test_batch_progress` — 6/6 OK
 
 **Źródła:** diagnoza ONNX/DML cp1250 → UnicodeDecodeError; feedback użytkownika (screenshoty)
+
+---
+
+## 2026-09-01 — v2.2.0 przeprojektowanie UI na kafelki Bento
+
+**Komenda/Akcja:** Użytkownik: „design nieczytelny, zbyt dużo ramek, efekty starego rodzaju — kafelki Bento". Praca dwoma workerami pod nadzorem kierownika, pętla `/reflect` z krytykiem.
+
+**Log/Status:**
+1. `light.qss` + `dark.qss` **skasowane** — jeden `app.qss` z tokenami; QSS 1516 → 1182 linii
+2. `themes/__init__.py` — usunięte `_SECTION_TOKENS`, jeden akcent zamiast trzech kolorów sekcji
+3. `app.qss` — zdjęte obramowania kontenerów i paski `border-left: 4px`; skala promieni 16/10/6 px
+4. `layout_helpers.py` — `make_step_section()` → `make_tile()`, nowy `stacked_field()`
+5. `main_window.py` — `QGridLayout` 2-kolumnowy, `_relayout_bento()` na jawnych flagach stanu (nie `isVisible()`, które przed `show()` zwraca `False`)
+6. `main_window.py` — preset Format przeniesiony na górę kafelka Wymiary, zgodnie z kolejnością potoku z `README.md`
+7. `crop_anchor_picker.py` — `setFixedSize(90, 90)` + 9 polskich opisów kotwic
+8. `capture_ui.py` — motyw nakładany **po** konstrukcji `MainWindow` (wcześniej `_apply_saved_theme()` go nadpisywał), `hide()` zamiast `close()` żeby nie pisać do ustawień użytkownika
+9. `DEFAULT_WINDOW_HEIGHT` 800 → 860; usunięte osierocone `check-section1/2/3.png`
+
+**Efekt/Fix:** Build **v2.2.0**. Bilans 628 wstawek / 1932 usunięcia.
+
+**Test/Ewaluacja:**
+- Krytyk `/reflect` runda 1: REVISE (3 blokujące), runda 2: **PASS** z dowodem pikselowym domknięcia
+- Obie osie przy 1280×860 i 1180×760, oba motywy, AVIF i PNG: `horizontalScrollBar().maximum() = 0`, brak ucięć
+- pytest 40/45 — 5 czerwonych **zastanych**, odtworzonych na HEAD; `core/` w tej sesji nietknięty
+
+**Znane wady zastane (nie z tej sesji):**
+- PNG przy jakości ≥70 zapisywany w pełnej głębi: `accent_guard` odrzuca wszystkie pasma, `apply_pngquant` zwraca porażkę, potok cofa się do `optimize_png_oxipng`. Wynik `mode=RGB`, 1,47 B/px, plik większy od źródła
+- `analyze_accent_palette_boost` zwraca 0 dla syntetycznej zieleni (`uniform_saturation`)
+- `test_wheel_step_*` — `QWheelEvent` w teście dostaje `tuple` zamiast `QPoint`, PySide6 6.11; produkcyjny `wheel_step_for_event` nie jest wołany
+
+**Źródła:** makiety użytkownika (Bento), `BIN/dev/README.md` (kolejność potoku), krytyk `/reflect`

@@ -214,7 +214,9 @@ Uruchom: InyfinnPhotoResizer.exe w korzeniu tego folderu.
 Aplikacja: BIN\InyfinnPhotoResizer.exe + BIN\_internal\
 
 Skala: suwak pod Jakością (np. 50% = połowa wymiarów).
-Min. najdłuższa krawędź: domyślnie 1080 px (włączone).
+Min. najdłuższa krawędź: opcjonalna, domyślnie wyłączona.
+Własny format: zaznacz i podaj szerokość x wysokość.
+Kadr: róża wiatrów wybiera punkt odniesienia przycięcia.
 Usuwanie tła: modele BiRefNet w BIN\_internal\tools\rmbg\
 
 Zbudowano: $stamp
