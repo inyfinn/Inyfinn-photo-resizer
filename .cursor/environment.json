@@ -1,0 +1,8 @@
+{
+  "name": "Inyfinn-photo-resizer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "python3 -m venv BIN/dev/.venv\nBIN/dev/.venv/bin/pip install --upgrade pip\nBIN/dev/.venv/bin/pip install \"PySide6>=6.6\" \"pyvips>=2.2\" \"Pillow>=10.0\" \"numpy>=1.24\" \"tifffile>=2024.1\" \"imagecodecs>=2024.1\" \"pillow-heif>=0.18\" \"watchdog>=4.0\" \"piexif>=1.1\" \"pytest>=7.0\" \"ruff>=0.4\"\nBIN/dev/.venv/bin/pip install -e BIN/dev --no-deps"
+}
