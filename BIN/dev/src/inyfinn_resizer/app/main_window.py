@@ -64,6 +64,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
     SECTION_GAP,
+    TILE_PADDING,
     browse_button,
     compact_row,
     field_label,
@@ -424,7 +425,7 @@ class MainWindow(QMainWindow):
         right_column.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(2)
+        right_layout.setSpacing(SECTION_GAP)
 
         settings_scroll = QScrollArea()
         settings_scroll.setObjectName("settingsScroll")
@@ -481,7 +482,7 @@ class MainWindow(QMainWindow):
         panel = QFrame()
         panel.setObjectName("bentoTile")
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(12, 12, 12, 12)
+        outer.setContentsMargins(TILE_PADDING, TILE_PADDING, TILE_PADDING, TILE_PADDING)
         outer.setSpacing(6)
 
         self.preview_cb = QCheckBox("Podgląd zaznaczonego pliku")
@@ -546,8 +547,8 @@ class MainWindow(QMainWindow):
         root.addWidget(flow_hint)
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(8)
-        grid.setVerticalSpacing(2)
+        grid.setHorizontalSpacing(SECTION_GAP)
+        grid.setVerticalSpacing(SECTION_GAP)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
@@ -766,7 +767,7 @@ class MainWindow(QMainWindow):
         dims_opts_col.addWidget(custom_control)
         lay_dims.addWidget(dims_opts_wrap)
 
-        tile_crop, lay_crop = make_tile("Kadr")
+        tile_crop, lay_crop = make_tile("Kadr", compact=True)
         self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
@@ -777,12 +778,10 @@ class MainWindow(QMainWindow):
         crop_row.addStretch(1)
         crop_row.addWidget(self.crop_anchor_picker)
         crop_row.addStretch(1)
-        lay_crop.addStretch(1)
         lay_crop.addLayout(crop_row)
-        lay_crop.addStretch(1)
 
-        grid.addWidget(tile_dims, 2, 0, 1, 1)
-        grid.addWidget(tile_crop, 2, 1, 1, 1)
+        grid.addWidget(tile_dims, 2, 0, 1, 1, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(tile_crop, 2, 1, 1, 1, Qt.AlignmentFlag.AlignTop)
 
         # Wiersz 3: Zapis plików (span 2)
         tile_save, lay_save = make_tile(
@@ -796,7 +795,7 @@ class MainWindow(QMainWindow):
         out_section.setToolTip(UI_TOOLTIPS["output_dir"])
         out_section_layout = QVBoxLayout(out_section)
         out_section_layout.setContentsMargins(0, 0, 0, 0)
-        out_section_layout.setSpacing(0)
+        out_section_layout.setSpacing(6)
 
         self.output_enabled_cb = QCheckBox("Zapisz do folderu wyjściowego")
         self.output_enabled_cb.setChecked(False)
@@ -849,8 +848,8 @@ class MainWindow(QMainWindow):
         lay_save.addWidget(h_separator())
 
         cb_grid = QGridLayout()
-        cb_grid.setSpacing(4)
-        cb_grid.setContentsMargins(0, 2, 0, 0)
+        cb_grid.setSpacing(8)
+        cb_grid.setContentsMargins(0, 6, 0, 0)
         for i, (text, attr, tip_key, checked) in enumerate([
             ("Zachowaj strukturę folderów", "preserve_cb", "preserve_structure", True),
             ("Zachowaj datę i godzinę", "keep_dates_cb", "keep_dates", True),

@@ -21,12 +21,12 @@ from PySide6.QtWidgets import (
 
 BTN_H = 26
 FOOTER_BTN_H = 32
-ROW_GAP = 2
-FIELD_GAP = 1
-SECTION_GAP = 4
-TILE_PADDING = 12
-TILE_HEADER_SPACING = 4
-TILE_INNER_SPACING = 2
+ROW_GAP = 6
+FIELD_GAP = 4
+SECTION_GAP = 6
+TILE_PADDING = 22
+TILE_HEADER_SPACING = 6
+TILE_INNER_SPACING = 6
 STEP_ICON_SIZE = 24
 COMPACT_LABEL_W = 78
 COMPACT_SLIDER_ROW_H = 28
@@ -155,13 +155,17 @@ def make_tile(
     *,
     icon_key: str = "",
     tooltip: str = "",
+    compact: bool = False,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Płaski kafelek Bento — jednolite tło, bez ramek."""
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
     box = QFrame()
     box.setObjectName("bentoTile")
-    box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+    v_policy = (
+        QSizePolicy.Policy.Maximum if compact else QSizePolicy.Policy.Expanding
+    )
+    box.setSizePolicy(QSizePolicy.Policy.Expanding, v_policy)
     outer = QVBoxLayout(box)
     outer.setContentsMargins(TILE_PADDING, TILE_PADDING, TILE_PADDING, TILE_PADDING)
     outer.setSpacing(TILE_HEADER_SPACING)
@@ -198,11 +202,14 @@ def make_tile(
     outer.addWidget(header, 0, Qt.AlignmentFlag.AlignTop)
 
     content = QWidget()
-    content.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+    content.setSizePolicy(
+        QSizePolicy.Policy.Preferred,
+        QSizePolicy.Policy.Maximum if compact else QSizePolicy.Policy.Expanding,
+    )
     inner = QVBoxLayout(content)
     inner.setContentsMargins(0, 0, 0, 0)
     inner.setSpacing(TILE_INNER_SPACING)
-    outer.addWidget(content, 1)
+    outer.addWidget(content, 0 if compact else 1)
 
     if tooltip:
         box.setToolTip(tooltip)
@@ -212,7 +219,7 @@ def make_tile(
 
 def make_settings_grid() -> QGridLayout:
     grid = QGridLayout()
-    grid.setHorizontalSpacing(10)
+    grid.setHorizontalSpacing(ROW_GAP)
     grid.setVerticalSpacing(ROW_GAP)
     grid.setContentsMargins(0, 0, 0, 0)
     grid.setColumnStretch(0, 1)
