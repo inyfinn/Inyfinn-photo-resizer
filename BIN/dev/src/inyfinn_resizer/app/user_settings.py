@@ -128,6 +128,7 @@ def snapshot_from_window(window: MainWindow) -> dict[str, Any]:
         "custom_format_w": window._custom_format_w(),
         "custom_format_h": window._custom_format_h(),
         "crop_anchor": window.crop_anchor_picker.value(),
+        "ui_mode": getattr(window, "_ui_mode", "simple"),
     }
     return data
 
@@ -219,6 +220,9 @@ def restore_to_window(window: MainWindow, data: dict[str, Any]) -> None:
     window._update_advanced_summary()
     if window._format_opts.png_colors_auto:
         window._sync_png_colors_from_quality()
+    mode = ui.get("ui_mode")
+    if mode in ("simple", "advanced") and hasattr(window, "_set_ui_mode"):
+        window._set_ui_mode(mode, mark_dirty=False)
 
 
 def save_session(window: MainWindow) -> None:
