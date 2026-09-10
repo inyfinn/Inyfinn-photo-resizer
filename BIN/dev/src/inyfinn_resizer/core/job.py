@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -84,10 +84,11 @@ class MetadataPolicy:
     keep_iptc: bool = True
     keep_xmp: bool = True
     strip_all: bool = False
-    icc_to_srgb: bool = False
+    icc_to_srgb: bool = True
 
 
 DEFAULT_QUALITY = 50
+DEFAULT_AVIF_QUALITY = 30
 
 
 @dataclass
@@ -97,6 +98,8 @@ class FormatOptions:
     progressive: bool = True
     optimize: bool = True
     keep_metadata: bool = True
+    rgb_bitmap_only: bool = True
+    avif_max_kb: float | None = None
     subsampling: str = "medium"
     smoothing: int = 0
     target_kb: float | None = None
@@ -205,6 +208,8 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "progressive": fo.progressive,
             "optimize": fo.optimize,
             "keep_metadata": fo.keep_metadata,
+            "rgb_bitmap_only": fo.rgb_bitmap_only,
+            "avif_max_kb": fo.avif_max_kb,
             "subsampling": fo.subsampling,
             "target_kb": fo.target_kb,
             "target_tolerance": fo.target_tolerance,
@@ -266,8 +271,16 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "keep_exif": md.keep_exif,
             "keep_iptc": md.keep_iptc,
             "strip_all": md.strip_all,
+            "icc_to_srgb": md.icc_to_srgb,
         },
     }
+
+
+def _from_mapping(cls, data: dict | None):
+    if not data:
+        return cls()
+    allowed = {item.name for item in fields(cls)}
+    return cls(**{k: v for k, v in data.items() if k in allowed})
 
 
 def job_from_dict(data: dict[str, Any]) -> JobSpec:
@@ -284,33 +297,7 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
         input_path=Path(data["input_path"]),
         output_path=Path(data["output_path"]),
         output_format=data.get("output_format", "webp"),
-        format_opts=FormatOptions(
-            quality=int(fo.get("quality", DEFAULT_QUALITY)),
-            lossless=bool(fo.get("lossless", False)),
-            progressive=bool(fo.get("progressive", True)),
-            optimize=bool(fo.get("optimize", True)),
-            keep_metadata=bool(fo.get("keep_metadata", True)),
-            subsampling=str(fo.get("subsampling", "medium")),
-            target_kb=fo.get("target_kb"),
-            target_tolerance=float(fo.get("target_tolerance", 0.2)),
-            png_max_colors=int(fo.get("png_max_colors", 256)),
-            png_colors_auto=bool(fo.get("png_colors_auto", True)),
-            png_mode=str(fo.get("png_mode", "auto")),
-            jpeg_matte_mode=str(fo.get("jpeg_matte_mode", "white")),
-            jpeg_matte_color=str(fo.get("jpeg_matte_color", "#ffffff")),
-            jpeg_matte_color2=str(fo.get("jpeg_matte_color2", "#000000")),
-            jpeg_gradient_type=str(fo.get("jpeg_gradient_type", "linear")),
-            jpeg_gradient_reverse=bool(fo.get("jpeg_gradient_reverse", False)),
-            jpeg_matte_noise=bool(fo.get("jpeg_matte_noise", False)),
-            gif_dither=bool(fo.get("gif_dither", True)),
-            gif_lossy=int(fo.get("gif_lossy", 0)),
-            gif_max_colors=int(fo.get("gif_max_colors", 256)),
-            gif_from_quality=bool(fo.get("gif_from_quality", True)),
-            gif_mode=str(fo.get("gif_mode", "quality")),
-            gif_level=int(fo.get("gif_level", 6)),
-            gif_ultra_max_frames=int(fo.get("gif_ultra_max_frames", 4)),
-            gif_ultra_lossy=int(fo.get("gif_ultra_lossy", 70)),
-        ),
+        format_opts=_from_mapping(FormatOptions, fo),
         resize=ResizeOptions(
             mode=resize_mode,
             width=int(ro.get("width", 0)),
@@ -347,9 +334,5 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
             bg_alpha_matting=bool(tr.get("bg_alpha_matting", True)),
             bg_post_process_mask=bool(tr.get("bg_post_process_mask", True)),
         ),
-        metadata=MetadataPolicy(
-            keep_exif=bool(md.get("keep_exif", True)),
-            keep_iptc=bool(md.get("keep_iptc", True)),
-            strip_all=bool(md.get("strip_all", False)),
-        ),
+        metadata=_from_mapping(MetadataPolicy, md),
     )

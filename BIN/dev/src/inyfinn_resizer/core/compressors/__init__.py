@@ -1,3 +1,4 @@
+from inyfinn_resizer.core.compressors.avif import save_avif_capped, save_vips_avif_capped
 from inyfinn_resizer.core.compressors.external import compress_avif_avifenc, compress_webp_cwebp, optimize_png_oxipng
 from inyfinn_resizer.core.compressors.gif import compress_gif
 from inyfinn_resizer.core.compressors.jpeg import compress_jpeg_file
@@ -10,4 +11,6 @@ __all__ = [
     "compress_jpeg_file",
     "compress_webp_cwebp",
     "optimize_png_oxipng",
+    "save_avif_capped",
+    "save_vips_avif_capped",
 ]

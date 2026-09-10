@@ -36,12 +36,21 @@ def compress_avif_avifenc(src: Path, dst: Path, quality: int, lossless: bool = F
     avifenc = find_tool("avifenc")
     if not avifenc:
         return False, "no_avifenc"
-    cmd = [str(avifenc), str(src), str(dst)]
+    cmd = [
+        str(avifenc),
+        "--ignore-exif",
+        "--ignore-xmp",
+        "--ignore-icc",
+        "--yuv",
+        "420",
+        str(src),
+        str(dst),
+    ]
     if lossless:
         cmd.extend(["--lossless", "-s", "0"])
     else:
         q = max(0, min(100, quality))
-        cmd.extend(["-q", str(q), "-s", "4"])
+        cmd.extend(["-q", str(q), "-s", "6"])
     ok, msg = run_external(cmd)
     return ok, msg if ok else f"avifenc: {msg}"
 

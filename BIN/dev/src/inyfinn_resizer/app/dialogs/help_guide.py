@@ -26,6 +26,8 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             "Szybki start",
             [
                 "Przeciągnij zdjęcia na listę po lewej lub użyj Dodaj pliki / Dodaj folder.",
+                "Tryb prosty: jakość, opcjonalnie folder, Konwertuj. Bez folderu program zapyta: nadpisać czy zapisać jako _conv.",
+                "Obok Konwertuj są przyciski PNG / JPG / AVIF, gdy chcesz zmienić format.",
                 "Ustaw format, jakość i wymiary, wybierz folder wyjściowy, kliknij Konwertuj.",
                 "Prawy przycisk myszy na liście: konwersja wybranych, usuń, otwórz folder, kopiuj ścieżkę.",
                 "Motyw jasny / ciemny przełączasz w prawym górnym rogu okna.",
@@ -58,9 +60,11 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             "compression",
             "Kompresja",
             [
-                "Jakość — suwak dla JPG, WebP i AVIF (scroll myszy: co 10, Shift co 100, Ctrl co 1).",
+                "Jakość — suwak dla JPG, WebP, AVIF i PNG (scroll myszy: co 10, Shift co 100, Ctrl co 1).",
+                "PNG Auto: od 70% jakości zostaje PNG-24; poniżej 70% schodzi na PNG-8 (paleta). Przezroczystość zostaje.",
                 "Kolory PNG — auto z jakości: 256 przy 100%, 160 przy 50%, 24 przy 10% i mniej.",
-                "Program wykrywa rzadkie akcenty (np. zieleń) i chroni je przed utratą.",
+                "Program wykrywa rzadkie akcenty (np. zieleń) i chroni je przy jakości 70% i wyżej.",
+                "AVIF: tylko bitmapa RGB — bez warstw, CMYK i Pantone. Limit 70 KB jest tylko w cache DAM, nie tutaj.",
             ],
         ),
         (
@@ -78,6 +82,7 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             "Zapis plików",
             [
                 "Zapisz do folderu wyjściowego — wyniki trafiają do wskazanego katalogu.",
+                "Tryb prosty bez folderu: nadpisz oryginały albo zapisz obok z dopiskiem _conv (gdy zajęte: _conv2…).",
                 "Aktualizuj ścieżkę proponuje folder obok plików źródłowych po dodaniu listy.",
                 "Zachowaj strukturę folderów — odtwarza podfoldery względem wspólnego korzenia.",
                 "Zachowaj datę i godzinę — kopiuje znaczniki czasu z pliku źródłowego.",
@@ -111,7 +116,7 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             [
                 "Plik — wczytaj / zapisz preset JSON, zamknij aplikację.",
                 "Narzędzia — motyw, zaawansowane, zmiana nazw, sprawdź aktualizacje.",
-                "Pomoc — ten przewodnik i informacje o wersji.",
+                "Pomoc — Changelog (co nowego w wersji), przewodnik i informacje o wersji.",
             ],
         ),
     ]

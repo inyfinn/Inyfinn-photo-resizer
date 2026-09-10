@@ -23,16 +23,24 @@ from inyfinn_resizer.core.compressors import (
     compress_jpeg_file,
     compress_webp_cwebp,
     optimize_png_oxipng,
+    save_avif_capped,
+    save_vips_avif_capped,
 )
+from inyfinn_resizer.core.compressors.avif import avif_max_bytes
 from inyfinn_resizer.core.formats.registry import output_extension
 from inyfinn_resizer.core.job import JobResult, JobSpec, JobStatus
 from inyfinn_resizer.core.metadata.exif import strip_metadata_file
 from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_scale_postprocess, apply_transforms
 from inyfinn_resizer.core.transforms.matte import apply_jpeg_matte
 from inyfinn_resizer.core.transforms.background_removal import remove_background
-from inyfinn_resizer.core.image_loader import ensure_export_rgb, open_image
+from inyfinn_resizer.core.image_loader import open_image
+from inyfinn_resizer.core.transforms.rgb_bitmap import rgb_bitmap, vips_rgb_bitmap
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
-from inyfinn_resizer.core.compressors.png import resolve_png_max_colors, count_rare_green_accents
+from inyfinn_resizer.core.compressors.png import (
+    MAX_PALETTE_COLORS,
+    count_rare_green_accents,
+    resolve_png_max_colors,
+)
 from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundled_libvips, ensure_vips_lib
 
 _VIPS_READY = False
@@ -150,7 +158,17 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
     elif fmt == "webp":
         image.webpsave(str(path), Q=q, lossless=opts.lossless, strip=not opts.keep_metadata)
     elif fmt == "avif":
-        image.heifsave(str(path), Q=q, lossless=opts.lossless, strip=not opts.keep_metadata)
+        if getattr(opts, "rgb_bitmap_only", True):
+            image = vips_rgb_bitmap(image)
+        cap = None if opts.lossless else avif_max_bytes(opts.avif_max_kb)
+        if not save_vips_avif_capped(
+            image,
+            path,
+            max_bytes=cap,
+            quality=q,
+            lossless=opts.lossless,
+        ):
+            image.heifsave(str(path), Q=q, lossless=opts.lossless, strip=True)
     elif fmt == "heic":
         image.heifsave(str(path), Q=q, strip=not opts.keep_metadata)
     elif fmt == "tiff":
@@ -204,7 +222,15 @@ def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
                 lossless=opts.lossless,
             )
         elif fmt == "avif":
-            _save_avif_rgba(im, out_path, quality, opts.lossless)
+            cap = None if opts.lossless else avif_max_bytes(opts.avif_max_kb)
+            if getattr(opts, "rgb_bitmap_only", True):
+                flat = rgb_bitmap(im)
+                if not save_avif_capped(
+                    flat, out_path, max_bytes=cap, quality=quality, lossless=opts.lossless
+                ):
+                    _save_avif_rgba(flat, out_path, quality, opts.lossless, max_bytes=cap)
+            else:
+                _save_avif_rgba(im, out_path, quality, opts.lossless, max_bytes=cap)
         elif fmt == "jpeg":
             flat = Image.new("RGB", im.size, (255, 255, 255))
             flat.paste(im, mask=im.split()[-1])
@@ -215,7 +241,10 @@ def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
         im.close()
 
 
-def _save_avif_rgba(im, out_path: Path, quality: int, lossless: bool) -> None:
+def _save_avif_rgba(im, out_path: Path, quality: int, lossless: bool, max_bytes: int | None = None) -> None:
+    if im.mode in ("RGB", "RGBA") and not lossless:
+        if save_avif_capped(im, out_path, max_bytes=max_bytes, quality=quality, lossless=False):
+            return
     tmp = out_path.with_suffix(".rgba.tmp.png")
     try:
         im.save(tmp, format="PNG")
@@ -233,24 +262,37 @@ def _save_pillow_fallback(job: JobSpec, out_path: Path) -> None:
         im = apply_transforms_pil(im, job.transforms)
         im = apply_resize_pil(im, job.resize)
         im = apply_scale_postprocess_pil(im, job.resize)
-        im = ensure_export_rgb(im)
+        fmt = job.output_format.lower()
+        if fmt in ("jpeg", "jpg", "bmp", "pdf", "jp2"):
+            im = rgb_bitmap(im)
+        elif fmt == "avif" and job.format_opts.rgb_bitmap_only:
+            im = rgb_bitmap(im)
+        elif im.mode == "CMYK":
+            im = im.convert("RGB")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        fmt = job.output_format.upper()
+        fmt_save = job.output_format.upper()
         quality = job.format_opts.quality
-        if not job.format_opts.lossless and fmt in ("WEBP", "JPEG", "JPG"):
+        if not job.format_opts.lossless and fmt_save in ("WEBP", "JPEG", "JPG"):
             quality = _effective_lossy_quality(job.input_path, quality)
-        if fmt in ("JPEG", "JPG"):
-            fmt = "JPEG"
-            im.save(out_path, format=fmt, quality=quality, optimize=True)
-        elif fmt == "WEBP":
+        if fmt_save in ("JPEG", "JPG"):
+            fmt_save = "JPEG"
+            im.save(out_path, format=fmt_save, quality=quality, optimize=True)
+        elif fmt_save == "WEBP":
             im.save(out_path, format="WEBP", quality=quality)
-        elif fmt == "PNG":
+        elif fmt_save == "PNG":
             im.save(out_path, format="PNG", optimize=True)
-        elif fmt == "TIFF":
+        elif fmt_save == "AVIF":
+            cap = None if job.format_opts.lossless else avif_max_bytes(job.format_opts.avif_max_kb)
+            if not save_avif_capped(
+                im, out_path, max_bytes=cap, quality=quality, lossless=job.format_opts.lossless
+            ):
+                im.save(out_path, format="PNG", optimize=True)
+                raise OSError("AVIF: nie udało się zapisać w limicie wagi")
+        elif fmt_save == "TIFF":
             im.save(out_path, format="TIFF", compression="tiff_lzw")
-        elif fmt == "HEIC":
+        elif fmt_save == "HEIC":
             _save_heic_pillow(im, out_path, quality)
-        elif fmt == "JP2":
+        elif fmt_save == "JP2":
             _save_jp2_pillow(im, out_path, quality)
         else:
             im.save(out_path)
@@ -286,33 +328,27 @@ def _save_jp2_pillow(im: Image.Image, out_path: Path, quality: int) -> None:
         raise OSError(f"JPEG2000: {exc}") from exc
 
 
-def _image_has_alpha(path: Path) -> bool:
-    try:
-        from PIL import Image
-
-        with Image.open(path) as im:
-            if im.mode in ("RGBA", "LA"):
-                return True
-            if im.mode == "P" and "transparency" in im.info:
-                return True
-    except Exception:
-        return False
-    return False
+def unique_conv_path(path: Path) -> Path:
+    """photo.png → photo_conv.png; zajęte → photo_conv2.png, photo_conv3.png…"""
+    stem, ext = path.stem, path.suffix
+    candidate = path.with_name(f"{stem}_conv{ext}")
+    n = 2
+    while candidate.exists():
+        candidate = path.with_name(f"{stem}_conv{n}{ext}")
+        n += 1
+    return candidate
 
 
 def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
     detail = ""
     if fmt == "png" and not opts.lossless:
-        if _image_has_alpha(path):
-            optimize_png_oxipng(path)
-            return "oxipng (alpha)"
         if opts.png_mode == "png24":
             optimize_png_oxipng(path)
-            return detail
+            return "oxipng (png24)"
         target_kb = opts.target_kb
         force_colors = resolve_png_max_colors(opts)
         if opts.png_mode == "png8":
-            force_colors = min(force_colors or MAX_PALETTE_COLORS, 256)
+            force_colors = min(force_colors or MAX_PALETTE_COLORS, MAX_PALETTE_COLORS)
         if force_colors is None:
             optimize_png_oxipng(path)
             return detail or "oxipng (pełna głębia)"
@@ -341,13 +377,32 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
         else:
             tmp.unlink(missing_ok=True)
     elif fmt == "avif":
-        tmp = path.with_suffix(".avif.tmp.avif")
-        ok, msg = compress_avif_avifenc(path, tmp, opts.quality, opts.lossless)
-        if ok and tmp.exists():
-            shutil.move(str(tmp), str(path))
-            detail = msg
-        else:
-            tmp.unlink(missing_ok=True)
+        cap = avif_max_bytes(opts.avif_max_kb)
+        if not cap:
+            return detail
+        if path.is_file() and path.stat().st_size <= cap:
+            return detail
+        from PIL import Image as _AvifIm
+
+        try:
+            with _AvifIm.open(path) as im:
+                rgb = rgb_bitmap(im) if opts.rgb_bitmap_only else im.convert("RGB")
+                save_avif_capped(
+                    rgb,
+                    path,
+                    max_bytes=cap,
+                    quality=opts.quality,
+                    lossless=opts.lossless,
+                )
+                detail = "avif-capped"
+        except Exception:
+            tmp = path.with_suffix(".avif.tmp.avif")
+            ok, msg = compress_avif_avifenc(path, tmp, opts.quality, opts.lossless)
+            if ok and tmp.exists():
+                shutil.move(str(tmp), str(path))
+                detail = msg
+            else:
+                tmp.unlink(missing_ok=True)
     elif fmt == "gif":
         tmp = path.with_suffix(".gif.tmp.gif")
         gif_lossy = opts.gif_lossy
@@ -450,7 +505,11 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
             except Exception:
                 pass  # pngquant/gifsicle opcjonalne — plik już zapisany
 
-            if job.metadata.strip_all or not job.metadata.keep_exif:
+            if (
+                job.metadata.strip_all
+                or not job.metadata.keep_exif
+                or (fmt == "avif" and job.format_opts.rgb_bitmap_only)
+            ):
                 strip_metadata_file(staging, job.metadata)
 
             if in_place:
@@ -489,17 +548,4 @@ def build_output_path(
                 return root / rel.parent / (input_path.stem + ext)
         except ValueError:
             pass
-        parent_name = input_path.parent.name
-        if parent_name:
-            return root / parent_name / (input_path.stem + ext)
-    return root / (input_path.stem + ext)
-
-
-class ProcessingPipeline:
-    """High-level batch API."""
-
-    def process(self, job: JobSpec, overwrite: bool = True) -> JobResult:
-        return process_job(job, overwrite=overwrite)
-
-    def process_many(self, jobs: list[JobSpec], overwrite: bool = True) -> list[JobResult]:
-        return [self.process(j, overwrite=overwrite) for j in jobs]
+        parent_name = input_path.parent.na

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from inyfinn_resizer.core.compressors.png import (
+    MAX_PALETTE_COLORS,
+    MIN_PALETTE_COLORS,
     accents_preserved,
     analyze_accent_palette_boost,
     apply_pngquant,
@@ -35,11 +37,28 @@ def test_resolve_auto_and_manual() -> None:
     auto_full = FormatOptions(quality=100, png_colors_auto=True)
     assert resolve_png_max_colors(auto_full) is None
 
+    auto_70 = FormatOptions(quality=70, png_colors_auto=True)
+    assert resolve_png_max_colors(auto_70) is None
+
+    auto_69 = FormatOptions(quality=69, png_colors_auto=True)
+    colors = resolve_png_max_colors(auto_69)
+    assert colors is not None
+    assert MIN_PALETTE_COLORS <= colors < MAX_PALETTE_COLORS
+
+    auto_32 = FormatOptions(quality=32, png_colors_auto=True)
+    assert resolve_png_max_colors(auto_32) == png_max_colors_for_quality(32)
+
     manual = FormatOptions(quality=50, png_colors_auto=False, png_max_colors=128)
     assert resolve_png_max_colors(manual) == 128
 
     manual_full = FormatOptions(quality=50, png_colors_auto=False, png_max_colors=256)
-    assert resolve_png_max_colors(manual_full) is None
+    assert resolve_png_max_colors(manual_full) == 256
+
+    forced_24 = FormatOptions(quality=32, png_mode="png24")
+    assert resolve_png_max_colors(forced_24) is None
+
+    forced_8 = FormatOptions(quality=80, png_mode="png8", png_colors_auto=True)
+    assert resolve_png_max_colors(forced_8) == png_max_colors_for_quality(80)
 
 
 def test_accent_palette_boost_detects_green(tmp_path) -> None:
@@ -125,6 +144,7 @@ def test_run_pngquant_cmd_uses_ncolors_before_separator(tmp_path, monkeypatch) -
     assert cmd[sep + 1] == str(src)
     assert "--floyd" not in cmd
     assert "--nofs" not in cmd
+    assert "--skip-if-larger" in cmd
 
 
 def test_png_auto_target_kb() -> None:
@@ -163,6 +183,25 @@ def test_run_pngquant_nofs_only_for_accent_preservation(tmp_path, monkeypatch) -
     assert captured
     assert "--nofs" in captured[0]
     assert "--floyd" not in captured[0]
+
+
+def test_unique_conv_path(tmp_path) -> None:
+    from inyfinn_resizer.core.pipeline import unique_conv_path
+
+    src = tmp_path / "KULKI-KREATYNA1.png"
+    src.write_bytes(b"x")
+    first = unique_conv_path(src)
+    assert first.name == "KULKI-KREATYNA1_conv.png"
+    first.write_bytes(b"y")
+    second = unique_conv_path(src)
+    assert second.name == "KULKI-KREATYNA1_conv2.png"
+
+
+def test_changelog_head_matches_version() -> None:
+    from inyfinn_resizer import __version__
+    from inyfinn_resizer.app.changelog import CHANGELOG
+
+    assert CHANGELOG[0][0] == __version__
 
 
 if __name__ == "__main__":

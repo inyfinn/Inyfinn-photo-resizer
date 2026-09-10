@@ -96,6 +96,10 @@ class FormatSettingsDialog(AppDialog):
         self._gif_ultra_frames: QSpinBox | None = None
         self._gif_ultra_lossy: QSpinBox | None = None
         self._gif_mode_hint: QLabel | None = None
+        self._avif_rgb_only: QCheckBox | None = None
+        self._avif_cap: QCheckBox | None = None
+        self._avif_max_kb: QSpinBox | None = None
+        self._avif_keep_meta: QCheckBox | None = None
         self._advanced_panel: AdvancedSettingsPanel | None = None
 
         layout = QVBoxLayout(self)
@@ -106,7 +110,7 @@ class FormatSettingsDialog(AppDialog):
         tabs.addTab(self._jpeg_tab(), "JPEG")
         tabs.addTab(self._png_tab(), "PNG")
         tabs.addTab(self._webp_tab(), "WebP")
-        tabs.addTab(self._generic_tab("AVIF"), "AVIF")
+        tabs.addTab(self._avif_tab(), "AVIF")
         tabs.addTab(self._gif_tab(), "GIF")
         self._advanced_panel = AdvancedSettingsPanel(self._resize, self._transforms)
         tabs.addTab(self._advanced_panel, "Zaawansowane")
@@ -221,8 +225,9 @@ class FormatSettingsDialog(AppDialog):
             "PNG-24 (pełne kolory)",
         ])
         self._png_mode.setToolTip(
-            "PNG-8 = mniejszy plik, ograniczona liczba kolorów. "
-            "PNG-24 = pełna jakość, większy plik. Auto dobiera z suwaka Jakość."
+            "PNG-8 = paleta kolorów, dużo mniejszy plik, przezroczystość zostaje. "
+            "PNG-24 = pełne kolory, większy plik. "
+            "Auto: poniżej 70% jakości → PNG-8, od 70% → PNG-24."
         )
         fl.addRow("Tryb PNG:", self._png_mode)
         self._png_lossless = QCheckBox("Tylko bezstratny (oxipng)")
@@ -306,12 +311,35 @@ class FormatSettingsDialog(AppDialog):
         fl.addRow(cb)
         return w
 
-    def _generic_tab(self, _name: str) -> QWidget:
+    def _avif_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
-        cb = QCheckBox("Zachowaj dane EXIF / IPTC")
-        cb.setChecked(self._opts.keep_metadata)
-        fl.addRow(cb)
+        self._avif_rgb_only = QCheckBox("Tylko bitmapa RGB (bez warstw, CMYK i Pantone)")
+        self._avif_rgb_only.setToolTip(
+            "Spłaszcza warstwy, konwertuje CMYK→RGB, usuwa kanały spot/Pantone. "
+            "W pliku zostaje sam obraz — bez dodatkowych kanałów."
+        )
+        fl.addRow(self._avif_rgb_only)
+
+        self._avif_cap = QCheckBox("Opcjonalny limit wagi")
+        self._avif_cap.setToolTip(
+            "Wyłączone domyślnie. Włącz tylko gdy chcesz wymusić maksymalny rozmiar pliku."
+        )
+        self._avif_max_kb = QSpinBox()
+        self._avif_max_kb.setRange(8, 8192)
+        self._avif_max_kb.setSuffix(" KB")
+        self._avif_max_kb.setValue(500)
+        self._avif_max_kb.setEnabled(False)
+        cap_row = QHBoxLayout()
+        cap_row.addWidget(self._avif_cap)
+        cap_row.addWidget(self._avif_max_kb)
+        cap_wrap = QWidget()
+        cap_wrap.setLayout(cap_row)
+        fl.addRow("Waga:", cap_wrap)
+        self._avif_cap.toggled.connect(self._avif_max_kb.setEnabled)
+
+        self._avif_keep_meta = QCheckBox("Zachowaj dane EXIF / ICC (wyłączone przy bitmapie RGB)")
+        fl.addRow(self._avif_keep_meta)
         return w
 
     def _apply_brand_gradient_preset(self) -> None:
@@ -478,6 +506,17 @@ class FormatSettingsDialog(AppDialog):
             self._gif_ultra_frames.setValue(self._opts.gif_ultra_max_frames)
         if self._gif_ultra_lossy:
             self._gif_ultra_lossy.setValue(self._opts.gif_ultra_lossy)
+        if self._avif_rgb_only:
+            self._avif_rgb_only.setChecked(self._opts.rgb_bitmap_only)
+        if self._avif_cap:
+            capped = self._opts.avif_max_kb is not None
+            self._avif_cap.setChecked(capped)
+        if self._avif_max_kb:
+            kb = self._opts.avif_max_kb if self._opts.avif_max_kb is not None else 500
+            self._avif_max_kb.setValue(int(kb))
+            self._avif_max_kb.setEnabled(self._opts.avif_max_kb is not None)
+        if self._avif_keep_meta:
+            self._avif_keep_meta.setChecked(self._opts.keep_metadata)
         self._sync_matte_controls()
         self._sync_gif_mode_controls()
 
@@ -524,6 +563,14 @@ class FormatSettingsDialog(AppDialog):
             self._opts.gif_from_quality = self._gif_from_quality.isChecked()
         if self._gif_lossy:
             self._opts.gif_lossy = self._gif_lossy.value()
+        if self._avif_rgb_only:
+            self._opts.rgb_bitmap_only = self._avif_rgb_only.isChecked()
+        if self._avif_cap and self._avif_max_kb:
+            self._opts.avif_max_kb = (
+                float(self._avif_max_kb.value()) if self._avif_cap.isChecked() else None
+            )
+        if self._avif_keep_meta:
+            self._opts.keep_metadata = self._avif_keep_meta.isChecked()
         if self._opts.gif_from_quality and self._opts.gif_mode == "quality":
             self._opts.gif_max_colors = palette_colors_for_quality(self._opts.quality)
             self._opts.gif_lossy = gif_lossy_for_quality(self._opts.quality)

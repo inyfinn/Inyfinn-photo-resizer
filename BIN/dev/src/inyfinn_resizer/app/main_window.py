@@ -49,7 +49,9 @@ from inyfinn_resizer.app.dialogs.message_boxes import (
 from inyfinn_resizer import __version__
 from inyfinn_resizer.app.dialogs.custom_size_preset import CustomSizePresetDialog
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
+from inyfinn_resizer.app.changelog import show_changelog
 from inyfinn_resizer.app.dialogs.help_guide import show_help_guide
+from inyfinn_resizer.app.dialogs.simple_save_dialog import ask_simple_save_choice
 from inyfinn_resizer.app.update_manager import UpdateManager
 from inyfinn_resizer.app.widgets.update_status_bar import UpdateStatusBar
 from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
@@ -114,7 +116,7 @@ from inyfinn_resizer.core.job import (
     ResizeOptions,
     TransformOptions,
 )
-from inyfinn_resizer.core.pipeline import build_output_path
+from inyfinn_resizer.core.pipeline import build_output_path, unique_conv_path
 from inyfinn_resizer.core.presets import (
     apply_preset,
     auto_save_profile_rotating,
@@ -300,6 +302,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Zapisz ustawienia…", self._save_preset)
 
         help_menu = menubar.addMenu("Pomo&c")
+        help_menu.addAction("Changelog…", lambda: show_changelog(self))
         help_menu.addAction("Przewodnik użytkownika…", lambda: show_help_guide(self))
         help_menu.addSeparator()
         help_menu.addAction("Sprawdź aktualizacje…", self._check_updates_manual)
@@ -434,7 +437,7 @@ class MainWindow(QMainWindow):
         # 2 — jakość
         q_tile, q_lay = make_tile(
             "2. Wybierz jakość",
-            "Im niżej, tym mniejszy plik. Kolory zostają bez zmian (bez redukcji palety).",
+            "Im niżej, tym mniejszy plik. Poniżej 70% PNG schodzi na PNG-8. Przezroczystość zostaje.",
         )
         self.simple_quality_slider = WheelSlider(Qt.Horizontal)
         self.simple_quality_slider.setRange(1, 100)
@@ -451,7 +454,7 @@ class MainWindow(QMainWindow):
         # 3 — folder zapisu
         out_tile, out_lay = make_tile(
             "3. Zapisz do folderu",
-            "Gotowe pliki trafią do wybranego folderu (format jak oryginał).",
+            "Opcjonalnie. Bez folderu program zapyta: nadpisać, czy zapisać jako nowe (_conv).",
         )
         out_row = QHBoxLayout()
         out_row.setContentsMargins(0, 0, 0, 0)
@@ -474,16 +477,43 @@ class MainWindow(QMainWindow):
         out_lay.addLayout(out_row)
         col.addWidget(out_tile)
 
-        # przycisk konwersji
+        # Konwertuj + chipy formatu
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(10)
         action_row.addStretch(1)
         self.simple_convert_btn = footer_button(
-            "Konwertuj", primary=True, slot=self._start_simple_convert,
+            "Konwertuj", primary=True, slot=lambda: self._start_simple_convert(),
         )
         self.simple_convert_btn.setObjectName("footerConvert")
-        self.simple_convert_btn.setMinimumWidth(200)
+        self.simple_convert_btn.setMinimumWidth(168)
+        self.simple_convert_btn.setToolTip("Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła.")
         action_row.addWidget(self.simple_convert_btn)
+
+        fmt_col = QVBoxLayout()
+        fmt_col.setContentsMargins(0, 0, 0, 0)
+        fmt_col.setSpacing(4)
+        fmt_lbl = QLabel("Do innego formatu")
+        fmt_lbl.setObjectName("formatChipCaption")
+        fmt_col.addWidget(fmt_lbl)
+        chips = QHBoxLayout()
+        chips.setContentsMargins(0, 0, 0, 0)
+        chips.setSpacing(6)
+        self._simple_format_btns: list[QPushButton] = []
+        for fmt, label, tip in (
+            ("png", "PNG", "Konwertuj do PNG — przezroczystość zostaje."),
+            ("jpeg", "JPG", "Konwertuj do JPG. JPG nie zachowuje przezroczystości (białe tło)."),
+            ("avif", "AVIF", "Konwertuj do AVIF — mniejszy plik, przezroczystość zostaje."),
+        ):
+            chip = QPushButton(label)
+            chip.setObjectName("formatChip")
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip(tip)
+            chip.clicked.connect(lambda _checked=False, f=fmt: self._start_simple_convert(f))
+            chips.addWidget(chip)
+            self._simple_format_btns.append(chip)
+        fmt_col.addLayout(chips)
+        action_row.addLayout(fmt_col)
         action_row.addStretch(1)
         col.addLayout(action_row)
 
@@ -499,7 +529,6 @@ class MainWindow(QMainWindow):
         """Widoczność elementów paska górnego zależnie od trybu."""
         simple = self._ui_mode == "simple"
         for w in (
-            getattr(self, "_menubar", None),
             getattr(self, "_preset_lbl", None),
             getattr(self, "retail_preset_combo", None),
             getattr(self, "restore_retail_btn", None),
@@ -564,38 +593,63 @@ class MainWindow(QMainWindow):
         self._browse_output()
         self._refresh_simple_output()
 
-    def _start_simple_convert(self) -> None:
+    def _simple_format_opts(self) -> FormatOptions:
+        quality = self.simple_quality_slider.value()
+        return replace(
+            self._format_opts,
+            quality=quality,
+            png_mode="auto",
+            png_colors_auto=True,
+            lossless=False,
+            rgb_bitmap_only=False,
+        )
+
+    def _simple_output_path(
+        self,
+        inp: Path,
+        fmt: str,
+        dest_dir: Path | None,
+        save_mode: str,
+    ) -> Path:
+        if dest_dir is not None:
+            return build_output_path(inp, dest_dir, fmt, preserve_structure=False)
+        target = inp.with_suffix(output_extension(fmt))
+        if save_mode == "conv":
+            return unique_conv_path(target)
+        return target
+
+    def _start_simple_convert(self, output_format: str | None = None) -> None:
         if not self._queue:
             show_warning(self, "Konwersja", "Najpierw dodaj zdjęcia.")
             return
         out_text = self.output_dir_edit.text().strip()
-        if not out_text:
-            show_warning(self, "Konwersja", "Wybierz folder, w którym zapisać gotowe pliki.")
-            return
-        self.output_enabled_cb.setChecked(True)
-        out_dir = Path(out_text)
-        try:
-            out_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            show_critical(self, "Błąd", f"Nie można utworzyć folderu:\n{exc}")
-            return
+        dest_dir: Path | None = None
+        save_mode = "overwrite"
+        if out_text:
+            self.output_enabled_cb.setChecked(True)
+            dest_dir = Path(out_text)
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                show_critical(self, "Błąd", f"Nie można utworzyć folderu:\n{exc}")
+                return
+        else:
+            folders = [p.parent for p in self._queue]
+            choice = ask_simple_save_choice(
+                self, file_count=len(self._queue), folders=folders,
+            )
+            if choice is None:
+                return
+            save_mode = choice
 
-        quality = self.simple_quality_slider.value()
-        # Tryb prosty: bez zmiany rozmiaru, bez usuwania tła, PNG-24 (bez redukcji kolorów).
-        fmt_opts = replace(
-            self._format_opts,
-            quality=quality,
-            png_mode="png24",
-            png_colors_auto=False,
-            lossless=False,
-        )
+        fmt_opts = self._simple_format_opts()
         resize = ResizeOptions(mode=ResizeMode.NONE, scale_percent=100.0, min_longest_enabled=False)
         transforms = TransformOptions()
 
         jobs: list[JobSpec] = []
         for inp in self._queue:
-            fmt = output_format_for_input(inp)
-            out = build_output_path(inp, out_dir, fmt, preserve_structure=False)
+            fmt = output_format or output_format_for_input(inp)
+            out = self._simple_output_path(inp, fmt, dest_dir, save_mode)
             jobs.append(JobSpec(
                 input_path=inp,
                 output_path=out,
@@ -605,15 +659,22 @@ class MainWindow(QMainWindow):
                 metadata=self._metadata,
                 format_opts=fmt_opts,
             ))
-        self._run_jobs(jobs, overwrite=True, log_label="tryb prosty")
+        label = f"tryb prosty {output_format}" if output_format else "tryb prosty"
+        self._run_jobs(jobs, overwrite=True, log_label=label)
+
+    def _set_convert_controls_enabled(self, enabled: bool) -> None:
+        if hasattr(self, "convert_btn"):
+            self.convert_btn.setEnabled(enabled)
+        if hasattr(self, "simple_convert_btn"):
+            self.simple_convert_btn.setEnabled(enabled)
+        for btn in getattr(self, "_simple_format_btns", []):
+            btn.setEnabled(enabled)
 
     def _run_jobs(self, jobs: list[JobSpec], *, overwrite: bool, log_label: str | None = None) -> None:
         """Wspólny silnik uruchamiania zadań (overlay + worker + wątek)."""
         if not jobs:
             return
-        self.convert_btn.setEnabled(False)
-        if hasattr(self, "simple_convert_btn"):
-            self.simple_convert_btn.setEnabled(False)
+        self._set_convert_controls_enabled(False)
         self.progress.setVisible(False)
         self.progress_label.setVisible(False)
         self._batch_cancelled = False
@@ -2352,9 +2413,7 @@ class MainWindow(QMainWindow):
 
     def _on_batch_error(self, message: str) -> None:
         log_event("Błąd konwersji", message, status="ERROR")
-        self.convert_btn.setEnabled(True)
-        if hasattr(self, "simple_convert_btn"):
-            self.simple_convert_btn.setEnabled(True)
+        self._set_convert_controls_enabled(True)
         self._progress_simulator.stop()
         self._conversion_overlay.finish()
         self._active_jobs = []
@@ -2451,9 +2510,7 @@ class MainWindow(QMainWindow):
 
     def _on_finished(self, results) -> None:
         elapsed = time.time() - self._convert_start
-        self.convert_btn.setEnabled(True)
-        if hasattr(self, "simple_convert_btn"):
-            self.simple_convert_btn.setEnabled(True)
+        self._set_convert_controls_enabled(True)
         self._progress_simulator.stop()
         self._conversion_overlay.set_overall(len(results), max(len(results), len(self._active_jobs)))
         self._conversion_overlay.finish()
@@ -2538,3 +2595,4 @@ class MainWindow(QMainWindow):
         if self._settings_dirty:
             auto_save_profile_rotating(snapshot_from_window(self))
         super().closeEvent(event)
+                                              

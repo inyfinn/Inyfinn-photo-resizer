@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from inyfinn_resizer.core.job import DEFAULT_QUALITY, FormatOptions, JobSpec
+from inyfinn_resizer.core.job import DEFAULT_AVIF_QUALITY, DEFAULT_QUALITY, FormatOptions, JobSpec
 from inyfinn_resizer.core.pipeline import build_output_path, process_job
 from inyfinn_resizer.core.presets import apply_preset, load_preset
 
@@ -27,9 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     conv.add_argument("--input", "-i", required=True, help="Input file or folder")
     conv.add_argument("--output", "-o", required=True, help="Output folder")
     conv.add_argument("--format", "-f", default="webp", help="Output format (webp, jpeg, png, avif...)")
-    conv.add_argument("--quality", "-q", type=int, default=DEFAULT_QUALITY, help="Quality 0-100")
+    conv.add_argument("--quality", "-q", type=int, default=None, help="Quality 0-100 (AVIF default 30)")
     conv.add_argument("--preset", "-p", help="JSON preset file")
-    conv.add_argument("--target-kb", type=float, help="Target file size KB")
+    conv.add_argument("--target-kb", type=float, help="Optional max file size KB (off by default)")
     conv.add_argument("--overwrite", action="store_true", help="Overwrite existing files")
 
     args = parser.parse_args(argv)
@@ -41,8 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    fmt_opts = FormatOptions(quality=args.quality)
     output_format = args.format
+    quality = args.quality
+    if quality is None:
+        quality = DEFAULT_AVIF_QUALITY if output_format.lower() == "avif" else DEFAULT_QUALITY
+    fmt_opts = FormatOptions(quality=quality)
     if args.preset:
         applied = apply_preset(load_preset(Path(args.preset)))
         fmt_opts = applied["format_opts"]
@@ -50,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.target_kb:
         fmt_opts.target_kb = args.target_kb
+        fmt_opts.avif_max_kb = args.target_kb
 
     errors = 0
     for src in _collect_inputs(inp):

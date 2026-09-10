@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-01 · **Wersja aplikacji:** 2.2.0
+**Ostatnia aktualizacja:** 2026-09-10 · **Wersja aplikacji:** 2.4.1
 
 ---
 
@@ -72,6 +72,16 @@ Efekt: launcher w korzeniu + pełna aplikacja w `BIN/` + opcjonalnie `release/In
 2. **Agent** uruchamia `package_release.ps1` (nie użytkownik).
 3. Błędy kolorów TIFF → `image_loader.py`, nie goły CMYK.convert.
 4. Log: `BIN/dev/process.md`.
+
+---
+
+## AVIF / bitmapa RGB (2026-09-10, v2.4.1)
+
+Z DAM bierzemy **kanały**, nie limit wagi:
+
+- AVIF = płaska bitmapa RGB. Spłaszcz warstwy, CMYK→RGB, wyrzuć Pantone/spot, bez ICC/EXIF w pliku.
+- **Bez domyślnego capu 70 KB** — to tylko pamięć podręczna DAM. Opcjonalny limit wagi jest wyłączony, chyba że user włączy go w Ustawieniach albo poda `--target-kb`.
+- CLI: `--format avif` startuje od jakości 30.
 
 ---
 

@@ -397,6 +397,86 @@ QPushButton#footerConvert:disabled {
     color: @FG_MUTED@;
 }
 
+QLabel#formatChipCaption {
+    color: @FG_MUTED@;
+    font-size: 11px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QPushButton#formatChip {
+    background: transparent;
+    border: 1.5px solid @ACCENT@;
+    color: @FG_ACCENT@;
+    border-radius: 10px;
+    min-width: 64px;
+    max-width: 88px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QPushButton#formatChip:hover {
+    background-color: @ACCENT@;
+    color: #ffffff;
+}
+
+QPushButton#formatChip:disabled {
+    border-color: @SEP@;
+    color: @FG_MUTED@;
+}
+
+QLabel#saveChoiceTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: @FG_TITLE@;
+}
+
+QLabel#saveChoiceBody {
+    font-size: 13px;
+    color: @FG_TEXT@;
+}
+
+QLabel#saveChoiceHint {
+    font-size: 11px;
+    color: @FG_MUTED@;
+}
+
+QPushButton#saveChoicePrimary {
+    background-color: @ACCENT@;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+QPushButton#saveChoicePrimary:hover {
+    background-color: @ACCENT_HOVER@;
+}
+
+QPushButton#saveChoiceOutline {
+    background: transparent;
+    color: @FG_ACCENT@;
+    border: 1.5px solid @ACCENT@;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+QPushButton#saveChoiceOutline:hover {
+    background-color: @ACCENT@;
+    color: #ffffff;
+}
+
+QLabel#changelogVersion {
+    font-size: 15px;
+    font-weight: 700;
+    color: @FG_ACCENT@;
+}
+
 QPushButton#footerClose {
     min-height: 36px;
     max-height: 36px;

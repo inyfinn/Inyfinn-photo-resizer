@@ -22,7 +22,8 @@ FORMAT_EXTENSION_TIPS: dict[str, str] = {
         "Można zmniejszyć plik przez mniej kolorów, dithering (szum) lub lossy."
     ),
     "avif": (
-        "AVIF to nowoczesny format internetowy — bardzo małe pliki, ale starsze przeglądarki mogą go nie otworzyć."
+        "AVIF — płaska bitmapa RGB: bez warstw, CMYK i kanałów Pantone. "
+        "Starsze przeglądarki mogą go nie otworzyć."
     ),
     "tiff": (
         "TIFF to format do druku i archiwum — duże pliki, wysoka jakość."
@@ -63,7 +64,7 @@ UI_TOOLTIPS: dict[str, str] = {
     ),
     "quality": (
         "Jakość kompresji: wyżej = ładniej i większy plik, niżej = mniejszy plik i więcej strat. "
-        "50% to dobry start dla internetu."
+        "50% to dobry start dla JPG/WebP. AVIF zwykle 30% — sam obraz RGB, bez kanałów spot."
     ),
     "scale": (
         "Skala w procentach — zmniejsza oba wymiary (np. 50%: 3000×2000 → 1500×1000). "
@@ -90,7 +91,8 @@ UI_TOOLTIPS: dict[str, str] = {
     "min_longest_px": "Minimalna długość najdłuższej krawędzi w pikselach (domyślnie 1080 px).",
     "png_colors": (
         "Ile kolorów może mieć obraz z paletą (PNG-8, GIF itd.). Mniej kolorów = mniejszy plik. "
-        "Przy „Z jakości” program sam dobiera liczbę z suwaka Jakość."
+        "Przy „Z jakości” program sam dobiera liczbę z suwaka Jakość. "
+        "Poniżej 70% jakości Auto schodzi na PNG-8; od 70% zostaje PNG-24."
     ),
     "color_count": (
         "Ograniczenie palety kolorów — tylko dla PNG i GIF. "

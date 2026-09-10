@@ -474,3 +474,44 @@
 - `test_wheel_step_*` — `QWheelEvent` w teście dostaje `tuple` zamiast `QPoint`, PySide6 6.11; produkcyjny `wheel_step_for_event` nie jest wołany
 
 **Źródła:** makiety użytkownika (Bento), `BIN/dev/README.md` (kolejność potoku), krytyk `/reflect`
+
+## 2026-09-10 — v2.4.1 AVIF RGB-only (Pantone/CMYK), bez capu 70 KB
+
+**Komenda/Akcja:** Przeniesienie z DAM: flatten RGB / drop spot. User: resizer **nie** ma limitu 70 KB.
+
+**Log/Status:**
+1. `rgb_bitmap.py` — warstwy, CMYK→RGB, kanały Pantone/spot poza plikiem.
+2. avifenc `--ignore-exif --ignore-xmp --ignore-icc --yuv 420`.
+3. `avif_max_kb` domyślnie `None`. 70 KB zostaje tylko w cache DAM.
+4. Wersja **2.4.1**.
+
+**Efekt/Fix:** Resizer kompresuje kanały jak DAM, bez obcinania wagi do 70 KB.
+
+**Test/Ewaluacja:** `pytest tests/test_avif_rgb_cap.py`
+
+**Źródła:** DAM `dam_thumb_cache.py`; korekta usera 2026-09-10.
+
+---
+
+## 2026-09-10 — v2.4.2 tryb prosty: PNG-8, _conv, changelog
+
+**Komenda/Akcja:** User: bez folderu pytaj nadpisz/_conv; PNG 32% ma spaść ~58%; PNG bez tła bez białej maty; chipy PNG/JPG/AVIF; Pomoc → Changelog; build + GitHub release.
+
+**Log/Status:**
+1. `resolve_png_max_colors`: jakość < 70% → PNG-8 (paleta); ≥ 70% → PNG-24. pngquant także na PNG z alpha; oxipng po kwantyzacji.
+2. `_load_image` nie spłaszcza alpha na białe tło — `rgb_bitmap` tylko przy JPEG/AVIF na zapisie.
+3. Tryb prosty: dialog Nadpisz / Zapisz jako `_conv`; chipy formatu; `png_mode=auto`.
+4. Overlay + wyniki: pełne nazwy, pasek = oszczędność (nie „Kompresja 100%”).
+5. `Pomoc → Changelog` (wbudowany, zawsze w EXE). Wersja **2.4.2**.
+
+**Efekt/Fix:** PNG q=32 z przezroczystością kompresuje się paletą; oryginał bez tła zostaje bez tła.
+
+**Test/Ewaluacja:**
+- `test_alpha_png_png8_keeps_transparency_and_shrinks` PASS
+- `test_png_pngquant_real_compression` q=50/35 PASS
+- `test_unique_conv_path` PASS
+- `test_accent_palette_boost_detects_green` — zastany FAIL (uniform_saturation)
+
+**Źródła:** pngquant docs (`--force`, `--skip-if-larger`, RGBA palette); PySide6 QDialog; feedback usera (screenshoty 7 MB vs ~2,5 MB)
+
+

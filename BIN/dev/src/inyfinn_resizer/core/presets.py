@@ -18,6 +18,7 @@ from inyfinn_resizer.core.job import (
     ResizeMode,
     ResizeOptions,
     TransformOptions,
+    _from_mapping,
 )
 
 
@@ -80,14 +81,17 @@ def auto_save_profile_rotating(data: dict[str, Any], *, max_files: int = MAX_AUT
 
 
 def apply_preset(data: dict[str, Any]) -> dict[str, Any]:
-    resize = data.get("resize", {})
+    resize = dict(data.get("resize", {}) or {})
     if "mode" in resize:
-        resize["mode"] = ResizeMode(resize["mode"])
+        try:
+            resize["mode"] = ResizeMode(resize["mode"])
+        except ValueError:
+            resize["mode"] = ResizeMode.NONE
     return {
         "output_format": data.get("output_format", "webp"),
-        "format_opts": FormatOptions(**data.get("format_opts", {})),
-        "resize": ResizeOptions(**resize) if resize else ResizeOptions(),
-        "transforms": TransformOptions(**data.get("transforms", {})),
-        "metadata": MetadataPolicy(**data.get("metadata", {})),
-        "rename": RenameRule(**data.get("rename", {})),
+        "format_opts": _from_mapping(FormatOptions, data.get("format_opts", {})),
+        "resize": _from_mapping(ResizeOptions, resize) if resize else ResizeOptions(),
+        "transforms": _from_mapping(TransformOptions, data.get("transforms", {})),
+        "metadata": _from_mapping(MetadataPolicy, data.get("metadata", {})),
+        "rename": _from_mapping(RenameRule, data.get("rename", {})),
     }

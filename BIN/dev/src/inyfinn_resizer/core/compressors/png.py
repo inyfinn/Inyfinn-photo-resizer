@@ -25,6 +25,8 @@ MAX_QUALITY_FALLBACKS = 2
 PQ_MARKER = ".pq."
 MIN_PALETTE_COLORS = 24
 MAX_PALETTE_COLORS = 256
+# Poniżej tego progu Auto schodzi z PNG-24 na PNG-8 (paleta, z alpha).
+PNG8_QUALITY_THRESHOLD = 70
 
 
 def png_max_colors_for_quality(quality_pct: int) -> int:
@@ -41,16 +43,23 @@ def png_max_colors_for_quality(quality_pct: int) -> int:
 
 
 def resolve_png_max_colors(opts: FormatOptions) -> int | None:
-    """Zwraca liczbę kolorów palety lub None = pełna głębia (PNG-24, bez pngquant)."""
+    """Zwraca liczbę kolorów palety lub None = pełna głębia (PNG-24, bez pngquant).
+
+    Auto: jakość ≥ 70 → PNG-24; poniżej 70 → PNG-8 (paleta, przezroczystość zostaje).
+    """
     if opts.png_mode == "png24":
         return None
     if opts.png_colors_auto:
         colors = png_max_colors_for_quality(opts.quality)
     else:
         colors = int(opts.png_max_colors)
-    if colors >= MAX_PALETTE_COLORS:
+    colors = max(MIN_PALETTE_COLORS, min(MAX_PALETTE_COLORS, colors))
+    if opts.png_mode == "png8":
+        return colors
+    # auto
+    if int(opts.quality) >= PNG8_QUALITY_THRESHOLD:
         return None
-    return max(MIN_PALETTE_COLORS, colors)
+    return colors
 
 
 def count_rare_green_accents(path: Path) -> int:
@@ -310,6 +319,7 @@ def run_pngquant(
     cmd = [
         str(pngquant),
         "--force",
+        "--skip-if-larger",
         "--quality", f"{int(qmin)}-{int(qmax)}",
         "--speed", str(int(speed)),
         str(palette),

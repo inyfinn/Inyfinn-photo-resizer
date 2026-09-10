@@ -53,6 +53,8 @@ class _FileCard(QFrame):
         text_col.setSpacing(2)
         self._name = QLabel(item.name)
         self._name.setObjectName("fileProgressName")
+        self._name.setWordWrap(True)
+        self._name.setToolTip(item.name)
         self._meta = QLabel()
         self._meta.setObjectName("fileProgressMeta")
         text_col.addWidget(self._name)
@@ -78,6 +80,8 @@ class _FileCard(QFrame):
     def refresh(self) -> None:
         fmt_label = FORMAT_LABEL_PL.get(self._item.fmt, self._item.fmt.upper())
         size_hint = self._item.detail or self._item.state
+        self._name.setText(self._item.name)
+        self._name.setToolTip(self._item.name)
         self._meta.setText(f"{fmt_label} · {size_hint}")
         self._bar.setValue(self._item.percent)
         self._pct.setText(f"{self._item.percent}%")
@@ -118,8 +122,8 @@ class ConversionOverlay(QWidget):
         self._panel = QFrame()
         self._panel.setObjectName("conversionOverlayPanel")
         self._panel.setFrameShape(QFrame.Shape.NoFrame)
-        self._panel.setMaximumWidth(540)
-        self._panel.setMinimumWidth(400)
+        self._panel.setMaximumWidth(560)
+        self._panel.setMinimumWidth(420)
         panel_lay = QVBoxLayout(self._panel)
         panel_lay.setContentsMargins(16, 12, 16, 14)
         panel_lay.setSpacing(8)

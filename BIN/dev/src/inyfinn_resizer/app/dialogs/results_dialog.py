@@ -58,9 +58,9 @@ _COL_SAVE = 7
 
 _DEFAULT_WIDTHS = {
     _COL_LP: 44,
-    _COL_IN: 200,
-    _COL_OUT: 200,
-    _COL_STATUS: 280,
+    _COL_IN: 240,
+    _COL_OUT: 240,
+    _COL_STATUS: 160,
     _COL_OLD: 100,
     _COL_NEW: 100,
     _COL_RATIO: 110,
@@ -76,8 +76,10 @@ def _apply_responsive_column_modes(table: QTableWidget) -> None:
     hdr.setStretchLastSection(False)
     hdr.setSectionResizeMode(_COL_LP, QHeaderView.ResizeMode.Fixed)
     table.setColumnWidth(_COL_LP, _DEFAULT_WIDTHS[_COL_LP])
+    hdr.setSectionResizeMode(_COL_IN, QHeaderView.ResizeMode.Stretch)
+    hdr.setSectionResizeMode(_COL_OUT, QHeaderView.ResizeMode.Stretch)
     for col in range(table.columnCount()):
-        if col == _COL_LP:
+        if col in {_COL_LP, _COL_IN, _COL_OUT}:
             continue
         hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         if table.columnWidth(col) < 56:
@@ -90,7 +92,7 @@ def _configure_results_table(table: QTableWidget) -> QHeaderView:
     table.setAlternatingRowColors(True)
     table.verticalHeader().setVisible(False)
     table.setWordWrap(False)
-    table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+    table.setTextElideMode(Qt.TextElideMode.ElideNone)
     table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setCornerButtonEnabled(False)
@@ -128,10 +130,6 @@ class ResultsDialog(AppDialog):
             status_line += f"  ({err_count} błędów)"
         header.addWidget(QLabel(status_line))
         header.addStretch()
-        self.parallel_cb = QCheckBox("Wiele plików jednocześnie")
-        self.parallel_cb.setChecked(True)
-        self.parallel_cb.setEnabled(False)
-        header.addWidget(self.parallel_cb)
         layout.addLayout(header)
 
         self.table = QTableWidget(0, 8)
@@ -156,15 +154,22 @@ class ResultsDialog(AppDialog):
         total_new = sum(r.new_bytes for r in results)
         ratio = round(100.0 * total_new / total_old, 0) if total_old else 0
         saved = (total_old - total_new) / 1024.0
+        saved_pct = max(0.0, 100.0 - ratio) if total_old else 0.0
 
         self.progress = QProgressBar()
         self.progress.setObjectName("resultsProgress")
         self.progress.setRange(0, 100)
-        self.progress.setValue(int(ratio))
+        self.progress.setValue(int(saved_pct))
         self.progress.setTextVisible(False)
         self.progress.setFixedHeight(16)
         progress_row = QHBoxLayout()
-        progress_row.addWidget(QLabel(f"Kompresja: {ratio:.0f}%"))
+        if saved > 0.5:
+            shrink_lbl = f"Zmniejszono o {saved_pct:.0f}%"
+        elif saved < -0.5:
+            shrink_lbl = "Plik większy niż źródło"
+        else:
+            shrink_lbl = "Rozmiar bez zmian"
+        progress_row.addWidget(QLabel(shrink_lbl))
         progress_row.addWidget(self.progress, stretch=1)
         layout.addLayout(progress_row)
 
@@ -302,10 +307,4 @@ class WizResultsDialog(AppDialog):
         bottom.addWidget(buttons)
         layout.addLayout(bottom)
 
-    def _on_done(self) -> None:
-        if self.open_folder_cb.isChecked() and self._output_dir:
-            if sys.platform == "win32":
-                os.startfile(str(self._output_dir))
-            else:
-                subprocess.Popen(["xdg-open", str(self._output_dir)])
-        self.accept()
+    def _on_done(sel
