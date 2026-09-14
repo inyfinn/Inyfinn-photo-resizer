@@ -45,3 +45,20 @@ Thumbs.db
 # Zrzuty QA (generowane lokalnie)
 ui-complete/
 BIN/dev/ui-complete/screenshots/
+
+# --- secrets-lock (inyfinn) ---
+.env
+.env.*
+!.env.example
+!.env.sample
+.ssh/
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+*.ppk
+*.pem
+*.p12
+*.pfx
+cloud-agent-nas
+# --- end secrets-lock ---
