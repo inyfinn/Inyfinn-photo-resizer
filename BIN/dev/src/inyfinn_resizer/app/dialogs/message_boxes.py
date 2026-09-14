@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 
@@ -34,6 +35,7 @@ def _make_box(
     box.setWindowTitle(title)
     box.setText(text)
     box.setStandardButtons(buttons)
+    box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
     _polish_buttons(box)
     return box
 

@@ -86,6 +86,8 @@ def main() -> int:
         ("main", "dark", "main-png", "png"),
         ("format", "dark", "format", ""),
         ("advanced", "dark", "advanced", ""),
+        ("overlay", "light", "overlay", "png"),
+        ("overlay", "dark", "overlay", "png"),
     ]
 
     def run_step(idx: int = 0) -> None:
@@ -99,6 +101,10 @@ def main() -> int:
             widget = MainWindow()
             widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
             widget._set_ui_mode("advanced", mark_dirty=False)
+        elif kind == "overlay":
+            widget = MainWindow()
+            widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+            widget._set_ui_mode("simple", mark_dirty=False)
         elif kind == "format":
             widget = FormatSettingsDialog("webp", FormatOptions())
         else:
@@ -117,6 +123,33 @@ def main() -> int:
         _repolish(widget)
         widget.show()
         app.processEvents()
+        if kind == "overlay":
+            overlay = widget._conversion_overlay
+            overlay.start_batch(
+                [
+                    ("CIASTO-SLIWKOW.png", "png"),
+                    ("KWIAT sliwki-1.png", "png"),
+                    ("KWIAT sliwki-2.png", "png"),
+                ]
+            )
+            overlay.set_file_state(
+                0,
+                state="Usuwanie tła…",
+                percent=5,
+                detail="Usuwanie tła · najlepsza jakość",
+                force=True,
+            )
+            overlay.set_file_state(
+                1,
+                state="Usuwanie tła…",
+                percent=5,
+                detail="Usuwanie tła · najlepsza jakość",
+                force=True,
+            )
+            overlay.set_file_state(2, state="Oczekiwanie", percent=0, detail="Oczekiwanie", force=True)
+            overlay.set_overall(0, 3)
+            overlay.set_eta_seconds(148)
+            app.processEvents()
 
         def grab_and_continue() -> None:
             app.processEvents()

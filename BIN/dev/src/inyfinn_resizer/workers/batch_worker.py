@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    wait,
+)
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -66,52 +71,7 @@ class BatchWorker(QObject):
             return
 
         if self.parallel and total > 1 and not self._cancelled:
-            workers = max(1, min((os.cpu_count() or 2) - 1, 4 if _use_thread_pool() else 8))
-            job_dicts = [job_to_dict(j) for j in self.jobs]
-            executor_cls = ThreadPoolExecutor if _use_thread_pool() else ProcessPoolExecutor
-            with executor_cls(max_workers=workers) as pool:
-                if _use_thread_pool():
-                    futures = {
-                        pool.submit(process_job, self.jobs[i], overwrite=self.overwrite): i
-                        for i in range(total)
-                    }
-                else:
-                    futures = {
-                        pool.submit(_worker_process, jd, self.overwrite): i
-                        for i, jd in enumerate(job_dicts)
-                    }
-                for idx in range(total):
-                    self.file_started.emit(idx, "Oczekiwanie w kolejce")
-                done = 0
-                for fut in as_completed(futures):
-                    if self._cancelled:
-                        break
-                    idx = futures[fut]
-                    self.file_started.emit(idx, "Przetwarzanie…")
-                    done += 1
-                    try:
-                        if _use_thread_pool():
-                            result = fut.result()
-                            data = _result_to_dict(result)
-                        else:
-                            data = fut.result()
-                        status = data["status"]
-                        msg = data["message"] or ""
-                        self.file_finished.emit(idx, status, msg)
-                        self.progress.emit(done, total, Path(data["input_path"]).name)
-                        results.append(self._dict_to_result(data, self.jobs[idx]))
-                    except Exception as e:
-                        err_job = self.jobs[idx]
-                        err_result = JobResult(
-                            job=err_job,
-                            status=JobStatus.ERROR,
-                            message=str(e),
-                            old_bytes=err_job.input_path.stat().st_size if err_job.input_path.is_file() else 0,
-                        )
-                        data = _result_to_dict(err_result)
-                        self.file_finished.emit(idx, "ERROR", str(e))
-                        self.progress.emit(done, total, Path(data["input_path"]).name)
-                        results.append(err_result)
+            self._run_parallel(results, total)
         else:
             for i, job in enumerate(self.jobs):
                 if self._cancelled:
@@ -127,6 +87,67 @@ class BatchWorker(QObject):
         if self._cancelled:
             self.cancelled.emit()
         self.finished.emit(results)
+
+    def _submit_job(self, pool, index: int):
+        if _use_thread_pool():
+            return pool.submit(process_job, self.jobs[index], overwrite=self.overwrite)
+        return pool.submit(_worker_process, job_to_dict(self.jobs[index]), self.overwrite)
+
+    def _consume_future(self, fut, index: int) -> JobResult:
+        try:
+            raw = fut.result()
+            data = raw if isinstance(raw, dict) else _result_to_dict(raw)
+            status = data["status"]
+            msg = data["message"] or ""
+            self.file_finished.emit(index, status, msg)
+            return self._dict_to_result(data, self.jobs[index])
+        except Exception as exc:
+            err_job = self.jobs[index]
+            err_result = JobResult(
+                job=err_job,
+                status=JobStatus.ERROR,
+                message=str(exc),
+                old_bytes=err_job.input_path.stat().st_size if err_job.input_path.is_file() else 0,
+            )
+            self.file_finished.emit(index, "ERROR", str(exc))
+            return err_result
+
+    def _run_parallel(self, results: list[JobResult], total: int) -> None:
+        """W locie tylko max_workers zadań — cancel nie czeka na całą kolejkę."""
+        workers = max(1, min((os.cpu_count() or 2) - 1, 4 if _use_thread_pool() else 8))
+        executor_cls = ThreadPoolExecutor if _use_thread_pool() else ProcessPoolExecutor
+        pool = executor_cls(max_workers=workers)
+        in_flight: dict = {}
+        next_i = 0
+        done = 0
+        try:
+            while next_i < total and len(in_flight) < workers and not self._cancelled:
+                self.file_started.emit(next_i, "Przetwarzanie…")
+                in_flight[self._submit_job(pool, next_i)] = next_i
+                next_i += 1
+
+            while in_flight and not self._cancelled:
+                finished, _ = wait(
+                    list(in_flight.keys()),
+                    timeout=0.2,
+                    return_when=FIRST_COMPLETED,
+                )
+                if not finished:
+                    continue
+                for fut in finished:
+                    idx = in_flight.pop(fut)
+                    if fut.cancelled():
+                        continue
+                    done += 1
+                    result = self._consume_future(fut, idx)
+                    results.append(result)
+                    self.progress.emit(done, total, self.jobs[idx].input_path.name)
+                    if not self._cancelled and next_i < total:
+                        self.file_started.emit(next_i, "Przetwarzanie…")
+                        in_flight[self._submit_job(pool, next_i)] = next_i
+                        next_i += 1
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     @staticmethod
     def _dict_to_result(data: dict, job: JobSpec) -> JobResult:

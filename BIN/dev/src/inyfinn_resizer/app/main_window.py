@@ -2341,18 +2341,21 @@ class MainWindow(QMainWindow):
     def _on_overlay_abort(self) -> None:
         if not self._batch_thread or not self._batch_thread.isRunning():
             self._conversion_overlay.finish()
+            self._set_convert_controls_enabled(True)
             return
         if not ask_yes_no(
-            self,
+            None,
             "Przerwać konwersję?",
             "Czy na pewno chcesz przerwać konwersję?\n"
-            "Plik aktualnie przetwarzany może się jeszcze dokończyć.",
+            "Bieżący plik może się jeszcze zapisać. Reszta kolejki odpada.",
         ):
             return
         self._batch_cancelled = True
         self._batch_thread.request_cancel()
         self._progress_simulator.stop()
+        self._conversion_overlay.finish()
         self.statusBar().showMessage("Przerywanie konwersji…")
+        log_event("Konwersja przerwana", f"{len(self._active_jobs)} zadań", status="WARN")
 
     def _on_batch_cancelled(self) -> None:
         self._batch_cancelled = True
@@ -2364,7 +2367,6 @@ class MainWindow(QMainWindow):
                 index,
                 state=phase,
                 percent=percent,
-                detail=f"→ {job.output_format.upper()}",
             )
         eta = self._progress_simulator.estimate_remaining_sec()
         self._conversion_overlay.set_eta_seconds(eta)
@@ -2379,14 +2381,14 @@ class MainWindow(QMainWindow):
             bg_removal=bg,
             bg_model=job.transforms.bg_model or "birefnet-general",
         )
-        detail = f"→ {job.output_format.upper()}"
+        detail = phase
         if bg:
             model_label = (
-                "Najlepsza jakość"
+                "najlepsza jakość"
                 if job.transforms.bg_model == "birefnet-general"
-                else "Szybko"
+                else "szybko"
             )
-            detail = f"Usuwanie tła ({model_label}) · {job.output_format.upper()}"
+            detail = f"Usuwanie tła · {model_label}"
         self._conversion_overlay.set_file_state(
             index,
             state=phase,
@@ -2595,4 +2597,3 @@ class MainWindow(QMainWindow):
         if self._settings_dirty:
             auto_save_profile_rotating(snapshot_from_window(self))
         super().closeEvent(event)
-                                              

@@ -514,4 +514,62 @@
 
 **Źródła:** pngquant docs (`--force`, `--skip-if-larger`, RGBA palette); PySide6 QDialog; feedback usera (screenshoty 7 MB vs ~2,5 MB)
 
+---
+
+## 2026-09-14 — v2.4.3 start wisiał na splashu
+
+**Komenda/Akcja:** User: aplikacja się nie uruchamia (splash „Ładowanie aplikacji…”).
+
+**Log/Status:**
+1. Proces `BIN\InyfinnPhotoResizer.exe` wisiał ~77 MB, prawie bez CPU. `activity.log` bez wpisu startu po v2.3.1 — `_boot_application` nie dochodził do `log_event`.
+2. Import `main_window`: najpierw NUL na końcu pliku, potem `results_dialog.py` ucięty na `def _on_done(sel` — tak samo w tagu v2.4.2.
+3. EXE windowed gubi stderr → wyjątek w `QTimer` zostawiał wieczny splash.
+4. Przywrócono `_on_done` z v1.0.50, usunięto zera, try/except na starcie, wersja **2.4.3**.
+
+**Efekt/Fix:** Źródło się kompiluje; błąd startu nie jest już cichy.
+
+**Test/Ewaluacja:**
+- `py_compile` cały `src` — 0 błędów
+- MainWindow v2.4.3 visible=True
+- EXE: `activity.log` 2026-09-14 16:22:31 Uruchomienie aplikacji v2.4.3; okno `Inyfinn Photo Resizer 2.4.3`
+
+**Źródła:** Python `SyntaxError` na NUL w źródle; `main.py` `_boot_application`; `BIN/logs/activity.log`
+
+---
+
+## 2026-09-14 — v2.4.4 overlay konwersji nieczytelny
+
+**Komenda/Akcja:** User: „miałeś też to naprawić” + zrzut overlay (zlepione litery, PNG w nazwie pliku).
+
+**Log/Status:**
+1. QSS `font-weight` na `QLabel` w overlayu — podwójne malowanie glifów na Windows.
+2. Chip `PNG` w 36×36 wylewał się na nazwę (`PNGCIASTO-…`).
+3. Meta: `PNG (*.png) · Usuwanie tła · PNG` — zdublowany format.
+4. Tor paska = `@BG_INPUT@` = tło kafelka → przy 5% tylko fioletowa kropka.
+5. Fonty przez `QFont`, chip z metryk, tor `@BORDER@`. Wersja **2.4.4**. EXE nie podmieniany — partia 51 plików nadal w 2.4.3.
+
+**Efekt/Fix:** Overlay light/dark: chip osobno, nazwa osobno, widoczny tor.
+
+**Test/Ewaluacja:** `BIN/ui-complete/screenshots/overlay-fix-{light,dark}.png`
+
+**Źródła:** Qt QLabel + stylesheet font na Windows; `conversion_overlay.py`; `app.qss`
+
+---
+
+## 2026-09-14 — v2.4.5 cancel konwersji
+
+**Komenda/Akcja:** User: overlay nie da się anulować; push + instalator.
+
+**Log/Status:**
+1. EXE zgłaszał wszystkie joby do ThreadPool naraz; `with Executor` = `shutdown(wait=True)` — Tak czekało na 51 rembg.
+2. Overlay nie znikał po potwierdzeniu.
+3. Dialog pod overlayem + QSS font na QMessageBox.
+4. Kolejka max_workers, `shutdown(wait=False, cancel_futures=True)`, overlay.finish() od razu. **2.4.5**.
+
+**Efekt/Fix:** Anulowanie zamyka overlay; nieuruchomione pliki odpadają.
+
+**Test/Ewaluacja:** `test_parallel_cancel_does_not_wait_for_queued_jobs`
+
+**Źródła:** `concurrent.futures.Executor.shutdown(wait=False, cancel_futures=True)`
+
 

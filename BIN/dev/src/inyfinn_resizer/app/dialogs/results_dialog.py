@@ -307,4 +307,10 @@ class WizResultsDialog(AppDialog):
         bottom.addWidget(buttons)
         layout.addLayout(bottom)
 
-    def _on_done(sel
+    def _on_done(self) -> None:
+        if self.open_folder_cb.isChecked() and self._output_dir:
+            if sys.platform == "win32":
+                os.startfile(str(self._output_dir))
+            else:
+                subprocess.Popen(["xdg-open", str(self._output_dir)])
+        self.accept()

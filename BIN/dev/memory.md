@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-10 · **Wersja aplikacji:** 2.4.1
+**Ostatnia aktualizacja:** 2026-09-14 · **Wersja aplikacji:** 2.4.5
 
 ---
 
@@ -65,6 +65,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "BIN\dev\scripts\package_rel
 Efekt: launcher w korzeniu + pełna aplikacja w `BIN/` + opcjonalnie `release/InyfinnPhotoResizer-vX.Y.Z.zip`.
 
 ---
+
+## Anulowanie batcha (2026-09-14)
+
+- Nie submitować całej listy do executora. `with ThreadPoolExecutor` przy cancel czeka na wszystkie futures.
+- `shutdown(wait=False, cancel_futures=True)` + overlay zamykać w `_on_overlay_abort`, nie dopiero w `_on_finished`.
+
+## Overlay konwersji (2026-09-14)
+
+- Na Windows `font-size` / `font-weight` w QSS na `QLabel` podwójnie maluje glify (zlewające się „Konwersja plików”).
+- Font overlaya tylko przez `QFont` w kodzie; QSS zostawia kolor i tło.
+- Chip formatu ma własną szerokość z `QFontMetrics` — nie wolno `setFixedSize(36,36)` na „PNG”.
+- Tor paska: `@BORDER@`, nie `@BG_INPUT@` (to ten sam kolor co kafelek).
+
+## Start / splash (2026-09-14)
+
+- Splash „Ładowanie aplikacji…” bez dalszego statusu = wyjątek przy imporcie okna. EXE windowed gubi stderr.
+- v2.4.2: `results_dialog.py` ucięty na `def _on_done(sel` (tak w gicie). `main_window.py` miał trailing NUL (sync na `D:\Marketing`).
+- Przy awarii: `python -m py_compile` na `BIN/dev/src`, potem `activity.log`. Nie zgaduj „wisi hydracja”.
 
 ## Recovery przy awarii
 

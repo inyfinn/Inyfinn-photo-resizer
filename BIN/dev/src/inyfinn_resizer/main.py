@@ -47,14 +47,41 @@ def _configure_pillow() -> None:
 
 
 def _boot_application(app: QApplication, splash, icon: QIcon | None) -> None:
+    try:
+        _boot_application_impl(app, splash, icon)
+    except Exception as exc:
+        import traceback
+
+        from inyfinn_resizer.app.dialogs.message_boxes import show_critical
+        from inyfinn_resizer.utils.app_log import log_event
+
+        try:
+            splash.close()
+        except Exception:
+            pass
+        log_event("Błąd uruchomienia", str(exc), status="ERR")
+        show_critical(
+            None,
+            "Inyfinn Photo Resizer",
+            "Nie udało się uruchomić aplikacji.\n\n"
+            f"{exc}\n\n{traceback.format_exc()}",
+        )
+        app.quit()
+
+
+def _boot_application_impl(app: QApplication, splash, icon: QIcon | None) -> None:
     from inyfinn_resizer import __version__
-    from inyfinn_resizer.app.main_window import MainWindow
     from inyfinn_resizer.app.themes import apply_theme
     from inyfinn_resizer.app.user_settings import load_theme
     from inyfinn_resizer.utils.app_log import log_event
     from inyfinn_resizer.utils.paths import bootstrap_runtime_paths
 
     bootstrap_runtime_paths()
+    splash.set_status("Ładowanie modułów…")
+    app.processEvents()
+
+    from inyfinn_resizer.app.main_window import MainWindow
+
     log_event("Uruchomienie aplikacji", f"v{__version__}")
     splash.set_status("Ładowanie motywu…")
     app.processEvents()

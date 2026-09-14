@@ -19,6 +19,30 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.5",
+        "2026-09-14",
+        [
+            "Anulowanie konwersji działa: kolejka odpada od razu, overlay znika po Tak.",
+            "Dialog „Przerwać konwersję?” nie chowa się pod overlayem.",
+        ],
+    ),
+    (
+        "2.4.4",
+        "2026-09-14",
+        [
+            "Overlay konwersji: czytelne nazwy plików, bez nachodzących liter i zlepionego „PNG” z nazwą.",
+            "Pasek postępu na kafelku ma własny tor — widać go od pierwszych procentów.",
+        ],
+    ),
+    (
+        "2.4.3",
+        "2026-09-14",
+        [
+            "Naprawiony start: ucięty results_dialog i śmieci na końcu main_window nie blokują już splasha.",
+            "Gdy uruchomienie się wywali, widać komunikat z błędem zamiast wiecznego kółka.",
+        ],
+    ),
+    (
         "2.4.2",
         "2026-09-10",
         [

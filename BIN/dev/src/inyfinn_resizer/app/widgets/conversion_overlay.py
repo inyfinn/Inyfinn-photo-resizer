@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -13,12 +14,21 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from inyfinn_resizer.app.i18n_pl import FORMAT_LABEL_PL
 from inyfinn_resizer.app.i18n_tooltips import UI_TOOLTIPS
+
+
+def _overlay_font(size_px: int, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
+    """Font w kodzie, nie w QSS — na Windows QSS font-weight podwójnie maluje glify."""
+    font = QFont("Segoe UI")
+    font.setPixelSize(size_px)
+    font.setWeight(weight)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    return font
 
 
 @dataclass
@@ -36,27 +46,37 @@ class _FileCard(QFrame):
         self.setObjectName("fileProgressCard")
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._item = item
+        self._meta_full = ""
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 10, 12, 10)
-        root.setSpacing(6)
+        root.setSpacing(8)
 
         top = QHBoxLayout()
-        top.setSpacing(8)
-        self._icon = QLabel(item.fmt.upper())
+        top.setSpacing(10)
+        chip = item.fmt.upper()[:8]
+        self._icon = QLabel(chip)
         self._icon.setObjectName("fileProgressExt")
-        self._icon.setFixedSize(36, 36)
         self._icon.setAlignment(Qt.AlignCenter)
-        top.addWidget(self._icon)
+        self._icon.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._icon.setFont(_overlay_font(10, QFont.Weight.DemiBold))
+        chip_w = max(44, self._icon.fontMetrics().horizontalAdvance(chip) + 16)
+        self._icon.setFixedSize(chip_w, 28)
+        top.addWidget(self._icon, 0, Qt.AlignVCenter)
 
         text_col = QVBoxLayout()
-        text_col.setSpacing(2)
-        self._name = QLabel(item.name)
+        text_col.setSpacing(3)
+        self._name = QLabel()
         self._name.setObjectName("fileProgressName")
-        self._name.setWordWrap(True)
-        self._name.setToolTip(item.name)
+        self._name.setWordWrap(False)
+        self._name.setFont(_overlay_font(13, QFont.Weight.DemiBold))
+        self._name.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._name.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._meta = QLabel()
         self._meta.setObjectName("fileProgressMeta")
+        self._meta.setWordWrap(False)
+        self._meta.setFont(_overlay_font(11))
+        self._meta.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         text_col.addWidget(self._name)
         text_col.addWidget(self._meta)
         top.addLayout(text_col, stretch=1)
@@ -64,30 +84,49 @@ class _FileCard(QFrame):
         self._pct = QLabel("0%")
         self._pct.setObjectName("fileProgressPct")
         self._pct.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self._pct.setMinimumWidth(36)
-        top.addWidget(self._pct)
+        self._pct.setFont(_overlay_font(12, QFont.Weight.DemiBold))
+        self._pct.setMinimumWidth(44)
+        top.addWidget(self._pct, 0, Qt.AlignVCenter)
         root.addLayout(top)
 
         self._bar = QProgressBar()
         self._bar.setObjectName("fileProgressBar")
-        self._bar.setFixedHeight(6)
+        self._bar.setFixedHeight(8)
         self._bar.setTextVisible(False)
         self._bar.setRange(0, 100)
         root.addWidget(self._bar)
 
         self.refresh()
 
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._apply_elide()
+
     def refresh(self) -> None:
-        fmt_label = FORMAT_LABEL_PL.get(self._item.fmt, self._item.fmt.upper())
-        size_hint = self._item.detail or self._item.state
-        self._name.setText(self._item.name)
         self._name.setToolTip(self._item.name)
-        self._meta.setText(f"{fmt_label} · {size_hint}")
+        parts: list[str] = []
+        if self._item.detail:
+            parts.append(self._item.detail)
+        elif self._item.state:
+            parts.append(self._item.state)
+        self._meta_full = " · ".join(parts) if parts else self._item.fmt.upper()
         self._bar.setValue(self._item.percent)
-        self._pct.setText(f"{self._item.percent}%")
+        self._pct.setText(f"{self._item.percent} %")
         self.setProperty("status", self._status_key())
         self.style().unpolish(self)
         self.style().polish(self)
+        self._apply_elide()
+
+    def _apply_elide(self) -> None:
+        name_w = max(48, self._name.width() - 2)
+        self._name.setText(
+            self._name.fontMetrics().elidedText(self._item.name, Qt.TextElideMode.ElideMiddle, name_w)
+        )
+        meta = getattr(self, "_meta_full", "")
+        meta_w = max(48, self._meta.width() - 2)
+        self._meta.setText(
+            self._meta.fontMetrics().elidedText(meta, Qt.TextElideMode.ElideRight, meta_w)
+        )
 
     def _status_key(self) -> str:
         st = self._item.state.lower()
@@ -122,16 +161,17 @@ class ConversionOverlay(QWidget):
         self._panel = QFrame()
         self._panel.setObjectName("conversionOverlayPanel")
         self._panel.setFrameShape(QFrame.Shape.NoFrame)
-        self._panel.setMaximumWidth(560)
-        self._panel.setMinimumWidth(420)
+        self._panel.setMaximumWidth(640)
+        self._panel.setMinimumWidth(480)
         panel_lay = QVBoxLayout(self._panel)
-        panel_lay.setContentsMargins(16, 12, 16, 14)
-        panel_lay.setSpacing(8)
+        panel_lay.setContentsMargins(20, 16, 20, 16)
+        panel_lay.setSpacing(10)
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
         self._title = QLabel("Konwersja plików")
         self._title.setObjectName("conversionOverlayTitle")
+        self._title.setFont(_overlay_font(16, QFont.Weight.DemiBold))
         title_row.addWidget(self._title, stretch=1)
         self._close_btn = QPushButton("✕")
         self._close_btn.setObjectName("overlayAbortBtn")
@@ -143,16 +183,19 @@ class ConversionOverlay(QWidget):
 
         self._summary = QLabel("")
         self._summary.setObjectName("conversionOverlaySummary")
+        self._summary.setFont(_overlay_font(12))
         panel_lay.addWidget(self._summary)
 
         self._bg_hint = QLabel("")
         self._bg_hint.setObjectName("conversionOverlayHint")
         self._bg_hint.setWordWrap(True)
+        self._bg_hint.setFont(_overlay_font(11))
         self._bg_hint.hide()
         panel_lay.addWidget(self._bg_hint)
 
-        self._time_label = QLabel("Czas: 00:00  ·  ETA: --:--")
+        self._time_label = QLabel("Czas: 00:00    ETA: --:--")
         self._time_label.setObjectName("conversionOverlayTime")
+        self._time_label.setFont(_overlay_font(12))
         panel_lay.addWidget(self._time_label)
 
         scroll = QScrollArea()
@@ -264,9 +307,8 @@ class ConversionOverlay(QWidget):
             if "gotow" in i.state.lower() or "zakoń" in i.state.lower()
         )
         err = sum(1 for i in self._items if "błąd" in i.state.lower())
-        self._summary.setText(
-            f"Przetworzono {done} z {total}" + (f" · {err} błędów" if err else "")
-        )
+        extra = f"    {err} błędów" if err else ""
+        self._summary.setText(f"Przetworzono {done} z {total}{extra}")
 
     def finish(self) -> None:
         self._clock.stop()
@@ -285,7 +327,7 @@ class ConversionOverlay(QWidget):
             eta_txt = self._fmt_clock(self._eta_sec)
         else:
             eta_txt = "--:--"
-        self._time_label.setText(f"Czas: {self._fmt_clock(elapsed)}  ·  ETA: {eta_txt}")
+        self._time_label.setText(f"Czas: {self._fmt_clock(elapsed)}    ETA: {eta_txt}")
 
     def _update_summary(self) -> None:
         total = len(self._items)
