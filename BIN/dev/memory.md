@@ -2,9 +2,22 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-14 · **Wersja aplikacji:** 2.4.5
+**Ostatnia aktualizacja:** 2026-09-15 · **Wersja aplikacji:** 2.4.7
 
 ---
+
+## Instalator / SmartScreen (2026-09-15)
+
+- Setup bez Authenticode = „Nieznany wydawca” i SmartScreen (user odpalał `2.4.2-setup.exe`).
+- `sign_file.ps1` **nie wolno** kończyć `exit 0` przy braku PFX — podpisuje lokalnym certem `CN=Inyfinn Photo Resizer` + TrustedPublisher.
+- OV/EV (`INYFINN_CODESIGN_PFX`) gdy będzie — wtedy reputacja też poza tą stacją.
+- `build_installer.ps1` kasuje stare `*-setup.exe` po udanym buildzie.
+
+## GitHub / protected branch (2026-09-15)
+
+- Global rule: `~/.cursor/rules/github-protected-branch.mdc` (ruleset `inyfinn-protect-default`).
+- `main` tego repo: **publiczne** — GitHub blokuje force-push i usunięcie. Zwykły `git push` zostaje.
+- **NIGDY** `--force` na `main`. Prywatne repo Inyfinn bez Pro nie przyjmą rulesetu — agent i tak nie force-pushuje.
 
 ## Zasada nadrzędna (użytkownik)
 
@@ -65,6 +78,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "BIN\dev\scripts\package_rel
 Efekt: launcher w korzeniu + pełna aplikacja w `BIN/` + opcjonalnie `release/InyfinnPhotoResizer-vX.Y.Z.zip`.
 
 ---
+
+## Usuwanie tła + kompresja (2026-09-15)
+
+- rembg **przed** resize na pełnym zdjęciu + alpha matting + model General = partia 51 plików „nie działa” (nigdy nie kończy).
+- Sieć max 2560 px / wymiar wyjścia. Matting tylko ≤1600 px.
+- EXE: nie trzymać `_PROCESS_LOCK` na całym `process_job` — tylko `_INFER_LOCK` wokół `rembg.remove`.
+- pngquant `speed=1` przy q≥50 i oxipng `-o 2` + Pillow `optimize=True` = kompresja stoi. Teraz speed ≥4, oxipng `-o 1 --fast`, zlib 6.
 
 ## Anulowanie batcha (2026-09-14)
 

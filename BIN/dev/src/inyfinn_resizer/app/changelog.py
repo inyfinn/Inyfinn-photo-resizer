@@ -19,6 +19,24 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.7",
+        "2026-09-15",
+        [
+            "Instalator podpisany Authenticode (wydawca Inyfinn) — bez „Nieznany wydawca” na stacji z certyfikatem.",
+            "Stare setup.exe są usuwane przy nowym buildzie, żeby nie odpalać 2.4.2 zamiast bieżącej wersji.",
+        ],
+    ),
+    (
+        "2.4.6",
+        "2026-09-15",
+        [
+            "Usuwanie tła: sieć na wymiarze wyjścia (max 2560 px), nie na pełnym 20 MP.",
+            "Alpha matting tylko do 1600 px — na większych wieszało partię.",
+            "Kompresja PNG szybsza: pngquant bez trybu 1, oxipng -o 1 --fast, bez Pillow optimize.",
+            "EXE nie serializuje już całej konwersji jedną kłódką — tylko sam inference rembg.",
+        ],
+    ),
+    (
         "2.4.5",
         "2026-09-14",
         [

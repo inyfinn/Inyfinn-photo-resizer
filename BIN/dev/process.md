@@ -572,4 +572,39 @@
 
 **Źródła:** `concurrent.futures.Executor.shutdown(wait=False, cancel_futures=True)`
 
+---
+
+## 2026-09-15 — v2.4.6 rembg + wolna kompresja
+
+**Komenda/Akcja:** User: kompresja za wolna, usuwanie tła nie działa.
+
+**Log/Status:**
+1. Log 2026-09-14 16:24:57: 51× PNG, preset `box_2500`, bez „Koniec konwersji”. Profil: `remove_background=true`, `birefnet-general`, `bg_alpha_matting=true`, quality 80 (PNG-24 + oxipng).
+2. rembg leciał na pełnym kadrze, dopiero potem 2500. Alpha matting na 20 MP wiesza. EXE trzymał `_PROCESS_LOCK` na całym jobie — 4 wątki = kolejka.
+3. pngquant przy q≥50 miał speed 1; oxipng `-o 2`; Pillow `optimize=True`.
+4. rembg po downscale do max(wyjście, 2560); matting ≤1600; lock tylko na inference; oxipng `-o 1 --fast`; zlib 6. **2.4.6**.
+
+**Efekt/Fix:** Usuwanie tła na wymiarze wyjścia; kompresja PNG bez najwolniejszych presetów.
+
+**Test/Ewaluacja:** testy rembg cap/matting + pngquant speed + oxipng flags
+
+**Źródła:** `BIN/logs/activity.log`; profil `auto-20260914-163617.json`; pngquant `--speed`; oxipng `-o`
+
+---
+
+## 2026-09-15 — v2.4.7 instalator / SmartScreen
+
+**Komenda/Akcja:** User: instalator nie działa + zrzut SmartScreen na `InyfinnPhotoResizer-2.4.2-setup.exe` (Nieznany wydawca).
+
+**Log/Status:**
+1. `Get-AuthenticodeSignature` na 2.4.5-setup: `NotSigned`. `sign_file.ps1` przy braku PFX robił `exit 0`.
+2. User odpalał stary 2.4.2, nie 2.4.5/2.4.6.
+3. ISCC exit 2: `[Setup] AppPublisher already specified` (linia 12 + 33). Dlatego 2.4.7-setup w ogóle nie powstawał.
+4. `sign_file.ps1` — lokalny cert CodeSigning + TrustedPublisher; kasowanie starych setup.exe. **2.4.7**.
+5. BIN EXE na `D:\Marketing` bywa ReparsePoint / uszkodzony PE — podpis z `build\dist`, potem Copy-Item na BIN.
+
+**Efekt/Fix:** `InyfinnPhotoResizer-2.4.7-setup.exe` (~1.89 GB) w `BIN\dev\installer-output\`, Authenticode `CN=Inyfinn Photo Resizer`. Stare setup.exe usunięte. ISCC pisze do `%TEMP%` (unik locka sync na D:\). `$localOut` w PS = `$local:Out` — zmienna `isccOutDir`.
+
+**Źródła:** Inno Setup [Setup] AppPublisher; Microsoft Authenticode / SmartScreen; `Set-AuthenticodeSignature`
+
 

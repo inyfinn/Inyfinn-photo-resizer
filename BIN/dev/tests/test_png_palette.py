@@ -197,6 +197,43 @@ def test_unique_conv_path(tmp_path) -> None:
     assert second.name == "KULKI-KREATYNA1_conv2.png"
 
 
+def test_pngquant_speed_is_not_slowest_preset() -> None:
+    from inyfinn_resizer.core.compressors.png import speed_for_quality
+
+    assert speed_for_quality(80, 0) >= 4
+    assert speed_for_quality(50, 0) >= 4
+    assert speed_for_quality(50, 24) >= 3
+    assert speed_for_quality(30, 0) >= 5
+
+
+def test_oxipng_uses_fast_level(tmp_path, monkeypatch) -> None:
+    from inyfinn_resizer.core.compressors.external import optimize_png_oxipng
+
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        captured.append(cmd)
+
+        class R:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return R()
+
+    monkeypatch.setattr("inyfinn_resizer.core.compressors.external.find_tool", lambda _: tmp_path / "oxipng.exe")
+    monkeypatch.setattr("inyfinn_resizer.core.compressors.external.run_hidden", fake_run)
+    png = tmp_path / "a.png"
+    png.write_bytes(b"x")
+    ok, _ = optimize_png_oxipng(png)
+    assert ok
+    assert captured
+    cmd = captured[0]
+    assert "-o" in cmd
+    assert cmd[cmd.index("-o") + 1] == "1"
+    assert "--fast" in cmd
+
+
 def test_changelog_head_matches_version() -> None:
     from inyfinn_resizer import __version__
     from inyfinn_resizer.app.changelog import CHANGELOG

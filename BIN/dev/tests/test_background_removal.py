@@ -9,10 +9,17 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from inyfinn_resizer.core.job import FormatOptions, JobSpec, ResizeOptions, TransformOptions
+from inyfinn_resizer.core.job import FormatOptions, JobSpec, ResizeMode, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.pipeline import process_job
 from inyfinn_resizer.core.size_presets import PRESET_ORIGINAL, apply_size_preset
-from inyfinn_resizer.core.transforms.background_removal import alpha_matting_available, model_is_ready
+from inyfinn_resizer.core.transforms.background_removal import (
+    ALPHA_MATTING_MAX_EDGE,
+    REMBG_MAX_EDGE,
+    alpha_matting_available,
+    downscale_for_rembg,
+    model_is_ready,
+    rembg_max_edge,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "IMG_0113.jpg"
 OUTPUT = Path(__file__).parent / "output"
@@ -36,6 +43,66 @@ def require_rmbg_model():
     assert model_is_ready("birefnet-general-lite"), (
         "Brak modelu lite — uruchom BIN\\dev\\scripts\\setup_rmbg_models.ps1"
     )
+
+
+def test_rembg_max_edge_follows_output_box():
+    assert rembg_max_edge(box_w=2500, box_h=2500) == 2500
+    assert rembg_max_edge() == REMBG_MAX_EDGE
+    assert rembg_max_edge(box_w=8000, box_h=8000) == REMBG_MAX_EDGE
+    assert rembg_max_edge(dimension=1200) == 1200
+
+
+def test_downscale_for_rembg_caps_long_edge():
+    im = Image.new("RGB", (4000, 3000), (10, 20, 30))
+    out = downscale_for_rembg(im, 2500)
+    assert max(out.size) == 2500
+    assert downscale_for_rembg(im, 5000) is im
+
+
+def test_remove_background_skips_matting_on_large_image(monkeypatch):
+    import rembg
+    import inyfinn_resizer.core.transforms.background_removal as bg
+
+    captured: dict = {}
+
+    def fake_remove(src, **kwargs):
+        captured.update(kwargs)
+        return Image.new("RGBA", src.size, (0, 0, 0, 0))
+
+    monkeypatch.setattr(bg, "get_session", lambda *a, **k: object())
+    monkeypatch.setattr(bg, "alpha_matting_available", lambda: True)
+    monkeypatch.setattr(rembg, "remove", fake_remove)
+
+    big = Image.new("RGB", (ALPHA_MATTING_MAX_EDGE + 200, 800), (8, 8, 8))
+    result = bg.remove_background(big, model_name="birefnet-general-lite", alpha_matting=True)
+    assert result.mode == "RGBA"
+    assert captured.get("alpha_matting") is False
+
+
+def test_rgba_pipeline_resizes_before_rembg(monkeypatch, tmp_path):
+    from inyfinn_resizer.core.pipeline import _save_pillow_rgba
+
+    src = tmp_path / "big.jpg"
+    Image.new("RGB", (4000, 3000), (40, 30, 20)).save(src, format="JPEG", quality=80)
+    seen: list[tuple[int, int]] = []
+
+    def fake_remove(image, **kwargs):
+        seen.append(image.size)
+        return Image.new("RGBA", image.size, (10, 20, 30, 0))
+
+    monkeypatch.setattr("inyfinn_resizer.core.pipeline.remove_background", fake_remove)
+    out = tmp_path / "out.png"
+    job = JobSpec(
+        input_path=src,
+        output_path=out,
+        output_format="png",
+        resize=ResizeOptions(mode=ResizeMode.FIT_BOX, box_w=2500, box_h=2500),
+        transforms=TransformOptions(remove_background=True, bg_model="birefnet-general-lite"),
+    )
+    _save_pillow_rgba(job, out)
+    assert seen
+    assert seen[0] == (2500, 2500)
+    assert out.is_file()
 
 
 def test_original_preset_does_not_clear_remove_background_flag():

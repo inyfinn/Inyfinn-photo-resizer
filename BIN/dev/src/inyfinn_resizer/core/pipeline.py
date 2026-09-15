@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
-import sys
 import threading
-from contextlib import nullcontext
 from pathlib import Path
 
 try:
@@ -32,7 +30,11 @@ from inyfinn_resizer.core.job import JobResult, JobSpec, JobStatus
 from inyfinn_resizer.core.metadata.exif import strip_metadata_file
 from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_scale_postprocess, apply_transforms
 from inyfinn_resizer.core.transforms.matte import apply_jpeg_matte
-from inyfinn_resizer.core.transforms.background_removal import remove_background
+from inyfinn_resizer.core.transforms.background_removal import (
+    downscale_for_rembg,
+    rembg_max_edge,
+    remove_background,
+)
 from inyfinn_resizer.core.image_loader import open_image
 from inyfinn_resizer.core.transforms.rgb_bitmap import rgb_bitmap, vips_rgb_bitmap
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
@@ -45,7 +47,6 @@ from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, bundled_libvips
 
 _VIPS_READY = False
 _VIPS_LOCK = threading.Lock()
-_PROCESS_LOCK = threading.Lock()
 
 
 def _init_vips() -> bool:
@@ -153,8 +154,7 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
             optimize_coding=opts.optimize, interlace=opts.progressive,
         )
     elif fmt == "png":
-        compression = 9 if opts.optimize else 6
-        image.pngsave(str(path), compression=compression, strip=not opts.keep_metadata)
+        image.pngsave(str(path), compression=6, strip=not opts.keep_metadata)
     elif fmt == "webp":
         image.webpsave(str(path), Q=q, lossless=opts.lossless, strip=not opts.keep_metadata)
     elif fmt == "avif":
@@ -186,21 +186,34 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
         image.write_to_file(str(path))
 
 
+def _save_png(im, path: Path) -> None:
+    """Pillow optimize=True na dużym RGBA potrafi trwać minuty — zlib 6 wystarcza."""
+    im.save(path, format="PNG", optimize=False, compress_level=6)
+
+
 def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
     """Pipeline z usunięciem tła — zachowuje kanał alpha."""
     from PIL import Image
 
     im = open_image(job.input_path)
     try:
+        im = apply_transforms_pil(im, job.transforms)
+        im = apply_resize_pil(im, job.resize)
+        im = apply_scale_postprocess_pil(im, job.resize)
+        cap = rembg_max_edge(
+            box_w=job.resize.box_w,
+            box_h=job.resize.box_h,
+            width=job.resize.width,
+            height=job.resize.height,
+            dimension=job.resize.dimension,
+        )
+        im = downscale_for_rembg(im, cap)
         im = remove_background(
             im,
             model_name=job.transforms.bg_model,
             alpha_matting=job.transforms.bg_alpha_matting,
             post_process_mask=job.transforms.bg_post_process_mask,
         )
-        im = apply_transforms_pil(im, job.transforms)
-        im = apply_resize_pil(im, job.resize)
-        im = apply_scale_postprocess_pil(im, job.resize)
         if im.mode != "RGBA":
             im = im.convert("RGBA")
 
@@ -212,13 +225,13 @@ def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
             quality = _effective_lossy_quality(job.input_path, quality)
 
         if fmt == "png":
-            im.save(out_path, format="PNG", optimize=opts.optimize)
+            _save_png(im, out_path)
         elif fmt == "webp":
             im.save(
                 out_path,
                 format="WEBP",
                 quality=quality,
-                method=6,
+                method=4,
                 lossless=opts.lossless,
             )
         elif fmt == "avif":
@@ -236,7 +249,7 @@ def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
             flat.paste(im, mask=im.split()[-1])
             flat.save(out_path, format="JPEG", quality=quality, optimize=True)
         else:
-            im.save(out_path, format="PNG", optimize=True)
+            _save_png(im, out_path)
     finally:
         im.close()
 
@@ -280,13 +293,13 @@ def _save_pillow_fallback(job: JobSpec, out_path: Path) -> None:
         elif fmt_save == "WEBP":
             im.save(out_path, format="WEBP", quality=quality)
         elif fmt_save == "PNG":
-            im.save(out_path, format="PNG", optimize=True)
+            _save_png(im, out_path)
         elif fmt_save == "AVIF":
             cap = None if job.format_opts.lossless else avif_max_bytes(job.format_opts.avif_max_kb)
             if not save_avif_capped(
                 im, out_path, max_bytes=cap, quality=quality, lossless=job.format_opts.lossless
             ):
-                im.save(out_path, format="PNG", optimize=True)
+                _save_png(im, out_path)
                 raise OSError("AVIF: nie udało się zapisać w limicie wagi")
         elif fmt_save == "TIFF":
             im.save(out_path, format="TIFF", compression="tiff_lzw")
@@ -471,55 +484,60 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
     if staging.exists():
         staging.unlink(missing_ok=True)
 
-    lock = _PROCESS_LOCK if getattr(sys, "frozen", False) else nullcontext()
     fmt = job.output_format.lower()
 
     try:
-        with lock:
+        try:
+            staging.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise OSError(f"Nie można utworzyć folderu wyjściowego: {staging.parent}") from exc
+
+        src_bytes = result.old_bytes
+        cmyk_tiff = _is_cmyk_tiff(inp)
+        use_vips = not cmyk_tiff and fmt not in ("bmp",) and _init_vips()
+        if job.transforms.remove_background:
+            _save_pillow_rgba(job, staging)
+        elif fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
+            shutil.copy2(inp, staging)
+        elif use_vips:
             try:
-                staging.parent.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                raise OSError(f"Nie można utworzyć folderu wyjściowego: {staging.parent}") from exc
-
-            src_bytes = result.old_bytes
-            cmyk_tiff = _is_cmyk_tiff(inp)
-            use_vips = not cmyk_tiff and fmt not in ("bmp",) and _init_vips()
-            if job.transforms.remove_background:
-                _save_pillow_rgba(job, staging)
-            elif fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
-                shutil.copy2(inp, staging)
-            elif use_vips:
-                try:
-                    image = _load_image(job)
-                    _save_vips(image, staging, fmt, job.format_opts, source_path=job.input_path)
-                except Exception:
-                    _save_pillow_fallback(job, staging)
-            else:
-                _save_pillow_fallback(job, staging)
-
-            if not staging.is_file() or staging.stat().st_size == 0:
-                raise OSError("Zapis pliku wyjściowego nie powiódł się")
-
-            try:
-                _post_compress(staging, fmt, job.format_opts, source_bytes=src_bytes)
+                image = _load_image(job)
+                _save_vips(image, staging, fmt, job.format_opts, source_path=job.input_path)
             except Exception:
-                pass  # pngquant/gifsicle opcjonalne — plik już zapisany
+                _save_pillow_fallback(job, staging)
+        else:
+            _save_pillow_fallback(job, staging)
 
-            if (
-                job.metadata.strip_all
-                or not job.metadata.keep_exif
-                or (fmt == "avif" and job.format_opts.rgb_bitmap_only)
-            ):
-                strip_metadata_file(staging, job.metadata)
+        if not staging.is_file() or staging.stat().st_size == 0:
+            raise OSError("Zapis pliku wyjściowego nie powiódł się")
 
-            if in_place:
-                os.replace(staging, out)
-            result.new_bytes = out.stat().st_size
-            result.status = JobStatus.OK
-            result.message = "OK"
+        try:
+            _post_compress(staging, fmt, job.format_opts, source_bytes=src_bytes)
+        except Exception:
+            pass  # pngquant/gifsicle opcjonalne — plik już zapisany
+
+        if (
+            job.metadata.strip_all
+            or not job.metadata.keep_exif
+            or (fmt == "avif" and job.format_opts.rgb_bitmap_only)
+        ):
+            strip_metadata_file(staging, job.metadata)
+
+        if in_place:
+            os.replace(staging, out)
+        result.new_bytes = out.stat().st_size
+        result.status = JobStatus.OK
+        result.message = "OK"
     except Exception as exc:
         result.status = JobStatus.ERROR
         result.message = _polish_error(exc)
+        if job.transforms.remove_background:
+            try:
+                from inyfinn_resizer.utils.app_log import log_event
+
+                log_event("Usuwanie tła", result.message, status="ERROR")
+            except OSError:
+                pass
         if staging.exists() and staging != out:
             staging.unlink(missing_ok=True)
         elif out.exists() and in_place and out.stat().st_size == 0:
@@ -548,4 +566,17 @@ def build_output_path(
                 return root / rel.parent / (input_path.stem + ext)
         except ValueError:
             pass
-        parent_name = input_path.parent.na
+        parent_name = input_path.parent.name
+        if parent_name:
+            return root / parent_name / (input_path.stem + ext)
+    return root / (input_path.stem + ext)
+
+
+class ProcessingPipeline:
+    """High-level batch API."""
+
+    def process(self, job: JobSpec, overwrite: bool = True) -> JobResult:
+        return process_job(job, overwrite=overwrite)
+
+    def process_many(self, jobs: list[JobSpec], overwrite: bool = True) -> list[JobResult]:
+        return [self.process(j, overwrite=overwrite) for j in jobs]

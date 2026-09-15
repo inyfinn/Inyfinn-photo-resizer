@@ -68,6 +68,9 @@ robocopy $built $BinRoot /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
 if (-not (Test-Path $binAppExe)) {
     Write-Error "Deploy failed - brak BIN\InyfinnPhotoResizer.exe"
 }
+# D:\Marketing bywa reparse — robocopy zostawia inny/uszkodzony PE. Podpisuj dist, nadpisz BIN.
+& (Join-Path $DevRoot "scripts\sign_file.ps1") $builtExe
+Copy-Item -LiteralPath $builtExe -Destination $binAppExe -Force
 if (-not (Test-Path $binInternal)) {
     Write-Error "Deploy failed - brak BIN\_internal"
 }
@@ -135,10 +138,11 @@ if (-not $launcherBuilt) {
 if (-not $launcherBuilt) {
     Write-Error "Launcher build failed"
 }
+& (Join-Path $DevRoot "scripts\sign_file.ps1") $launcherBuilt
 Copy-Item $launcherBuilt $rootExe -Force
-
-& (Join-Path $DevRoot "scripts\sign_file.ps1") $binAppExe
-& (Join-Path $DevRoot "scripts\sign_file.ps1") $rootExe
+if ((Get-FileHash $builtExe).Hash -ne (Get-FileHash $binAppExe).Hash) {
+    Copy-Item -LiteralPath $builtExe -Destination $binAppExe -Force
+}
 
 $binSizeMB = [math]::Round((Get-Item $binAppExe).Length / 1MB, 2)
 $rootSizeMB = [math]::Round((Get-Item $rootExe).Length / 1MB, 2)
@@ -225,7 +229,4 @@ Zbudowano: $stamp
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
     cmd /c "rd /s /q `"$staging`"" 2>$null
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
-    $zipMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
-    Write-Host "RELEASE ZIP: $zipPath (${zipMb} MB)"
-    Write-Host ""
-}
+    $zipMb = [math]::Round((Get-Item $zipPath).L

@@ -34,6 +34,11 @@ BIN/dev/test_out_*.png
 # ZIP release (GitHub Releases)
 release/
 
+# Certyfikaty podpisu (nigdy do publicznego repo)
+*.pfx
+*.p12
+BIN/dev/certs/
+
 # Ikona kopiowana przy buildzie
 InyfinnPhotoResizer.ico
 

@@ -1,6 +1,6 @@
 ; Inno Setup script for Inyfinn Photo Resizer
 #define MyAppName "Inyfinn Photo Resizer"
-#define MyAppVersion "2.4.5"
+#define MyAppVersion "2.4.7"
 #define MyAppPublisher "Inyfinn"
 #define MyAppExeName "InyfinnPhotoResizer.exe"
 #define MyAppMutex "InyfinnPhotoResizerAppMutex"
@@ -25,9 +25,14 @@ CloseApplications=force
 CloseApplicationsFilter=*.exe,*.dll,*.pyd
 RestartApplications=no
 MinVersion=10.0
+VersionInfoCompany=Inyfinn
+VersionInfoCopyright=Inyfinn
+VersionInfoProductName={#MyAppName}
+VersionInfoProductTextVersion={#MyAppVersion}
+VersionInfoVersion=2.4.7.0
+UninstallDisplayName={#MyAppName}
 
-; Podpisywanie (SmartScreen): po zbudowaniu uruchom sign_file.ps1 na setup.exe
-; Ustaw INYFINN_CODESIGN_PFX i INYFINN_CODESIGN_PASS
+; Podpis Authenticode: BIN/dev/scripts/sign_file.ps1 (po ISCC). Bez PFX = lokalny cert Inyfinn.
 [Languages]
 Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"

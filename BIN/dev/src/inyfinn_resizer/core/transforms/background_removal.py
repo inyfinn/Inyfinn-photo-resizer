@@ -17,7 +17,12 @@ if TYPE_CHECKING:
 _SESSIONS: dict[str, object] = {}
 _SESSION_PROVIDERS: dict[str, list[str]] = {}
 _SESSION_LOCK = threading.Lock()
+_INFER_LOCK = threading.Lock()
 _ALPHA_MATTING_READY: bool | None = None
+
+# rembg na pełnym 20 MP + alpha matting wiesza partię (51 plików, 2026-09-14).
+REMBG_MAX_EDGE = 2560
+ALPHA_MATTING_MAX_EDGE = 1600
 
 SUPPORTED_MODELS = ("birefnet-general-lite", "birefnet-general")
 
@@ -90,6 +95,34 @@ def alpha_matting_available() -> bool:
     return _ALPHA_MATTING_READY
 
 
+def rembg_max_edge(
+    *,
+    box_w: int = 0,
+    box_h: int = 0,
+    width: int = 0,
+    height: int = 0,
+    dimension: int = 0,
+) -> int:
+    """Najdłuższy bok, na którym puszczamy sieć — nie większy niż wyjście i 2560 px."""
+    target = max(int(box_w or 0), int(box_h or 0), int(width or 0), int(height or 0), int(dimension or 0))
+    if target > 0:
+        return max(64, min(REMBG_MAX_EDGE, target))
+    return REMBG_MAX_EDGE
+
+
+def downscale_for_rembg(image: "Image.Image", max_edge: int) -> "Image.Image":
+    from PIL import Image as PILImage
+
+    w, h = image.size
+    longest = max(w, h)
+    if longest <= max_edge or max_edge <= 0:
+        return image
+    scale = max_edge / longest
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    return image.resize((nw, nh), PILImage.Resampling.LANCZOS)
+
+
 def model_is_ready(model_name: str) -> bool:
     if model_name not in SUPPORTED_MODELS:
         return False
@@ -150,18 +183,23 @@ def remove_background(
     """Zwraca obraz RGBA z przezroczystym tłem."""
     from rembg import remove
 
-    use_alpha_matting = alpha_matting and alpha_matting_available()
     src = image.convert("RGB") if image.mode not in ("RGB", "RGBA") else image
+    use_alpha_matting = (
+        alpha_matting
+        and alpha_matting_available()
+        and max(src.size) <= ALPHA_MATTING_MAX_EDGE
+    )
 
     for force_cpu in (False, True):
         try:
             session = get_session(model_name, force_cpu=force_cpu)
-            result = remove(
-                src,
-                session=session,
-                alpha_matting=use_alpha_matting,
-                post_process_mask=post_process_mask,
-            )
+            with _INFER_LOCK:
+                result = remove(
+                    src,
+                    session=session,
+                    alpha_matting=use_alpha_matting,
+                    post_process_mask=post_process_mask,
+                )
             if result.mode != "RGBA":
                 result = result.convert("RGBA")
             return result

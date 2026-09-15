@@ -59,7 +59,7 @@ def optimize_png_oxipng(path: Path) -> tuple[bool, str]:
     oxipng = find_tool("oxipng")
     if not oxipng:
         return False, "no_oxipng"
-    ok, msg = run_external([str(oxipng), "-o", "2", "--strip", "safe", str(path)])
+    ok, msg = run_external([str(oxipng), "-o", "1", "--fast", "--strip", "safe", str(path)])
     return ok, msg if ok else f"oxipng: {msg}"
 
 

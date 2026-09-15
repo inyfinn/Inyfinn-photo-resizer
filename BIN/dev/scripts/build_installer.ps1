@@ -33,26 +33,54 @@ if (-not $iscc) {
 }
 
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-& $iscc $iss
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "ISCC zakończył się kodem $LASTEXITCODE"
+# D:\Marketing bywa reparse/sync — ISCC kończy kompresję i pada na „plik w użyciu”.
+$isccOutDir = Join-Path $env:TEMP "inyfinn-installer-output"
+if (Test-Path -LiteralPath $isccOutDir) {
+    Remove-Item -LiteralPath $isccOutDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Force -Path $isccOutDir | Out-Null
+Write-Host "ISCC: $iscc"
+Write-Host "ISS:  $iss"
+Write-Host "OUT:  $isccOutDir"
+& $iscc "/O$isccOutDir" $iss
+$isccCode = $LASTEXITCODE
+if ($null -eq $isccCode -or $isccCode -ne 0) {
+    Write-Error "ISCC zakończył się kodem $isccCode"
 }
 
 $venvPy = Join-Path $DevRoot ".venv\Scripts\python.exe"
 $version = "unknown"
 if (Test-Path $venvPy) {
-    $version = & $venvPy -c "from inyfinn_resizer import __version__; print(__version__)"
+    $version = (& $venvPy -c "from inyfinn_resizer import __version__; print(__version__)").Trim()
 }
 $expectedName = "InyfinnPhotoResizer-$version-setup.exe"
-$setup = Get-ChildItem $outDir -Filter $expectedName -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $setup) {
-    $setup = Get-ChildItem (Join-Path $AppRoot "installer-output") -Filter $expectedName -ErrorAction SilentlyContinue | Select-Object -First 1
+$compiledSetup = Join-Path $isccOutDir $expectedName
+if (-not (Test-Path -LiteralPath $compiledSetup)) {
+    $found = Get-ChildItem -LiteralPath $isccOutDir -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($found) { $compiledSetup = $found.FullName }
 }
-if (-not $setup) {
-    Write-Error "Nie znaleziono pliku setup w $outDir"
+if (-not (Test-Path -LiteralPath $compiledSetup)) {
+    Write-Error "Nie znaleziono pliku setup w $isccOutDir"
 }
 
-& (Join-Path $DevRoot "scripts\sign_file.ps1") $setup.FullName
+& (Join-Path $DevRoot "scripts\sign_file.ps1") $compiledSetup
+
+$expectedPath = Join-Path $outDir $expectedName
+Copy-Item -LiteralPath $compiledSetup -Destination $expectedPath -Force
+$setup = Get-Item -LiteralPath $expectedPath
+
+# Tylko bieżący setup — stare 2.4.x mylą i odpalają SmartScreen na niepodpisanym pliku.
+$oldDirs = @($outDir, (Join-Path $AppRoot "PORTABLE"), (Join-Path $AppRoot "release"))
+foreach ($dir in $oldDirs) {
+    if (-not (Test-Path -LiteralPath $dir)) { continue }
+    Get-ChildItem -LiteralPath $dir -Recurse -Filter "InyfinnPhotoResizer-*-setup.exe" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -ne $setup.FullName } |
+        ForEach-Object {
+            Write-Host "Usuwam stary instalator: $($_.FullName)"
+            Remove-Item -LiteralPath $_.FullName -Force
+        }
+}
+
 Write-Host ""
 Write-Host "Instalator gotowy:"
 Write-Host "  $($setup.FullName)"

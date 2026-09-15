@@ -19,7 +19,7 @@ PNGQUANT_BANDS = [
 ]
 
 DEFAULT_TARGET_TOLERANCE = 0.2
-PNGQUANT_SPEED = 2
+PNGQUANT_SPEED = 5
 MAX_TARGET_KB_TRIES = 3
 MAX_QUALITY_FALLBACKS = 2
 PQ_MARKER = ".pq."
@@ -192,10 +192,15 @@ def effective_png_palette(path: Path, base_palette: int, *, quality_pct: int = 1
 
 
 def speed_for_quality(quality_pct: int, accent_boost: int) -> int:
+    """pngquant: 1 = najwolniej, 11 = najszybciej. 1 przy q≥50 dusiło partie."""
     q = max(5, min(100, int(quality_pct)))
-    if accent_boost >= 16 or q >= 50:
-        return 1
-    return 2
+    if accent_boost >= 16:
+        return 3
+    if q >= 80:
+        return 4
+    if q >= 50:
+        return 5
+    return 6
 
 
 def cleanup_pngquant_artifacts_for(path: Path) -> None:
