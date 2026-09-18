@@ -64,6 +64,7 @@ from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
 from inyfinn_resizer.app.widgets.layout_helpers import (
+    ACTION_H,
     BTN_H,
     COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
@@ -71,6 +72,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     TILE_PADDING,
     TILE_PADDING_TOP,
     browse_button,
+    mark_large,
     compact_row,
     field_label,
     footer_button,
@@ -424,7 +426,7 @@ class MainWindow(QMainWindow):
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
             ("Dodaj folder", self._add_folder_dialog, icon_folder_green()),
             ("Wyczyść", self._clear_queue, icon_clear_gray()),
-        ]))
+        ], large=True))
         self.simple_queue_label = QLabel("0 plików")
         self.simple_queue_label.setObjectName("queueCount")
         files_lay.addWidget(self.simple_queue_label)
@@ -465,8 +467,8 @@ class MainWindow(QMainWindow):
         self.simple_output_edit.setObjectName("outputDirEdit")
         self.simple_output_edit.setReadOnly(True)
         self.simple_output_edit.setPlaceholderText("Nie wybrano folderu…")
-        self.simple_output_edit.setMinimumHeight(BTN_H)
         self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        mark_large(self.simple_output_edit)
         simple_browse = browse_button(
             "Wybierz folder…",
             tooltip="Wybierz folder na gotowe zdjęcia",
@@ -474,6 +476,7 @@ class MainWindow(QMainWindow):
         )
         simple_browse.setIcon(action_icon_folder_orange())
         simple_browse.setIconSize(QSize(16, 16))
+        mark_large(simple_browse)
         out_row.addWidget(self.simple_output_edit, stretch=1)
         out_row.addWidget(simple_browse)
         out_lay.addLayout(out_row)
@@ -489,8 +492,11 @@ class MainWindow(QMainWindow):
         )
         self.simple_convert_btn.setObjectName("footerConvert")
         self.simple_convert_btn.setMinimumWidth(168)
+        # footer_button daje 32 px; Konwertuj stoi w jednym rzędzie z formatami (36 px).
+        self.simple_convert_btn.setFixedHeight(ACTION_H)
         self.simple_convert_btn.setToolTip("Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła.")
-        action_row.addWidget(self.simple_convert_btn)
+        # Nad formatami jest podpis — dolne krawędzie mają być w jednej linii, nie środki.
+        action_row.addWidget(self.simple_convert_btn, 0, Qt.AlignmentFlag.AlignBottom)
 
         fmt_col = QVBoxLayout()
         fmt_col.setContentsMargins(0, 0, 0, 0)
@@ -509,6 +515,7 @@ class MainWindow(QMainWindow):
         ):
             chip = QPushButton(label)
             chip.setObjectName("formatChip")
+            chip.setFixedHeight(ACTION_H)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             chip.setToolTip(tip)
             chip.clicked.connect(lambda _checked=False, f=fmt: self._start_simple_convert(f))

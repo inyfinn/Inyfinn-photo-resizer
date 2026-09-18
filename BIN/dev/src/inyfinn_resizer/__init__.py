@@ -1,3 +1,3 @@
 """Inyfinn Photo Resizer — native batch image converter."""
 
-__version__ = "2.4.10"
+__version__ = "2.4.11"

@@ -56,7 +56,10 @@ def test_retire_thread_keeps_reference_when_wait_times_out(qapp, monkeypatch) ->
     UpdateManager._retire_thread(manager, thread, None)
 
     assert manager._retired_threads == [thread], "wątek bez potwierdzenia końca zostaje w referencjach"
-    thread.wait(5000)
+    # Prawdziwe QThread.wait — podmieniony wait() zwraca od razu, a GC działającego
+    # wątku to dokładnie awaria, przed którą chroni _retire_thread.
+    monkeypatch.undo()
+    assert QThread.wait(thread, 5000)
 
 
 def test_retire_thread_accepts_none(qapp) -> None:

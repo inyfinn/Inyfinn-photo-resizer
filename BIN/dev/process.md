@@ -632,3 +632,22 @@
 - E2E instalatora (Opus, build z modelami): exit 0, start v2.4.8, dezinstalacja bez pozostałości
 
 **Źródła:** `gh release list`; `git show v2.4.2:.../results_dialog.py`; rembg `sessions/birefnet_general*.py` (URL + MD5); GitHub REST `assets[].digest`; Inno Setup `[UninstallDelete]`
+---
+
+## 2026-09-18 — v2.4.10 / 2.4.11: nagłe zamykanie przy aktualizacji, równe przyciski
+
+**Komenda/Akcja:** Test auto-update na kopii zainstalowanej z GitHuba; user: przyciski trybu prostego mają nierówną wysokość.
+
+**Log/Status:**
+1. 2.4.8 → 2.4.9: aplikacja 3× zniknęła w trakcie pobierania (wolne łącze). Zrzuty CrashDumps: Qt6Core `0xC0000409`, fast-fail 7, wątek główny, ślad przez shiboken/PySide.
+2. Przyczyna: `_cleanup_*_thread` na `finished()` zdejmował ostatnią referencję QThread, zanim Qt oznaczył wątek jako zakończony → qFatal.
+3. Fix 2.4.10: `_retire_thread` (wait + lista referencji) w UpdateManager, `_retire_worker_thread` w MainWindow (anulowana konwersja). `INYFINN_STDERR_FILE` do diagnostyki EXE.
+4. Test: 2.4.9 → 2.4.10 przez aplikację — pobranie, instalacja, restart, „potwierdzono v2.4.10 po restarcie”, bez awarii.
+5. 2.4.11: tryb prosty — `CONTROL_H 32` / `ACTION_H 36`, Konwertuj wyrównany do dołu z PNG/JPG/AVIF, pole ścieżki = przycisk folderu.
+6. Mój test regresji sam wywrócił pytest (access violation w GC): podmieniony `wait` + koniec testu z żywym wątkiem. Poprawione `monkeypatch.undo()`.
+
+**Efekt/Fix:** auto-update działa end-to-end; przyciski trybu prostego w dwóch wysokościach, wspólna linia bazowa.
+
+**Test/Ewaluacja:** pytest 129 passed (2 przebiegi); pomiar geometrii: Dodaj* 32, pole/folder 32, Konwertuj/PNG/JPG/AVIF 36 z tą samą dolną krawędzią; zrzuty jasny + ciemny.
+
+**Źródła:** Qt `QThreadPrivate::finish` (emit finished przed running=false); minidump ExceptionStream / ThreadListStream; `%LOCALAPPDATA%\CrashDumps`

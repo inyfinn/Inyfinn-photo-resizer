@@ -14,6 +14,26 @@
 - Pliki na `D:\Marketing` bywają ucinane / podmieniane przez sync (ucięty `package_release.ps1` w commicie 2.4.7, uszkodzone `BiRefNet-*.onnx` o poprawnym rozmiarze). Przed commitem: `compileall`, parsowanie `*.ps1`, `git diff --stat`.
 - `sign_file.ps1` odrzuca `HashMismatch` / `NotSigned` (setup 2 GB miał nieważny podpis, a skrypt zgłaszał sukces).
 
+## QThread — EXE ginie bez śladu (2026-09-18, naprawione w 2.4.10)
+
+- Objaw: aplikacja znika w trakcie pobierania aktualizacji, zero komunikatu. Zrzut w `%LOCALAPPDATA%\CrashDumps`: `Qt6Core.dll`, kod `0xC0000409`, fast-fail **7** (FATAL_APP_EXIT = qFatal/abort), wątek główny.
+- Przyczyna: `finished()` QThread leci ZANIM Qt oznaczy wątek jako zakończony. Zdjęcie ostatniej referencji w slocie `finished` → `~QThread` na działającym wątku → qFatal „QThread: Destroyed while thread is still running”.
+- Zasada: przed `deleteLater()` zawsze `thread.wait()`; trzymaj referencję na liście (`UpdateManager._retire_thread`, `MainWindow._retire_worker_thread`). Nie podmieniaj `wait` w testach bez `monkeypatch.undo()`.
+- Diagnostyka EXE: `INYFINN_STDERR_FILE=<plik>` zapisuje stderr + faulthandler. Bez tego windowed build gubi komunikaty.
+- Awaria zależała od czasu — przy szybkim łączu nie występowała. Test „raz przeszło” nic nie dowodzi.
+
+## Test auto-update (jak robić)
+
+- Zainstaluj starszą wersję z setupu **pobranego z GitHuba** do `%LOCALAPPDATA%\Temp\inyf-*`, opublikuj nowszą, uruchom starszą.
+- Klikanie z agenta: UI Automation na Qt potrafi wywrócić proces — nie używać. `SetCursorPos` + DPI-aware (`SetProcessDpiAwarenessContext(-4)`), bezpiecznik: klik tylko gdy okno pod kursorem należy do PID aplikacji. Obok pracują Teams/Photoshop użytkownika.
+- `package_release.ps1` zabija **wszystkie** procesy InyfinnPhotoResizer — uprzedź użytkownika przed buildem.
+
+## Tryb prosty — wysokości kontrolek (2.4.11)
+
+- `CONTROL_H = 32` (pole ścieżki, Wybierz folder, Dodaj/Wyczyść), `ACTION_H = 36` (Konwertuj, PNG/JPG/AVIF). Helper `mark_large()` + QSS `[large="true"]`.
+- QSS `min-height` liczy się BEZ obramowania: chip z border 2px ma w QSS 32 px, żeby wyszło 36.
+- `setFixedHeight` w kodzie i `min/max-height` w QSS muszą się zgadzać — wcześniej Konwertuj miał 32 w kodzie i 36 w QSS.
+
 ## Modele usuwania tła (od 2.4.8)
 
 - **Nie są w instalatorze** (~200 MB zamiast 2 GB; limit Inno i assetu GitHub = 2 GiB).

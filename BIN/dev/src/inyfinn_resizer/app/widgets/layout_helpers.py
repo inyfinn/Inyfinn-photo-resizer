@@ -21,6 +21,9 @@ from PySide6.QtWidgets import (
 
 BTN_H = 26
 FOOTER_BTN_H = 32
+# Tryb prosty: dwie wysokości zamiast pięciu — kontrolki (pole, przeglądaj, dodaj) i akcje (Konwertuj, formaty).
+CONTROL_H = 32
+ACTION_H = 36
 ROW_GAP = 6
 FIELD_GAP = 4
 SECTION_GAP = 6
@@ -282,10 +285,12 @@ def add_grid_span(grid: QGridLayout, row: int, widget: QWidget) -> None:
 def tool_button_row(
     specs: list[tuple[str, Callable[[], None], QIcon]],
     parent: QWidget | None = None,
+    *,
+    large: bool = False,
 ) -> QHBoxLayout:
-    """Jeden poziomy rząd przycisków z ikonami."""
+    """Jeden poziomy rząd przycisków z ikonami (large = wysokość CONTROL_H trybu prostego)."""
     row = QHBoxLayout()
-    row.setSpacing(6)
+    row.setSpacing(8 if large else 6)
     row.setContentsMargins(0, 0, 0, 0)
     icon_size = QSize(16, 16)
     for text, slot, icon in specs:
@@ -295,11 +300,21 @@ def tool_button_row(
         btn.setIconSize(icon_size)
         btn.setToolTip(text)
         btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-        btn.setMinimumHeight(BTN_H)
+        if large:
+            mark_large(btn)
+        else:
+            btn.setMinimumHeight(BTN_H)
         btn.clicked.connect(slot)
         row.addWidget(btn)
     row.addStretch()
     return row
+
+
+def mark_large(widget: QWidget, height: int = CONTROL_H) -> QWidget:
+    """Właściwość QSS large=true + stała wysokość — jeden rozmiar kontrolek w trybie prostym."""
+    widget.setProperty("large", True)
+    widget.setFixedHeight(height)
+    return widget
 
 
 def style_dropdown(combo: QComboBox) -> QComboBox:

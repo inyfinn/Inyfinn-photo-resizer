@@ -19,6 +19,14 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.11",
+        "2026-09-18",
+        [
+            "Tryb prosty: przyciski mają równą wysokość — Konwertuj i PNG/JPG/AVIF po 36 px w jednej linii, pozostałe kontrolki po 32 px.",
+            "Pole ścieżki i „Wybierz folder…” mają tę samą wysokość, a ścieżka jest czytelniejsza.",
+        ],
+    ),
+    (
         "2.4.10",
         "2026-09-18",
         [

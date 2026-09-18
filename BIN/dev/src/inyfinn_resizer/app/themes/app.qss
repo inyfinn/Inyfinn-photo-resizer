@@ -320,6 +320,22 @@ QPushButton#toolBtn {
     border-radius: 10px;
 }
 
+/* Tryb prosty: jedna wysokość kontrolek (CONTROL_H = 32 px) */
+QPushButton#toolBtn[large="true"] {
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+}
+
+QPushButton#btnBrowse[large="true"] {
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 14px;
+    font-size: 13px;
+    border-radius: 10px;
+}
+
 QPushButton#toolBtn:hover {
     background-color: @ACCENT@;
     color: #ffffff;
@@ -411,8 +427,9 @@ QPushButton#formatChip {
     border-radius: 10px;
     min-width: 64px;
     max-width: 88px;
-    min-height: 36px;
-    max-height: 36px;
+    /* 32 + obramowanie 2×2 = 36 px, tyle co Konwertuj (bez obramowania) */
+    min-height: 32px;
+    max-height: 32px;
     padding: 0 12px;
     font-size: 12px;
     font-weight: 700;
@@ -601,6 +618,14 @@ QLineEdit#outputDirEdit {
     font-size: 10px;
     min-height: 26px;
     max-height: 26px;
+}
+
+QLineEdit#outputDirEdit[large="true"] {
+    font-size: 12px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 10px;
+    border-radius: 10px;
 }
 
 QComboBox:hover, QLineEdit:hover, QSpinBox:hover {
