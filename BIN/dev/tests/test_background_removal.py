@@ -27,8 +27,10 @@ OUTPUT = Path(__file__).parent / "output"
 
 def _alpha_transparent_ratio(path: Path) -> float:
     with Image.open(path) as im:
-        assert im.mode in ("RGBA", "LA"), f"Expected alpha, got {im.mode}"
-        alpha = np.array(im.split()[-1])
+        # Od v2.4.2 PNG poniżej 70% to PNG-8: tryb P z przezroczystością w palecie (tRNS).
+        has_alpha = im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info)
+        assert has_alpha, f"Expected alpha, got {im.mode}"
+        alpha = np.array(im.convert("RGBA").split()[-1])
     return float((alpha < 10).sum()) / alpha.size
 
 

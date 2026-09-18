@@ -22,6 +22,7 @@ class ReleaseInfo:
     tag: str
     download_url: str
     size: int
+    sha256: str = ""  # z pola „digest” GitHub; pusty = brak (starsze API)
 
 
 def _fetch_json(url: str) -> dict:
@@ -44,18 +45,21 @@ def fetch_latest_release() -> ReleaseInfo:
         raise ValueError("Brak tag_name w odpowiedzi GitHub")
 
     version = normalize_version(tag)
+    # Tylko paczka dokładnie tej wersji — nie pierwszy lepszy ZIP z pasującym prefiksem.
+    expected_name = f"{ASSET_FILENAME_PREFIX}{version}{ASSET_FILENAME_SUFFIX}"
     assets = data.get("assets") or []
     for asset in assets:
         if not isinstance(asset, dict):
             continue
-        name = str(asset.get("name", ""))
-        if not (name.startswith(ASSET_FILENAME_PREFIX) and name.endswith(ASSET_FILENAME_SUFFIX)):
+        if str(asset.get("name", "")) != expected_name:
             continue
         url = str(asset.get("browser_download_url", ""))
-        if not url:
+        if not url.startswith("https://"):
             continue
         size = int(asset.get("size") or 0)
-        return ReleaseInfo(version=version, tag=tag, download_url=url, size=size)
+        digest = str(asset.get("digest") or "")
+        sha256 = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else ""
+        return ReleaseInfo(version=version, tag=tag, download_url=url, size=size, sha256=sha256)
 
     raise ValueError(
         f"Brak assetu {ASSET_FILENAME_PREFIX}{version}{ASSET_FILENAME_SUFFIX} "

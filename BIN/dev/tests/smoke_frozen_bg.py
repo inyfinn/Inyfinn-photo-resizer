@@ -22,7 +22,6 @@ from pathlib import Path
 internal = Path(r"{internal}")
 sys.path.insert(0, str(internal))
 os.chdir(r"{bin}")
-os.environ["U2NET_HOME"] = str(internal / "tools" / "rmbg")
 sys.frozen = True
 
 from importlib import metadata as importlib_metadata
@@ -65,7 +64,7 @@ if ratio < 0.10:
 def main() -> int:
     assert EXE.is_file(), f"Brak EXE: {EXE}"
     assert FIXTURE.is_file(), f"Brak fixture: {FIXTURE}"
-    assert (INTERNAL / "tools" / "rmbg").is_dir(), "Brak modeli w BIN/_internal/tools/rmbg"
+    # Od 2.4.8 modeli nie ma w _internal — model lite musi być pobrany do %LOCALAPPDATA%.
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.unlink(missing_ok=True)
 

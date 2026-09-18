@@ -65,7 +65,8 @@ def test_accent_palette_boost_detects_green(tmp_path) -> None:
     from PIL import Image
 
     img_path = tmp_path / "accent.png"
-    pixels = [(140, 60, 40)] * 8000 + [(30, 160, 45)] * 400
+    # Zieleń < 2% obrazu = „rzadki akcent”; 400 px (4,8%) przestało nim być po regule z v1.0.31.
+    pixels = [(140, 60, 40)] * 8300 + [(30, 160, 45)] * 100
     img = Image.new("RGB", (100, 84))
     img.putdata(pixels[: 100 * 84])
     img.save(img_path, format="PNG")

@@ -133,6 +133,12 @@ $check = Get-AuthenticodeSignature -FilePath $FilePath
 if (-not $check.SignerCertificate) {
     Write-Error "Plik nadal niepodpisany: $FilePath ($($check.StatusMessage))"
 }
+# HashMismatch = plik zmienił się po podpisie (np. kopia przez zsynchronizowany D:\) — podpis nieważny.
+$okStatus = @("Valid")
+if ($usedLocal) { $okStatus += "UnknownError" }
+if ($okStatus -notcontains $check.Status.ToString()) {
+    Write-Error "Podpis nieważny ($($check.Status)): $FilePath - $($check.StatusMessage)"
+}
 
 $kind = if ($usedLocal) { "lokalny Inyfinn (TrustedPublisher na tej stacji)" } else { "PFX" }
 Write-Host "Podpisano ($kind, $($check.Status)): $FilePath"

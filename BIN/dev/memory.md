@@ -2,7 +2,30 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-15 · **Wersja aplikacji:** 2.4.7
+**Ostatnia aktualizacja:** 2026-09-17 · **Wersja aplikacji:** 2.4.8
+
+---
+
+## Wydanie / GitHub (2026-09-17) — CZYTAJ PRZED KAŻDYM RELEASE
+
+- 2.4.3–2.4.7 **nigdy nie trafiły na GitHub** (tylko commity). Latest zostało na 2.4.2, której tag ma ucięty `results_dialog.py` → wszyscy pobierali zepsutą wersję, auto-update też kierował na 2.4.2.
+- Release = commit + push + `gh release create` z `InyfinnPhotoResizer-{v}-setup.exe` **i** `InyfinnPhotoResizer-v{v}.zip` (auto-update szuka dokładnie tej nazwy ZIP).
+- Po uploadzie: pobrać oba assety z GitHuba, porównać SHA256 z lokalnymi (`gh api .../releases/latest` pole `digest`), zainstalować z pobranego setupu.
+- Pliki na `D:\Marketing` bywają ucinane / podmieniane przez sync (ucięty `package_release.ps1` w commicie 2.4.7, uszkodzone `BiRefNet-*.onnx` o poprawnym rozmiarze). Przed commitem: `compileall`, parsowanie `*.ps1`, `git diff --stat`.
+- `sign_file.ps1` odrzuca `HashMismatch` / `NotSigned` (setup 2 GB miał nieważny podpis, a skrypt zgłaszał sukces).
+
+## Modele usuwania tła (od 2.4.8)
+
+- **Nie są w instalatorze** (~200 MB zamiast 2 GB; limit Inno i assetu GitHub = 2 GiB).
+- `core/transforms/rmbg_models.py`: pobieranie przy pierwszym „Usuń tło” z `github.com/danielgatis/rembg/releases/download/v0.0.0`, SHA256 przypięte, wznawianie `.part`, katalog `%LOCALAPPDATA%\Inyfinn\PhotoResizer\rmbg`.
+- rembg szuka `U2NET_HOME/<model>.onnx`; `MODEL_CHECKSUM_DISABLED=1`, bo inaczej przy innym MD5 po cichu pobiera 1 GB.
+- `BIN/dev/tools/rmbg/BiRefNet-*.onnx` są USZKODZONE (zły SHA256) — nie używać. Dobre pliki: `birefnet-general.onnx`, `birefnet-general-lite.onnx` (`setup_rmbg_models.ps1` je weryfikuje).
+
+## Konwersja (2026-09-17)
+
+- Animowany GIF/WebP → GIF/WebP: `_save_animated` klatka po klatce; cwebp nie dla animacji (zostawia 1 klatkę).
+- `.jp2` przez Pillow/OpenJPEG — `jpegsave` z libvips zapisywał zwykły JPEG.
+- Presety sieci z FIT_BOX działają jak „cover” — ucinają 25% (3:4, 4:3) i 43,75% (16:9). Decyzja „contain” czeka na użytkownika.
 
 ---
 

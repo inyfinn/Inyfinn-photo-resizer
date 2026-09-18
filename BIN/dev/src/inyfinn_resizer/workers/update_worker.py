@@ -21,6 +21,16 @@ from inyfinn_resizer.utils.update_release import ReleaseInfo, fetch_latest_relea
 _PROGRESS_EMIT_INTERVAL_SEC = 0.5
 
 
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(DOWNLOAD_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class UpdateWorker(QObject):
     checked = Signal(object)  # ReleaseInfo | None
     download_ready = Signal(str, str)  # version, zip_path
@@ -119,6 +129,9 @@ class UpdateWorker(QObject):
                 raise ValueError(
                     f"Niepełny pakiet ({actual_size} B, oczekiwano {release.size} B)"
                 )
+            if release.sha256 and _sha256(part_path) != release.sha256:
+                part_path.unlink(missing_ok=True)
+                raise ValueError("Pakiet aktualizacji ma złą sumę kontrolną — pobierz ponownie")
 
             part_path.replace(final_path)
             register_download(release.version, final_path, actual_size)

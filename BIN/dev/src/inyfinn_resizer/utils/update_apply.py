@@ -147,15 +147,23 @@ Update-Ui "Przygotowanie aktualizacji do wersji $Version…" 5
 try {{
     Write-Log "Start instalacji v$Version do $InstallRoot (layout=$Layout)"
 
+    # Tylko procesy z aktualizowanego folderu — inne kopie aplikacji zostają nietknięte.
+    function Get-AppProcesses {{
+        $prefix = $InstallRoot.TrimEnd('\') + '\'
+        Get-Process -Name "InyfinnPhotoResizer" -ErrorAction SilentlyContinue |
+            Where-Object {{ $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) }}
+    }}
+
     Update-Ui "Oczekiwanie na zamknięcie aplikacji…" 10
     $deadline = (Get-Date).AddMinutes(8)
-    while ((Get-Process -Name "InyfinnPhotoResizer" -ErrorAction SilentlyContinue) -and ((Get-Date) -lt $deadline)) {{
+    while ((Get-AppProcesses) -and ((Get-Date) -lt $deadline)) {{
         Start-Sleep -Milliseconds 500
         [System.Windows.Forms.Application]::DoEvents()
     }}
-    if (Get-Process -Name "InyfinnPhotoResizer" -ErrorAction SilentlyContinue) {{
+    $left = @(Get-AppProcesses)
+    if ($left.Count -gt 0) {{
         Write-Log "Wymuszanie zamknięcia procesu"
-        Stop-Process -Name "InyfinnPhotoResizer" -Force -ErrorAction SilentlyContinue
+        $left | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
     }}
 

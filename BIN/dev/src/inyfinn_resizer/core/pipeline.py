@@ -179,7 +179,8 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
         image = image.colourspace("srgb") if image.bands >= 3 else image
         image.gifsave(str(path))
     elif fmt == "jp2":
-        image.jpegsave(str(path), Q=q)
+        # jpegsave zapisywał zwykły JPEG pod rozszerzeniem .jp2 — JPEG2000 idzie przez Pillow (OpenJPEG).
+        raise OSError("JPEG2000 przez Pillow")
     elif fmt == "pdf":
         image.pdfsave(str(path))
     else:
@@ -313,6 +314,101 @@ def _save_pillow_fallback(job: JobSpec, out_path: Path) -> None:
         im.close()
 
 
+_ANIMATED_INPUTS = (".gif", ".webp", ".png", ".apng")
+_ANIMATED_OUTPUTS = ("gif", "webp")
+
+
+def _animated_frame_count(path: Path) -> int:
+    if path.suffix.lower() not in _ANIMATED_INPUTS:
+        return 1
+    try:
+        from PIL import Image
+
+        with Image.open(path) as im:
+            return int(getattr(im, "n_frames", 1) or 1)
+    except Exception:
+        return 1
+
+
+def _has_pixel_changes(job: JobSpec) -> bool:
+    """Czy obraz trzeba przeliczyć (wymiary/obrót/kadr), czy wystarczy kopia pliku."""
+    r, t = job.resize, job.transforms
+    if r.mode.value != "none" or float(r.scale_percent) != 100.0 or r.min_longest_enabled:
+        return True
+    return bool(
+        t.rotate % 360
+        or t.flip_h
+        or t.flip_v
+        or t.trim_transparent
+        or (t.crop_w > 0 and t.crop_h > 0)
+        or t.grayscale
+    )
+
+
+def _save_animated(job: JobSpec, out_path: Path) -> None:
+    """Animacja GIF/WebP/APNG → GIF/WebP: każda klatka przechodzi te same transformacje."""
+    from dataclasses import replace
+
+    from PIL import Image
+
+    from inyfinn_resizer.core.job import ResizeMode
+
+    # Przycinanie do przezroczystości liczy inny kadr dla każdej klatki — animacja by skakała.
+    transforms = replace(job.transforms, trim_transparent=False, auto_rotate_exif=False)
+    resize = job.resize
+    if resize.mode == ResizeMode.CROP_SMART:
+        resize = replace(resize, mode=ResizeMode.FIT_BOX)
+
+    frames: list = []
+    durations: list[int] = []
+    with Image.open(job.input_path) as src:
+        loop = int(src.info.get("loop", 0) or 0)
+        for index in range(int(getattr(src, "n_frames", 1))):
+            src.seek(index)
+            durations.append(int(src.info.get("duration", 80) or 80))
+            frame = src.convert("RGBA")
+            frame = apply_transforms_pil(frame, transforms)
+            frame = apply_resize_pil(frame, resize)
+            frame = apply_scale_postprocess_pil(frame, resize)
+            if frame.mode != "RGBA":
+                frame = frame.convert("RGBA")
+            frames.append(frame)
+
+    if not frames:
+        raise OSError("Animacja nie zawiera klatek")
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fmt = job.output_format.lower()
+    opts = job.format_opts
+    try:
+        if fmt == "gif":
+            frames[0].save(
+                out_path,
+                format="GIF",
+                save_all=True,
+                append_images=frames[1:],
+                duration=durations,
+                loop=loop,
+                disposal=2,
+                optimize=False,
+            )
+        else:
+            frames[0].save(
+                out_path,
+                format="WEBP",
+                save_all=True,
+                append_images=frames[1:],
+                duration=durations,
+                loop=loop,
+                quality=max(0, min(100, opts.quality)),
+                method=4,
+                lossless=opts.lossless,
+            )
+    finally:
+        for frame in frames:
+            frame.close()
+
+
 def _save_heic_pillow(im: Image.Image, out_path: Path, quality: int) -> None:
     try:
         import pillow_heif
@@ -336,7 +432,18 @@ def _save_heic_pillow(im: Image.Image, out_path: Path, quality: int) -> None:
 
 def _save_jp2_pillow(im: Image.Image, out_path: Path, quality: int) -> None:
     try:
-        im.save(out_path, format="JPEG2000", quality_mode="rates", quality_layers=[quality / 100.0])
+        q = max(0, min(100, int(quality)))
+        if q >= 100:
+            im.save(out_path, format="JPEG2000", irreversible=False)
+            return
+        # PSNR w dB: 50% ≈ 36 dB, 90% ≈ 44 dB — „rates” z ułamkiem <1 dawał plik bez kompresji.
+        im.save(
+            out_path,
+            format="JPEG2000",
+            irreversible=True,
+            quality_mode="dB",
+            quality_layers=[26.0 + 0.2 * q],
+        )
     except Exception as exc:
         raise OSError(f"JPEG2000: {exc}") from exc
 
@@ -494,11 +601,18 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
 
         src_bytes = result.old_bytes
         cmyk_tiff = _is_cmyk_tiff(inp)
-        use_vips = not cmyk_tiff and fmt not in ("bmp",) and _init_vips()
+        use_vips = not cmyk_tiff and fmt not in ("bmp", "jp2") and _init_vips()
+        animated = (
+            fmt in _ANIMATED_OUTPUTS
+            and not job.transforms.remove_background
+            and _animated_frame_count(inp) > 1
+        )
         if job.transforms.remove_background:
             _save_pillow_rgba(job, staging)
-        elif fmt == "gif" and inp.suffix.lower() == ".gif" and job.resize.mode.value == "none":
+        elif fmt == "gif" and inp.suffix.lower() == ".gif" and not _has_pixel_changes(job):
             shutil.copy2(inp, staging)
+        elif animated:
+            _save_animated(job, staging)
         elif use_vips:
             try:
                 image = _load_image(job)
@@ -511,10 +625,12 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
         if not staging.is_file() or staging.stat().st_size == 0:
             raise OSError("Zapis pliku wyjściowego nie powiódł się")
 
-        try:
-            _post_compress(staging, fmt, job.format_opts, source_bytes=src_bytes)
-        except Exception:
-            pass  # pngquant/gifsicle opcjonalne — plik już zapisany
+        # cwebp czyta tylko nieruchome obrazy — na animowanym WebP zostawiłby jedną klatkę.
+        if not (animated and fmt == "webp"):
+            try:
+                _post_compress(staging, fmt, job.format_opts, source_bytes=src_bytes)
+            except Exception:
+                pass  # pngquant/gifsicle opcjonalne — plik już zapisany
 
         if (
             job.metadata.strip_all

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
 
@@ -20,8 +20,8 @@ def _wheel_event(*, ctrl: bool = False, shift: bool = False, up: bool = True) ->
     return QWheelEvent(
         app.primaryScreen().availableGeometry().center(),
         app.primaryScreen().availableGeometry().center(),
-        (0, delta),
-        (0, delta),
+        QPoint(0, delta),
+        QPoint(0, delta),
         Qt.MouseButton.NoButton,
         mods,
         Qt.ScrollPhase.NoScrollPhase,

@@ -1589,15 +1589,42 @@ class MainWindow(QMainWindow):
     def _validate_bg_removal_ready(self) -> bool:
         if not self._transforms.remove_background:
             return True
-        from inyfinn_resizer.core.transforms.background_removal import (
-            missing_model_message,
-            model_is_ready,
-        )
+        from inyfinn_resizer.core.transforms import rmbg_models
 
         model = self._transforms.bg_model or "birefnet-general"
-        if model_is_ready(model):
+        if model not in rmbg_models.MODELS:
+            show_warning(self, "Usuń tło", f"Nieobsługiwany model usuwania tła: {model}")
+            return False
+        if rmbg_models.is_ready(model):
             return True
-        show_warning(self, "Usuń tło", missing_model_message(model))
+
+        # Od 2.4.8 modele nie są w instalatorze (~200 MB zamiast 2 GB) — pobieramy przy pierwszym użyciu.
+        spec = rmbg_models.get_spec(model)
+        if not ask_yes_no(
+            self,
+            "Usuń tło — pobranie modelu",
+            f"Usuwanie tła w trybie „{spec.label}” potrzebuje modelu, "
+            f"który trzeba jednorazowo pobrać ({spec.size_mb} MB).\n\n"
+            "Pobrać teraz? Po pobraniu konwersja ruszy automatycznie.",
+        ):
+            return False
+
+        from inyfinn_resizer.app.dialogs.model_download_dialog import ModelDownloadDialog
+
+        dialog = ModelDownloadDialog(model, self)
+        dialog.exec()
+        if rmbg_models.is_ready(model):
+            log_event("Model usuwania tła", f"pobrano {model}")
+            return True
+        if dialog.error:
+            log_event("Model usuwania tła", f"{model}: {dialog.error}", status="ERROR")
+            show_critical(
+                self,
+                "Usuń tło",
+                "Nie udało się pobrać modelu usuwania tła.\n\n"
+                f"{dialog.error}\n\n"
+                "Sprawdź połączenie z internetem i spróbuj ponownie.",
+            )
         return False
 
     def _on_quality_changed(self, v: int) -> None:

@@ -50,13 +50,28 @@ def _collect_tool_binaries():
         for item in libvips.rglob("*"):
             if item.is_file():
                 rel = item.relative_to(libvips)
+                # Nagłówki C są potrzebne tylko do kompilacji — zapas pod limit 2 GiB setupu.
+                if rel.parts and rel.parts[0].lower() == "include":
+                    continue
                 out.append(
                     (str(item), str(Path("tools/libvips") / rel.parent).replace("\\", "/"))
                 )
-    rmbg = TOOLS / "rmbg"
-    if rmbg.is_dir():
-        for item in rmbg.glob("*.onnx"):
-            out.append((str(item), "tools/rmbg"))
+    # Modele BiRefNet (tools/rmbg, 1,1 GB) celowo poza paczką — rmbg_models.py pobiera je
+    # przy pierwszym użyciu „Usuń tło”. Instalator ~200 MB zamiast 2 GB.
+    return out
+
+
+def _collect_theme_datas():
+    """Motywy i ikony bez __pycache__ generatorów ikon."""
+    themes = SRC / "inyfinn_resizer" / "app" / "themes"
+    out = []
+    for item in themes.rglob("*"):
+        if not item.is_file() or "__pycache__" in item.parts:
+            continue
+        rel = item.relative_to(themes)
+        out.append(
+            (str(item), str(Path("inyfinn_resizer/app/themes") / rel.parent).replace("\\", "/"))
+        )
     return out
 
 
@@ -104,7 +119,7 @@ a = Analysis(
     pathex=[str(SRC)],
     binaries=binaries,
     datas=[
-        (str(SRC / "inyfinn_resizer" / "app" / "themes"), "inyfinn_resizer/app/themes"),
+        *_collect_theme_datas(),
         *_icon_datas,
         *_collect_package_metadata(),
     ],
@@ -132,7 +147,8 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Aplikacja nie używa tkinter — bez _tk_data/_tcl_data (zapas pod limit 2 GiB).
+    excludes=["tkinter"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

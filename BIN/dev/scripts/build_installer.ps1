@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Buduje instalator Inno Setup po zbudowaniu EXE (package_release.ps1).
@@ -64,6 +64,18 @@ if (-not (Test-Path -LiteralPath $compiledSetup)) {
 }
 
 & (Join-Path $DevRoot "scripts\sign_file.ps1") $compiledSetup
+
+# Inno Setup bez DiskSpanning i asset GitHub Release mają twardy limit 2 GiB (2 147 483 648 B).
+# Próg 2 000 000 000 B zostawia zapas — sprawdzane przed usunięciem starych setupów.
+$maxSetupBytes = 2000000000
+$compiledSize = (Get-Item -LiteralPath $compiledSetup).Length
+Write-Host ("Rozmiar setupu: {0:N0} B (limit {1:N0} B)" -f $compiledSize, $maxSetupBytes)
+if ($compiledSize -gt $maxSetupBytes) {
+    $msg = "Setup ma {0:N0} B i przekracza próg {1:N0} B. Limit Inno Setup (bez DiskSpanning) " +
+        "i limit pliku w GitHub Release to 2 GiB - instalator jednoplikowy przestanie się budować " +
+        "lub nie da się go opublikować. Odchudź paczkę (spec/excludes) zamiast dzielić setup."
+    Write-Error ($msg -f $compiledSize, $maxSetupBytes)
+}
 
 $expectedPath = Join-Path $outDir $expectedName
 Copy-Item -LiteralPath $compiledSetup -Destination $expectedPath -Force

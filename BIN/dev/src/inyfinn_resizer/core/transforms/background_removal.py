@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import os
-import shutil
 import threading
 from importlib import metadata as importlib_metadata
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from inyfinn_resizer.utils.paths import bootstrap_runtime_paths, rmbg_models_dir
+from inyfinn_resizer.core.transforms import rmbg_models
+from inyfinn_resizer.utils.paths import bootstrap_runtime_paths
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -17,6 +16,8 @@ if TYPE_CHECKING:
 _SESSIONS: dict[str, object] = {}
 _SESSION_PROVIDERS: dict[str, list[str]] = {}
 _SESSION_LOCK = threading.Lock()
+# U2NET_HOME jest globalny — tworzenie sesji rembg po jednej naraz (RLock: fallback na CPU).
+_CREATE_LOCK = threading.RLock()
 _INFER_LOCK = threading.Lock()
 _ALPHA_MATTING_READY: bool | None = None
 
@@ -24,32 +25,7 @@ _ALPHA_MATTING_READY: bool | None = None
 REMBG_MAX_EDGE = 2560
 ALPHA_MATTING_MAX_EDGE = 1600
 
-SUPPORTED_MODELS = ("birefnet-general-lite", "birefnet-general")
-
-_MODEL_FILES = {
-    "birefnet-general-lite": "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx",
-    "birefnet-general": "BiRefNet-general-epoch_244.onnx",
-}
-
-_REMBG_SESSION_ALIASES = {
-    "birefnet-general-lite": "birefnet-general-lite.onnx",
-    "birefnet-general": "birefnet-general.onnx",
-}
-
-
-def _ensure_model_home() -> Path:
-    models = rmbg_models_dir()
-    models.mkdir(parents=True, exist_ok=True)
-    os.environ["U2NET_HOME"] = str(models)
-    for model_name, source_name in _MODEL_FILES.items():
-        source = models / source_name
-        alias = models / _REMBG_SESSION_ALIASES[model_name]
-        if source.is_file() and not alias.is_file():
-            try:
-                os.link(source, alias)
-            except OSError:
-                shutil.copy2(source, alias)
-    return models
+SUPPORTED_MODELS = tuple(rmbg_models.MODELS)
 
 
 def _onnx_providers(*, prefer_gpu: bool = True) -> list[str]:
@@ -124,25 +100,38 @@ def downscale_for_rembg(image: "Image.Image", max_edge: int) -> "Image.Image":
 
 
 def model_is_ready(model_name: str) -> bool:
-    if model_name not in SUPPORTED_MODELS:
-        return False
-    models = _ensure_model_home()
-    return (models / _MODEL_FILES[model_name]).is_file()
+    return rmbg_models.is_ready(model_name)
 
 
 def missing_model_message(model_name: str) -> str:
-    fname = _MODEL_FILES.get(model_name, model_name)
+    spec = rmbg_models.MODELS.get(model_name)
+    if spec is None:
+        return f"Nieobsługiwany model usuwania tła: {model_name}"
     return (
-        f"Brak modelu {fname}. "
-        "Uruchom: BIN\\dev\\scripts\\setup_rmbg_models.ps1"
+        f"Model usuwania tła „{spec.label}” ({spec.size_mb} MB) nie jest jeszcze pobrany. "
+        "Uruchom konwersję z zaznaczonym „Usuń tło” w aplikacji — zaproponuje pobranie."
     )
+
+
+def _new_rembg_session(model_name: str, providers: list[str]):
+    model_path = rmbg_models.find_model(model_name)
+    if model_path is None:
+        raise FileNotFoundError(missing_model_message(model_name))
+    from rembg import new_session
+
+    with _CREATE_LOCK:
+        os.environ["U2NET_HOME"] = str(model_path.parent)
+        # SHA256 sprawdzamy sami — bez tego rembg przy innym MD5 po cichu pobiera 1 GB.
+        os.environ["MODEL_CHECKSUM_DISABLED"] = "1"
+        try:
+            return new_session(model_name, providers=providers)
+        except TypeError:
+            return new_session(model_name)
 
 
 def get_session(model_name: str, *, force_cpu: bool = False):
     if model_name not in SUPPORTED_MODELS:
         raise ValueError(f"Nieobsługiwany model: {model_name}")
-    if not model_is_ready(model_name):
-        raise FileNotFoundError(missing_model_message(model_name))
 
     providers = _onnx_providers(prefer_gpu=not force_cpu)
     with _SESSION_LOCK:
@@ -154,14 +143,11 @@ def get_session(model_name: str, *, force_cpu: bool = False):
     from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
 
     ensure_stdio()
-    _ensure_model_home()
-
-    from rembg import new_session
 
     try:
-        session = new_session(model_name, providers=providers)
-    except TypeError:
-        session = new_session(model_name)
+        session = _new_rembg_session(model_name, providers)
+    except FileNotFoundError:
+        raise
     except Exception as exc:
         if not force_cpu and _is_onnx_provider_error(exc):
             return get_session(model_name, force_cpu=True)

@@ -188,11 +188,11 @@ if ($Release) {
     $zipName = "InyfinnPhotoResizer-v$version.zip"
     $zipPath = Join-Path $releaseDir $zipName
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-    $staging = Join-Path $releaseDir "_staging"
-    if (Test-Path $staging) {
-        cmd /c "rd /s /q `"$staging`"" 2>$null
-        if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
-    }
+    # Staging i ZIP w %TEMP%: sync na D:\Marketing blokuje świeżo skopiowane pliki (Compress-Archive pada).
+    $tempRoot = Join-Path $env:TEMP "inyfinn-release-build"
+    if ((Split-Path -Leaf $tempRoot) -ne "inyfinn-release-build") { throw "Nieoczekiwany katalog tymczasowy: $tempRoot" }
+    if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
+    $staging = Join-Path $tempRoot "staging"
     New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
     # Tylko pliki runtime (bez BIN/dev, .venv, duplikatów modeli)
@@ -221,12 +221,22 @@ Skala: suwak pod Jakością (np. 50% = połowa wymiarów).
 Min. najdłuższa krawędź: opcjonalna, domyślnie wyłączona.
 Własny format: zaznacz i podaj szerokość x wysokość.
 Kadr: róża wiatrów wybiera punkt odniesienia przycięcia.
-Usuwanie tła: modele BiRefNet w BIN\_internal\tools\rmbg\
+Usuwanie tła: model pobiera się przy pierwszym użyciu (214 MB lub 928 MB)
+do %LOCALAPPDATA%\Inyfinn\PhotoResizer\rmbg\
 
 Zbudowano: $stamp
 "@
     Set-Content -Path (Join-Path $staging "README.txt") -Value $readme -Encoding UTF8
-    Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
-    cmd /c "rd /s /q `"$staging`"" 2>$null
-    if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
-    $zipMb = [math]::Round((Get-Item $zipPath).L
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $tempZip = Join-Path $tempRoot $zipName
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $staging, $tempZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+    Copy-Item -LiteralPath $tempZip -Destination $zipPath -Force
+    if ((Get-FileHash -LiteralPath $tempZip).Hash -ne (Get-FileHash -LiteralPath $zipPath).Hash) {
+        Write-Error "ZIP w release\ różni się od zbudowanego w %TEMP% (sync dysku?)"
+    }
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    $zipMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+    Write-Host "RELEASE ZIP: $zipPath (${zipMb} MB)"
+    Write-Host ""
+}

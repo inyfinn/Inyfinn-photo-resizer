@@ -1,6 +1,6 @@
 ; Inno Setup script for Inyfinn Photo Resizer
 #define MyAppName "Inyfinn Photo Resizer"
-#define MyAppVersion "2.4.7"
+#define MyAppVersion "2.4.8"
 #define MyAppPublisher "Inyfinn"
 #define MyAppExeName "InyfinnPhotoResizer.exe"
 #define MyAppMutex "InyfinnPhotoResizerAppMutex"
@@ -16,7 +16,7 @@ OutputDir=..\installer-output
 OutputBaseFilename=InyfinnPhotoResizer-{#MyAppVersion}-setup
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
-Compression=lzma2
+Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
@@ -29,7 +29,7 @@ VersionInfoCompany=Inyfinn
 VersionInfoCopyright=Inyfinn
 VersionInfoProductName={#MyAppName}
 VersionInfoProductTextVersion={#MyAppVersion}
-VersionInfoVersion=2.4.7.0
+VersionInfoVersion=2.4.8.0
 UninstallDisplayName={#MyAppName}
 
 ; Podpis Authenticode: BIN/dev/scripts/sign_file.ps1 (po ISCC). Bez PFX = lokalny cert Inyfinn.
@@ -55,6 +55,9 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_internal"
+; activity.log powstaje w czasie pracy — bez tego dezinstalator zgłasza „niektóre elementy nie mogły zostać usunięte”.
+Type: filesandordirs; Name: "{app}\logs"
+Type: dirifempty; Name: "{app}"
 
 [Code]
 procedure KillAppProcesses;

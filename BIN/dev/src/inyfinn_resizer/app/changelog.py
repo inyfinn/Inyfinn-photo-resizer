@@ -19,6 +19,19 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.8",
+        "2026-09-17",
+        [
+            "Instalator ma ~200 MB zamiast 2 GB. Model usuwania tła pobiera się raz, przy pierwszym użyciu „Usuń tło” (Szybko 214 MB, Najlepsza jakość 928 MB), z paskiem postępu i kontrolą sumy SHA256.",
+            "Naprawione usuwanie tła na nowym komputerze: w paczce były uszkodzone pliki modeli, przez co program po cichu pobierał 1 GB przy pierwszym użyciu.",
+            "Aktualizacja sprawdza sumę kontrolną pobranej paczki i zamyka tylko tę kopię aplikacji, którą aktualizuje.",
+            "Animacje: GIF → WebP, animowany WebP → GIF/WebP i GIF ze zmianą wymiaru zachowują wszystkie klatki i czasy (wcześniej zostawała jedna klatka).",
+            "Suwak Skali działa także dla GIF — wcześniej plik był tylko kopiowany bez zmiany wymiaru.",
+            "JPEG2000: plik .jp2 jest prawdziwym JPEG2000 (wcześniej był to zwykły JPEG ze złym rozszerzeniem).",
+            "Dezinstalator usuwa folder logs — koniec komunikatu „niektóre elementy nie mogły zostać usunięte”.",
+        ],
+    ),
+    (
         "2.4.7",
         "2026-09-15",
         [

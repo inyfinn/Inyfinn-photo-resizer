@@ -54,7 +54,7 @@ def tools_dir() -> Path:
 
 
 def rmbg_models_dir() -> Path:
-    """Katalog modeli ONNX dla rembg (U2NET_HOME)."""
+    """Modele ONNX z paczki/dev (od 2.4.8 instalator ich nie zawiera — patrz rmbg_models)."""
     return tools_dir() / "rmbg"
 
 
@@ -91,6 +91,12 @@ def find_tool(name: str, windows_name: str | None = None) -> Path | None:
         tools_dir() / name / name,
         tools_dir() / win,
     ]
+    if getattr(sys, "frozen", False):
+        # EXE: tylko narzędzia z paczki — podrzucony pngquant.exe w PATH/bieżącym katalogu nie wygra.
+        for c in candidates:
+            if c.is_file():
+                return c
+        return None
     env_key = name.upper().replace("-", "_")
     for var in (env_key, f"{env_key}_PATH"):
         val = os.environ.get(var)
@@ -133,9 +139,7 @@ def bootstrap_runtime_paths() -> None:
             parts.append(str(p))
     existing = os.environ.get("PATH", "")
     os.environ["PATH"] = os.pathsep.join(parts + [existing])
-    rmbg = rmbg_models_dir()
-    if rmbg.is_dir():
-        os.environ["U2NET_HOME"] = str(rmbg)
+    # U2NET_HOME ustawia background_removal na katalog z faktycznie znalezionym modelem.
     ensure_vips_lib()
 
 

@@ -608,3 +608,27 @@
 **Źródła:** Inno Setup [Setup] AppPublisher; Microsoft Authenticode / SmartScreen; `Set-AuthenticodeSignature`
 
 
+---
+
+## 2026-09-17 — v2.4.8 instalator ~200 MB, animacje, JPEG2000, modele na żądanie
+
+**Komenda/Akcja:** User: instalator nie instaluje się (pobrany z GitHuba), aplikacja ma wiele błędów; instalator ma mieć ~200 MB; auto-update ma działać.
+
+**Log/Status:**
+1. GitHub Latest = v2.4.2 (2.4.3–2.4.7 bez release). Tag v2.4.2 ma ucięty `results_dialog.py` → wieczny splash. Auto-update kierował na 2.4.2.
+2. Macierz 270 kombinacji (9 wejść × 10 formatów × 3 rozmiary): 34 błędy — `.jp2` był JPEG-iem, animacje GIF/WebP traciły klatki, suwak Skali nie działał dla GIF. Po poprawce 0.
+3. Dezinstalator zostawiał `{app}\logs` → dopisane `[UninstallDelete]`.
+4. 81% paczki to modele BiRefNet (każdy 2×). `BiRefNet-*.onnx` w `tools\rmbg` uszkodzone (rozmiar OK, SHA256 zły) — rembg po cichu pobierał 1 GB. Nowy `rmbg_models.py`: pobieranie przy pierwszym użyciu z SHA256, dialog z postępem.
+5. `package_release.ps1` ucięty w commicie 2.4.7 (nie parsował się) — przywrócony koniec.
+6. Setup 2 GB miał podpis `HashMismatch`; `sign_file.ps1` teraz odrzuca nieważny podpis.
+7. Bezpieczeństwo: auto-update sprawdza SHA256 z pola `digest` GitHub i dokładną nazwę ZIP; skrypt aktualizacji zamyka tylko procesy z folderu instalacji; w EXE `find_tool` bierze wyłącznie narzędzia z paczki.
+8. Wersja **2.4.8**.
+
+**Efekt/Fix:** instalator bez modeli; wszystkie formaty i animacje poprawne; usuwanie tła działa na nowej maszynie po jednorazowym pobraniu modelu.
+
+**Test/Ewaluacja:**
+- `pytest tests` — 126 passed
+- macierz dymna 270 kombinacji — 0 problemów
+- E2E instalatora (Opus, build z modelami): exit 0, start v2.4.8, dezinstalacja bez pozostałości
+
+**Źródła:** `gh release list`; `git show v2.4.2:.../results_dialog.py`; rembg `sessions/birefnet_general*.py` (URL + MD5); GitHub REST `assets[].digest`; Inno Setup `[UninstallDelete]`
