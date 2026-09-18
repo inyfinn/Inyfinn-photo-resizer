@@ -19,6 +19,15 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.10",
+        "2026-09-18",
+        [
+            "Program nie zamyka się już nagle podczas pobierania aktualizacji (zdarzało się przy wolnym łączu).",
+            "To samo zabezpieczenie po anulowaniu konwersji — przerwana konwersja nie może zamknąć programu.",
+            "Diagnostyka: zmienna INYFINN_STDERR_FILE zapisuje komunikaty błędów do pliku.",
+        ],
+    ),
+    (
         "2.4.9",
         "2026-09-18",
         [

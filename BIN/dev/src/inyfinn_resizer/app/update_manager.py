@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtCore import QObject, Qt, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from inyfinn_resizer import __version__
@@ -60,6 +60,8 @@ class UpdateManager(QObject):
         self._check_worker: UpdateWorker | None = None
         self._download_thread: DownloadThread | None = None
         self._download_worker: UpdateWorker | None = None
+        # Wątki, które jeszcze nie zgłosiły zakończenia — trzymamy referencję (patrz _retire_thread).
+        self._retired_threads: list[QThread] = []
 
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(500)
@@ -176,13 +178,26 @@ class UpdateManager(QObject):
         self._check_thread.finished.connect(self._cleanup_check_thread)
         self._check_thread.start()
 
+    def _retire_thread(self, thread, worker) -> None:
+        """Zwalnia wątek dopiero, gdy naprawdę się zakończył.
+
+        Sygnał finished() leci, zanim Qt oznaczy wątek jako zakończony. Jeśli w tym
+        momencie zniknie ostatnia referencja z Pythona, ~QThread widzi działający wątek,
+        woła qFatal i EXE ginie bez śladu (fast-fail 7). Stąd wait() + lista referencji.
+        """
+        if thread is not None:
+            self._retired_threads.append(thread)
+            if thread.wait(10000):
+                self._retired_threads.remove(thread)
+                thread.deleteLater()
+        if worker is not None:
+            worker.deleteLater()
+
     def _cleanup_check_thread(self) -> None:
-        if self._check_thread:
-            self._check_thread.deleteLater()
-            self._check_thread = None
-        if self._check_worker:
-            self._check_worker.deleteLater()
-            self._check_worker = None
+        thread, worker = self._check_thread, self._check_worker
+        self._check_thread = None
+        self._check_worker = None
+        self._retire_thread(thread, worker)
 
     def _on_check_failed(self, message: str) -> None:
         log_event("Aktualizacja", f"sprawdzenie nieudane: {message}")
@@ -298,12 +313,10 @@ class UpdateManager(QObject):
 
     def _cleanup_download_thread(self) -> None:
         self._progress_timer.stop()
-        if self._download_thread:
-            self._download_thread.deleteLater()
-            self._download_thread = None
-        if self._download_worker:
-            self._download_worker.deleteLater()
-            self._download_worker = None
+        thread, worker = self._download_thread, self._download_worker
+        self._download_thread = None
+        self._download_worker = None
+        self._retire_thread(thread, worker)
 
     def _on_download_ready(self, version: str, zip_path: str) -> None:
         if self._last_progress_received:

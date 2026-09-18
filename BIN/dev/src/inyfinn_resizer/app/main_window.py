@@ -8,7 +8,7 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtCore import Qt, QThread, QTimer, QSize
 from PySide6.QtGui import QGuiApplication, QIntValidator, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -187,6 +187,8 @@ class MainWindow(QMainWindow):
         self._batch_thread: BatchThread | None = None
         self._active_jobs: list[JobSpec] = []
         self._wiz_thread: WizThread | None = None
+        # Anulowany wątek potrafi jeszcze pracować — bez referencji ~QThread ubija EXE.
+        self._retired_threads: list[QThread] = []
         self._folder_queue: list[Path] = []
         self._theme = load_theme()
         self._output_settings_locked = False
@@ -700,8 +702,21 @@ class MainWindow(QMainWindow):
         worker.error.connect(self._on_batch_error)
         worker.cancelled.connect(self._on_batch_cancelled)
         self._progress_simulator.tick.connect(self._on_simulated_progress)
+        self._retire_worker_thread(self._batch_thread)
         self._batch_thread = BatchThread(worker)
         self._batch_thread.start()
+
+    def _retire_worker_thread(self, thread) -> None:
+        """Stary wątek (np. po anulowaniu) musi mieć referencję, dopóki nie skończy pracy."""
+        if thread is None or not thread.isRunning():
+            return
+        self._retired_threads.append(thread)
+        thread.finished.connect(lambda t=thread: self._drop_retired_thread(t))
+
+    def _drop_retired_thread(self, thread) -> None:
+        if thread in self._retired_threads and thread.wait(5000):
+            self._retired_threads.remove(thread)
+            thread.deleteLater()
 
     def _build_convert_body(self) -> QWidget:
         splitter = QSplitter(Qt.Horizontal)
@@ -2498,6 +2513,7 @@ class MainWindow(QMainWindow):
         log_event("Start sekwencji wizek", f"{len(folders)} folderów, jakość {self.quality_slider.value()}%")
 
         worker = WizWorker(folders, self.quality_slider.value())
+        self._retire_worker_thread(self._wiz_thread)
         self._wiz_thread = WizThread(worker)
         worker.progress.connect(self._on_progress)
         worker.finished.connect(self._on_wiz_finished)
