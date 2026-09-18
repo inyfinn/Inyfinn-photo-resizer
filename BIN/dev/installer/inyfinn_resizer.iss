@@ -1,6 +1,6 @@
 ; Inno Setup script for Inyfinn Photo Resizer
 #define MyAppName "Inyfinn Photo Resizer"
-#define MyAppVersion "2.4.8"
+#define MyAppVersion "2.4.9"
 #define MyAppPublisher "Inyfinn"
 #define MyAppExeName "InyfinnPhotoResizer.exe"
 #define MyAppMutex "InyfinnPhotoResizerAppMutex"
@@ -29,7 +29,7 @@ VersionInfoCompany=Inyfinn
 VersionInfoCopyright=Inyfinn
 VersionInfoProductName={#MyAppName}
 VersionInfoProductTextVersion={#MyAppVersion}
-VersionInfoVersion=2.4.8.0
+VersionInfoVersion=2.4.9.0
 UninstallDisplayName={#MyAppName}
 
 ; Podpis Authenticode: BIN/dev/scripts/sign_file.ps1 (po ISCC). Bez PFX = lokalny cert Inyfinn.

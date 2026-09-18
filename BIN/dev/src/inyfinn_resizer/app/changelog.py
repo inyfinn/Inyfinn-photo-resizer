@@ -19,6 +19,13 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.9",
+        "2026-09-18",
+        [
+            "Bez zmian w programie — wydanie sprawdzające, czy aktualizacja instaluje się sama.",
+        ],
+    ),
+    (
         "2.4.8",
         "2026-09-17",
         [
