@@ -6,6 +6,11 @@
 
 ---
 
+## UWAGI.txt — zgłoszenia od zespołu (od 2026-09-18)
+
+- Plik w korzeniu projektu (poza gitem). Ludzie dopisują na dole: Imię, Dział, Problem, Data.
+- Po naprawie: usuń zgłoszenie z „Nowe uwagi”, w „Sprawdzono” dopisz 1–2 krótkie linie (data · wersja · kto: co było → jak działa teraz). Instrukcji na górze nie ruszaj.
+
 ## Wydanie / GitHub (2026-09-17) — CZYTAJ PRZED KAŻDYM RELEASE
 
 - 2.4.3–2.4.7 **nigdy nie trafiły na GitHub** (tylko commity). Latest zostało na 2.4.2, której tag ma ucięty `results_dialog.py` → wszyscy pobierali zepsutą wersję, auto-update też kierował na 2.4.2.

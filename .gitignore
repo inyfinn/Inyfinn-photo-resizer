@@ -1,5 +1,9 @@
+# Zgłoszenia od zespołu (imiona, działy) — publiczne repo, nie publikować
+UWAGI.txt
+
 # Dystrybucja lokalna
 InyfinnPhotoResizer.exe
+InyfinnPhotoResizer-*-setup.exe
 BIN/_internal/
 BIN/InyfinnPhotoResizer.exe
 BIN/InyfinnPhotoResizer.ico
