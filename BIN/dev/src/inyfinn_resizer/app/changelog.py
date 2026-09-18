@@ -19,6 +19,20 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.4.12",
+        "2026-09-18",
+        [
+            "PNG → JPG: czerwienie i drobny kolorowy tekst nie bledną — od jakości 70% JPG zapisuje kolor w pełnej dokładności (4:4:4). Wymiary obrazu bez zmian.",
+            "JPG zapisuje się raz — wcześniej był kodowany ponownie kilka razy, a każde kodowanie traciło jakość.",
+            "Suwak jakości znów działa dla zdjęć z zielonymi detalami poniżej 70% (wcześniej zawsze wychodziło 92%).",
+            "Ustawienia JPG → „Dokładność koloru”: automatycznie / pełny kolor / oszczędny.",
+            "Lista plików: zaznaczanie z Ctrl i Shift, usuwanie klawiszem Delete, ikoną ✕ przy pliku i z menu pod prawym przyciskiem.",
+            "Tryb prosty nie wpisuje już sam folderu z poprzedniej sesji. Bez wybranego folderu program pyta, gdzie zapisać.",
+            "Okno wyników pokazuje, gdzie zapisano pliki, i ma przycisk „Pokaż w folderze”.",
+            "Wybór folderu otwiera się przy zdjęciach, a nie w folderze programu.",
+        ],
+    ),
+    (
         "2.4.11",
         "2026-09-18",
         [

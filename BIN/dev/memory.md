@@ -28,6 +28,20 @@
 - Klikanie z agenta: UI Automation na Qt potrafi wywrócić proces — nie używać. `SetCursorPos` + DPI-aware (`SetProcessDpiAwarenessContext(-4)`), bezpiecznik: klik tylko gdy okno pod kursorem należy do PID aplikacji. Obok pracują Teams/Photoshop użytkownika.
 - `package_release.ps1` zabija **wszystkie** procesy InyfinnPhotoResizer — uprzedź użytkownika przed buildem.
 
+## JPEG kolor (2.4.12)
+
+- „Wyblakła czerwień” PNG → JPG = podpróbkowanie chromy 4:2:0 (barwa wspólna dla bloku 2×2), NIE profil ICC (oba pliki bez ICC, średnie kolory identyczne). Widać na krawędziach i drobnym tekście.
+- Pomiar na BANOFEE PREV: nasycenie krawędzi PNG 0,817 → 4:2:0 0,782 → 4:4:4 0,814. Plik ~2×.
+- Reguła: 4:4:4 od jakości 70 (`FULL_CHROMA_MIN_QUALITY`), opcja `FormatOptions.subsampling` auto/full/reduced.
+- `_post_compress` NIE koduje JPG ponownie bez `target_kb` (było 6–7 przebiegów + strata generacji). Wizki nadal wołają `compress_jpeg_file` celowo.
+- Podbicie jakości do 92 przy zielonych akcentach tylko od q ≥ 70 — inaczej suwak 35/50/75 dawał ten sam plik.
+- Użytkownik mówi „nie zmniejszaj grafik” — tłumacz, że 4:2:0 to parametr kodowania, wymiary zostają.
+
+## Tryb prosty — folder zapisu (2.4.12)
+
+- Tryb prosty ma własny `_simple_output_dir` (pusty na starcie sesji). Wcześniej dzielił pole z trybem zaawansowanym, przywracane z sesji → pliki lądowały po cichu w starym folderze.
+- Okno wyników: „Zapisano w: …” + „Pokaż w folderze” (`utils/reveal.py`, Popen z DEVNULL).
+
 ## Tryb prosty — wysokości kontrolek (2.4.11)
 
 - `CONTROL_H = 32` (pole ścieżki, Wybierz folder, Dodaj/Wyczyść), `ACTION_H = 36` (Konwertuj, PNG/JPG/AVIF). Helper `mark_large()` + QSS `[large="true"]`.

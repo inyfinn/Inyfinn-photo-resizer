@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QProgressBar,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -28,6 +29,7 @@ from inyfinn_resizer.app.user_settings import (
     save_results_table_header,
 )
 from inyfinn_resizer.core.job import JobResult, JobStatus
+from inyfinn_resizer.utils.reveal import reveal_in_explorer
 
 _STATUS_PL = {
     JobStatus.OK: "OK",
@@ -44,7 +46,7 @@ _PROFILE_PL = {
 
 RESULTS_DIALOG_WIDTH = 1018
 RESULTS_DIALOG_HEIGHT = 608
-RESULTS_DIALOG_MIN_WIDTH = 720
+RESULTS_DIALOG_MIN_WIDTH = 860
 RESULTS_DIALOG_MIN_HEIGHT = 420
 
 _COL_LP = 0
@@ -78,12 +80,13 @@ def _apply_responsive_column_modes(table: QTableWidget) -> None:
     table.setColumnWidth(_COL_LP, _DEFAULT_WIDTHS[_COL_LP])
     hdr.setSectionResizeMode(_COL_IN, QHeaderView.ResizeMode.Stretch)
     hdr.setSectionResizeMode(_COL_OUT, QHeaderView.ResizeMode.Stretch)
-    for col in range(table.columnCount()):
-        if col in {_COL_LP, _COL_IN, _COL_OUT}:
-            continue
-        hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-        if table.columnWidth(col) < 56:
-            table.setColumnWidth(col, _DEFAULT_WIDTHS.get(col, 120))
+    # Liczby tylko tyle, ile potrzebują — reszta szerokości idzie na nazwy plików
+    # (wcześniej zapisane szerokości zostawiały nazwom ~70 px: „DK_Doypac”).
+    for col in (_COL_OLD, _COL_NEW, _COL_RATIO, _COL_SAVE):
+        hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+    hdr.setSectionResizeMode(_COL_STATUS, QHeaderView.ResizeMode.Interactive)
+    if not 56 <= table.columnWidth(_COL_STATUS) <= 260:
+        table.setColumnWidth(_COL_STATUS, 110)
 
 
 def _configure_results_table(table: QTableWidget) -> QHeaderView:
@@ -92,7 +95,8 @@ def _configure_results_table(table: QTableWidget) -> QHeaderView:
     table.setAlternatingRowColors(True)
     table.verticalHeader().setVisible(False)
     table.setWordWrap(False)
-    table.setTextElideMode(Qt.TextElideMode.ElideNone)
+    # Nazwy różnią się zwykle końcówką (…-F front / …-F back) — tnij środek, nie koniec.
+    table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
     table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setCornerButtonEnabled(False)
@@ -132,6 +136,29 @@ class ResultsDialog(AppDialog):
         header.addStretch()
         layout.addLayout(header)
 
+        # Gdzie trafiły pliki — widoczne od razu, nie tylko w podpowiedzi nad nazwą.
+        ok_paths = [r.job.output_path for r in results if r.status == JobStatus.OK]
+        self._first_output = ok_paths[0] if ok_paths else None
+        folders = list(dict.fromkeys(str(p.parent) for p in ok_paths))
+        if folders:
+            where = QHBoxLayout()
+            if len(folders) == 1:
+                text = f"Zapisano w: {folders[0]}"
+            else:
+                text = f"Zapisano w {len(folders)} folderach, m.in.: {folders[0]}"
+            where_lbl = QLabel(text)
+            where_lbl.setObjectName("resultsWhere")
+            where_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            where_lbl.setToolTip("\n".join(folders))
+            where_lbl.setWordWrap(True)
+            where.addWidget(where_lbl, stretch=1)
+            reveal_btn = QPushButton("Pokaż w folderze")
+            self.polish_button(reveal_btn)
+            reveal_btn.setToolTip("Otwiera Eksplorator z zaznaczonym pierwszym plikiem")
+            reveal_btn.clicked.connect(self._reveal_first)
+            where.addWidget(reveal_btn)
+            layout.addLayout(where)
+
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(
             [
@@ -147,7 +174,9 @@ class ResultsDialog(AppDialog):
         )
         self._table_header = _configure_results_table(self.table)
         restore_results_table_header(self._table_header)
+        _apply_responsive_column_modes(self.table)  # restoreState nadpisuje tryby kolumn
         restore_results_dialog_geometry(self)
+        self.resize(max(self.width(), RESULTS_DIALOG_WIDTH), self.height())
         layout.addWidget(self.table, stretch=1)
 
         total_old = sum(r.old_bytes for r in results)
@@ -204,6 +233,10 @@ class ResultsDialog(AppDialog):
     def _fmt_time(self, sec: float) -> str:
         m, s = divmod(int(sec), 60)
         return f"{m:02d}:{s:02d}"
+
+    def _reveal_first(self) -> None:
+        if self._first_output is not None:
+            reveal_in_explorer(self._first_output)
 
     def _cell(self, text: str, *, tooltip: str = "") -> QTableWidgetItem:
         item = QTableWidgetItem(text)

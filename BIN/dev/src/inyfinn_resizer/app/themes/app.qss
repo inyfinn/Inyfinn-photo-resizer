@@ -571,6 +571,31 @@ QTreeWidget#inputList::item {
     border-bottom: 1px solid @SEP@;
 }
 
+/* Kolumna „Rozmiar” ma ✕ po prawej (removable_items.py, strefa 26 px) */
+QTreeWidget#inputList::item {
+    padding-right: 30px;
+}
+
+QListWidget#simpleFileList {
+    outline: none;
+    padding: 4px;
+}
+
+QListWidget#simpleFileList::item {
+    padding: 5px 30px 5px 8px;
+    min-height: 22px;
+    border-radius: 6px;
+}
+
+QListWidget#simpleFileList::item:selected {
+    background-color: @ACCENT@;
+    color: #ffffff;
+}
+
+QListWidget#simpleFileList::item:hover:!selected {
+    background-color: @BG_HOVER@;
+}
+
 QTreeWidget#inputList::item:selected {
     background-color: @ACCENT@;
     color: #ffffff;

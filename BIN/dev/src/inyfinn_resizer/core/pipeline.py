@@ -25,6 +25,7 @@ from inyfinn_resizer.core.compressors import (
     save_vips_avif_capped,
 )
 from inyfinn_resizer.core.compressors.avif import avif_max_bytes
+from inyfinn_resizer.core.compressors.jpeg import FULL_CHROMA_MIN_QUALITY, full_chroma, pil_subsampling
 from inyfinn_resizer.core.formats.registry import output_extension
 from inyfinn_resizer.core.job import JobResult, JobSpec, JobStatus
 from inyfinn_resizer.core.metadata.exif import strip_metadata_file
@@ -134,7 +135,12 @@ def _load_image(job: JobSpec):
 
 
 def _effective_lossy_quality(source: Path, quality: int) -> int:
-    """Podbija jakość, gdy źródło ma rzadkie zielone akcenty."""
+    """Podbija jakość do 92, gdy źródło ma rzadkie zielone akcenty — tylko przy jakości ≥ 70.
+
+    Poniżej 70 użytkownik chce małego pliku: podbicie nadpisywało suwak (35/50/75 → ten sam plik).
+    """
+    if quality < FULL_CHROMA_MIN_QUALITY:
+        return quality
     if count_rare_green_accents(source) > 0:
         return max(quality, 92)
     return quality
@@ -152,6 +158,7 @@ def _save_vips(image, path: Path, fmt: str, opts, *, source_path: Path | None = 
         image.jpegsave(
             str(path), Q=q, strip=not opts.keep_metadata,
             optimize_coding=opts.optimize, interlace=opts.progressive,
+            subsample_mode="off" if full_chroma(q, opts.subsampling) else "on",
         )
     elif fmt == "png":
         image.pngsave(str(path), compression=6, strip=not opts.keep_metadata)
@@ -248,7 +255,10 @@ def _save_pillow_rgba(job: JobSpec, out_path: Path) -> None:
         elif fmt == "jpeg":
             flat = Image.new("RGB", im.size, (255, 255, 255))
             flat.paste(im, mask=im.split()[-1])
-            flat.save(out_path, format="JPEG", quality=quality, optimize=True)
+            flat.save(
+                out_path, format="JPEG", quality=quality, optimize=True,
+                subsampling=pil_subsampling(quality, opts.subsampling),
+            )
         else:
             _save_png(im, out_path)
     finally:
@@ -290,7 +300,11 @@ def _save_pillow_fallback(job: JobSpec, out_path: Path) -> None:
             quality = _effective_lossy_quality(job.input_path, quality)
         if fmt_save in ("JPEG", "JPG"):
             fmt_save = "JPEG"
-            im.save(out_path, format=fmt_save, quality=quality, optimize=True)
+            im.save(
+                out_path, format=fmt_save, quality=quality, optimize=True,
+                progressive=job.format_opts.progressive,
+                subsampling=pil_subsampling(quality, job.format_opts.subsampling),
+            )
         elif fmt_save == "WEBP":
             im.save(out_path, format="WEBP", quality=quality)
         elif fmt_save == "PNG":
@@ -481,12 +495,15 @@ def _post_compress(path: Path, fmt: str, opts, *, source_bytes: int = 0) -> str:
         )
         if not ok:
             optimize_png_oxipng(path)
-    elif fmt == "jpeg":
+    elif fmt == "jpeg" and opts.target_kb:
+        # Bez limitu wagi JPG jest gotowy po pierwszym zapisie — każde ponowne kodowanie
+        # to kolejna strata (wcześniej 6–7 przebiegów wyszukiwania przy każdym pliku).
         compress_jpeg_file(
             path,
             quality=opts.quality,
             target_kb=opts.target_kb,
             target_tolerance=opts.target_tolerance,
+            subsampling_mode=opts.subsampling,
         )
     elif fmt == "webp":
         tmp = path.with_suffix(".cwebp.tmp.webp")

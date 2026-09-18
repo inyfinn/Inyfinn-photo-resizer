@@ -205,9 +205,14 @@ class FormatSettingsDialog(AppDialog):
         self._jpeg_lossless_src = QCheckBox("Użyj jakości JPEG z pliku źródłowego, jeśli możliwe")
         fl.addRow(self._jpeg_lossless_src)
         self._subsampling = style_dropdown(QComboBox())
-        self._subsampling.addItems(["RGB", "4:2:0 średnie", "4:2:0 silne"])
-        self._subsampling.setToolTip("Mniejsza przestrzeń kolorów = mniejszy plik, lekka utrata szczegółów.")
-        fl.addRow("Przestrzeń kolorów:", self._subsampling)
+        self._subsampling.addItem("Automatycznie (pełny kolor od 70%)", "auto")
+        self._subsampling.addItem("Pełny kolor 4:4:4 — wierne czerwienie", "full")
+        self._subsampling.addItem("Oszczędny 4:2:0 — mniejszy plik", "reduced")
+        self._subsampling.setToolTip(
+            "Oszczędny tryb zapisuje barwę wspólną dla bloku 2×2 pikseli — plik jest mniejszy, "
+            "ale czerwone krawędzie i drobny kolorowy tekst bledną. Wymiary obrazu się nie zmieniają."
+        )
+        fl.addRow("Dokładność koloru:", self._subsampling)
         self._jpeg_progressive = QCheckBox("Postępowy JPEG")
         self._jpeg_progressive.setToolTip("Plik ładuje się stopniowo w przeglądarce (jak rozmyty podgląd).")
         fl.addRow(self._jpeg_progressive)
@@ -473,6 +478,9 @@ class FormatSettingsDialog(AppDialog):
     def _load_from_opts(self) -> None:
         if self._jpeg_progressive:
             self._jpeg_progressive.setChecked(self._opts.progressive)
+        if self._subsampling:
+            # Stare profile mają „medium” — to samo co automatycznie.
+            self._subsampling.setCurrentIndex(max(0, self._subsampling.findData(self._opts.subsampling)))
         if self._keep_meta:
             self._keep_meta.setChecked(self._opts.keep_metadata)
         if self._webp_lossless:
@@ -529,6 +537,8 @@ class FormatSettingsDialog(AppDialog):
     def get_options(self) -> FormatOptions:
         if self._jpeg_progressive:
             self._opts.progressive = self._jpeg_progressive.isChecked()
+        if self._subsampling:
+            self._opts.subsampling = str(self._subsampling.currentData() or "auto")
         if self._keep_meta:
             self._opts.keep_metadata = self._keep_meta.isChecked()
         if self._webp_lossless:

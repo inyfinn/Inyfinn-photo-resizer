@@ -100,7 +100,7 @@ class FormatOptions:
     keep_metadata: bool = True
     rgb_bitmap_only: bool = True
     avif_max_kb: float | None = None
-    subsampling: str = "medium"
+    subsampling: str = "auto"  # JPEG: auto (4:4:4 od jakości 70) | full | reduced
     smoothing: int = 0
     target_kb: float | None = None
     target_tolerance: float = 0.2

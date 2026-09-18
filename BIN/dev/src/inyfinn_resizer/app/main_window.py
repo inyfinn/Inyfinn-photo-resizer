@@ -8,7 +8,7 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, QTimer, QSize
+from PySide6.QtCore import QStandardPaths, Qt, QThread, QTimer, QSize
 from PySide6.QtGui import QGuiApplication, QIntValidator, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMenuBar,
@@ -63,9 +64,12 @@ from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
+from inyfinn_resizer.app.widgets.removable_items import install_remove_support
+from inyfinn_resizer.utils.reveal import reveal_in_explorer
 from inyfinn_resizer.app.widgets.layout_helpers import (
     ACTION_H,
     BTN_H,
+    CONTROL_H,
     COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
     SECTION_GAP,
@@ -191,6 +195,8 @@ class MainWindow(QMainWindow):
         self._wiz_thread: WizThread | None = None
         # Anulowany wątek potrafi jeszcze pracować — bez referencji ~QThread ubija EXE.
         self._retired_threads: list[QThread] = []
+        # Tryb prosty: folder tylko z „Wybierz folder…” w tej sesji (nie z pola zaawansowanego).
+        self._simple_output_dir: Path | None = None
         self._folder_queue: list[Path] = []
         self._theme = load_theme()
         self._output_settings_locked = False
@@ -434,7 +440,18 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setObjectName("simpleFileList")
         self.simple_file_list.setMinimumHeight(160)
         self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.simple_file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.simple_file_list.setIconSize(QSize(16, 16))
+        self.simple_file_list.setToolTip(
+            "Kliknij, aby zaznaczyć. Ctrl — kilka plików, Shift — zakres.\n"
+            "Delete albo ✕ przy pliku usuwa go z listy (pliku na dysku nie rusza)."
+        )
+        install_remove_support(
+            self.simple_file_list,
+            on_remove_index=self._remove_simple_index,
+            on_remove_selected=self._remove_simple_selected,
+        )
+        self.simple_file_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.simple_file_list.customContextMenuRequested.connect(self._show_simple_context_menu)
         files_lay.addWidget(self.simple_file_list, stretch=1)
         col.addWidget(files_tile, stretch=1)
 
@@ -466,9 +483,15 @@ class MainWindow(QMainWindow):
         self.simple_output_edit = QLineEdit()
         self.simple_output_edit.setObjectName("outputDirEdit")
         self.simple_output_edit.setReadOnly(True)
-        self.simple_output_edit.setPlaceholderText("Nie wybrano folderu…")
+        self.simple_output_edit.setPlaceholderText("Nie wybrano — zapis obok oryginałów")
         self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         mark_large(self.simple_output_edit)
+        self.simple_output_clear = QPushButton("✕")
+        self.simple_output_clear.setObjectName("btnBrowse")
+        self.simple_output_clear.setToolTip("Nie zapisuj do tego folderu — zapis obok oryginałów")
+        self.simple_output_clear.clicked.connect(self._clear_simple_output)
+        mark_large(self.simple_output_clear)
+        self.simple_output_clear.setFixedWidth(CONTROL_H)
         simple_browse = browse_button(
             "Wybierz folder…",
             tooltip="Wybierz folder na gotowe zdjęcia",
@@ -478,6 +501,7 @@ class MainWindow(QMainWindow):
         simple_browse.setIconSize(QSize(16, 16))
         mark_large(simple_browse)
         out_row.addWidget(self.simple_output_edit, stretch=1)
+        out_row.addWidget(self.simple_output_clear)
         out_row.addWidget(simple_browse)
         out_lay.addLayout(out_row)
         col.addWidget(out_tile)
@@ -579,13 +603,39 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "simple_file_list"):
             return
         self.simple_file_list.clear()
+        icon = icon_image_file()
         for p in self._queue:
-            self.simple_file_list.addItem(p.name)
+            item = QListWidgetItem(icon, p.name)
+            item.setData(Qt.UserRole, str(p))
+            item.setToolTip(str(p))
+            self.simple_file_list.addItem(item)
         self.simple_queue_label.setText(self.queue_label.text())
 
     def _refresh_simple_output(self) -> None:
-        if hasattr(self, "simple_output_edit"):
-            self.simple_output_edit.setText(self.output_dir_edit.text())
+        """Tryb prosty ma własny folder — nie dziedziczy pola „Wyjście” z zaawansowanego ani z sesji.
+
+        Wcześniej przywracał folder z poprzedniej sesji i po cichu zapisywał tam wyniki.
+        """
+        if not hasattr(self, "simple_output_edit"):
+            return
+        folder = self._simple_output_dir
+        text = str(folder) if folder else ""
+        self.simple_output_edit.setText(text)
+        self.simple_output_edit.setCursorPosition(0)
+        self.simple_output_edit.setToolTip(text or "Bez folderu program zapyta: nadpisać, czy zapisać obok jako _conv.")
+        self.simple_output_clear.setVisible(folder is not None)
+
+    def _clear_simple_output(self) -> None:
+        self._simple_output_dir = None
+        self._refresh_simple_output()
+
+    def _default_browse_dir(self, current: str = "") -> str:
+        """Start okna wyboru folderu: bieżący folder → folder pierwszego zdjęcia → Obrazy."""
+        for candidate in (current, str(self._queue[0].parent) if self._queue else ""):
+            if candidate and Path(candidate).is_dir():
+                return candidate
+        pictures = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.PicturesLocation)
+        return pictures or str(Path.home())
 
     def _on_simple_quality_changed(self, v: int) -> None:
         self.simple_quality_label.setText(str(v))
@@ -599,7 +649,11 @@ class MainWindow(QMainWindow):
             self._syncing_quality = False
 
     def _browse_output_simple(self) -> None:
-        self._browse_output()
+        start = self._default_browse_dir(str(self._simple_output_dir or ""))
+        folder = QFileDialog.getExistingDirectory(self, "Folder na gotowe zdjęcia", start)
+        if folder:
+            self._simple_output_dir = Path(folder)
+            log_event("Folder wyjściowy (tryb prosty)", folder)
         self._refresh_simple_output()
 
     def _simple_format_opts(self) -> FormatOptions:
@@ -631,12 +685,9 @@ class MainWindow(QMainWindow):
         if not self._queue:
             show_warning(self, "Konwersja", "Najpierw dodaj zdjęcia.")
             return
-        out_text = self.output_dir_edit.text().strip()
-        dest_dir: Path | None = None
+        dest_dir: Path | None = self._simple_output_dir
         save_mode = "overwrite"
-        if out_text:
-            self.output_enabled_cb.setChecked(True)
-            dest_dir = Path(out_text)
+        if dest_dir is not None:
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
@@ -780,6 +831,15 @@ class MainWindow(QMainWindow):
         self.input_tree.currentItemChanged.connect(self._on_selection_changed)
         self.input_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.input_tree.customContextMenuRequested.connect(self._show_file_context_menu)
+        install_remove_support(
+            self.input_tree,
+            on_remove_index=self._remove_tree_index,
+            on_remove_selected=self._remove_selected,
+            column=1,
+        )
+        self.input_tree.setToolTip(
+            "Ctrl — zaznacz kilka, Shift — zakres. Delete albo ✕ usuwa z listy (pliku na dysku nie rusza)."
+        )
         self.input_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         list_layout.addWidget(self.input_tree, stretch=1)
 
@@ -2069,7 +2129,8 @@ class MainWindow(QMainWindow):
             QGuiApplication.clipboard().setText("\n".join(lines))
 
     def _browse_output(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Folder wyjściowy")
+        start = self._default_browse_dir(self.output_dir_edit.text().strip())
+        folder = QFileDialog.getExistingDirectory(self, "Folder wyjściowy", start)
         if folder:
             self.output_enabled_cb.setChecked(True)
             self._output_dir_manual = True
@@ -2083,18 +2144,88 @@ class MainWindow(QMainWindow):
             self._file_roots.pop(f, None)
 
     def _remove_selected(self) -> None:
-        for item in self.input_tree.selectedItems():
-            p = Path(item.data(0, Qt.UserRole))
-            if self._item_kind(item) == "folder":
+        self._remove_tree_items(self.input_tree.selectedItems())
+
+    def _remove_tree_index(self, index) -> None:
+        item = self.input_tree.itemFromIndex(index)
+        if item is not None:
+            self._remove_tree_items([item])
+
+    def _iter_tree_items(self):
+        stack = [self.input_tree.topLevelItem(i) for i in range(self.input_tree.topLevelItemCount())]
+        while stack:
+            item = stack.pop()
+            yield item
+            stack.extend(item.child(i) for i in range(item.childCount()))
+
+    def _remove_paths(self, paths: list[Path]) -> None:
+        """Usuwa pliki z kolejki (tryb prosty) — ta sama ścieżka co w drzewie trybu zaawansowanego."""
+        wanted = {str(p) for p in paths}
+        items = [
+            it for it in self._iter_tree_items()
+            if self._item_kind(it) == "file" and it.data(0, Qt.UserRole) in wanted
+        ]
+        self._remove_tree_items(items)
+        leftovers = [p for p in paths if p in self._queue]
+        for p in leftovers:
+            self._queue.remove(p)
+            self._file_roots.pop(p, None)
+        if leftovers:
+            self._update_queue_label()
+
+    def _remove_simple_index(self, index) -> None:
+        data = index.data(Qt.UserRole)
+        if data:
+            self._remove_paths([Path(data)])
+
+    def _remove_simple_selected(self) -> None:
+        paths = [Path(it.data(Qt.UserRole)) for it in self.simple_file_list.selectedItems() if it.data(Qt.UserRole)]
+        if paths:
+            self._remove_paths(paths)
+
+    def _show_simple_context_menu(self, pos) -> None:
+        items = self.simple_file_list.selectedItems()
+        if not items:
+            item = self.simple_file_list.itemAt(pos)
+            if item is None:
+                return
+            item.setSelected(True)
+            items = [item]
+        menu = QMenu(self)
+        n = len(items)
+        menu.addAction(f"Usuń z listy ({n})" if n > 1 else "Usuń z listy", self._remove_simple_selected)
+        menu.addAction("Zaznacz wszystkie", self.simple_file_list.selectAll)
+        first = items[0].data(Qt.UserRole)
+        if first:
+            menu.addSeparator()
+            menu.addAction("Pokaż w folderze", lambda p=first: reveal_in_explorer(Path(p)))
+        menu.exec(self.simple_file_list.viewport().mapToGlobal(pos))
+
+    def _remove_tree_items(self, items: list) -> None:
+        # Najpierw ścieżki, potem zdejmowanie z drzewa — obiekty Qt znikają przy takeChild.
+        entries = [(Path(it.data(0, Qt.UserRole)), self._item_kind(it), it) for it in items]
+        for p, kind, item in entries:
+            if kind == "folder":
                 if p in self._folder_queue:
                     self._folder_queue.remove(p)
                 self._remove_files_for_folder(p)
             elif p in self._queue:
                 self._queue.remove(p)
                 self._file_roots.pop(p, None)
-            parent = item.parent()
-            if parent is not None and parent != self.input_tree.invisibleRootItem():
+        for _p, _kind, item in entries:
+            try:
+                parent = item.parent()
+            except RuntimeError:
+                continue  # rodzic (folder) usunięty wcześniej w tej samej partii
+            if parent is not None:
                 parent.removeChild(item)
+                if parent.childCount() == 0 and self._item_kind(parent) == "folder":
+                    folder = Path(parent.data(0, Qt.UserRole))
+                    if folder in self._folder_queue:
+                        self._folder_queue.remove(folder)
+                    idx = self.input_tree.indexOfTopLevelItem(parent)
+                    if idx >= 0:
+                        self.input_tree.takeTopLevelItem(idx)
             else:
                 idx = self.input_tree.indexOfTopLevelItem(item)
                 if idx >= 0:
@@ -2145,6 +2276,7 @@ class MainWindow(QMainWindow):
         if n_folders and not n_files:
             word = "folder" if n_folders == 1 else ("foldery" if 2 <= n_folders % 10 <= 4 else "folderów")
             self.queue_label.setText(f"{n_folders} {word}")
+            self._refresh_simple_file_list()
             return
         word = "plik" if n_files == 1 else ("pliki" if 2 <= n_files % 10 <= 4 and (n_files % 100 < 10 or n_files % 100 >= 20) else "plików")
         extra = f", {n_folders} folderów" if n_folders else ""
