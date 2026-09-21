@@ -35,6 +35,7 @@ def _collect_tool_binaries():
     if GIF.is_file():
         out.append((str(GIF), os.path.join("tools", "gifsicle")))
     for folder, arc_prefix in [
+        ("ffmpeg", "tools/ffmpeg"),
         ("cwebp", "tools/cwebp"),
         ("oxipng", "tools/oxipng"),
         ("avifenc", "tools/avifenc"),

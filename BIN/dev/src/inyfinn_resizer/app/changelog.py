@@ -19,6 +19,15 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.5.0",
+        "2026-09-21",
+        [
+            "Filmy → GIF. Wrzuć MP4, MOV, WebM, MKV lub AVI — program zrobi z nich GIF-a.",
+            "Tryb ULTRA: fragmenty, w których obraz stoi, stają się jedną klatką trzymaną tyle samo czasu. Długość animacji zostaje bez zmian, a plik jest wielokrotnie mniejszy.",
+            "W Ustawieniach GIF: liczba klatek, szerokość i tryb (równomiernie albo ULTRA).",
+        ],
+    ),
+    (
         "2.4.12",
         "2026-09-18",
         [

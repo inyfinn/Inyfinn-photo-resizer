@@ -37,6 +37,7 @@ from inyfinn_resizer.core.transforms.background_removal import (
     remove_background,
 )
 from inyfinn_resizer.core.image_loader import open_image
+from inyfinn_resizer.core.video import convert_video, is_video_file
 from inyfinn_resizer.core.transforms.rgb_bitmap import rgb_bitmap, vips_rgb_bitmap
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
 from inyfinn_resizer.core.compressors.png import (
@@ -618,6 +619,19 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
 
         src_bytes = result.old_bytes
         cmyk_tiff = _is_cmyk_tiff(inp)
+        if is_video_file(inp):
+            # Wideo ma własną ścieżkę: klatki z ffmpeg, scalanie zamrożeń, zapis animacji.
+            if fmt != "gif":
+                raise OSError("Film zapisujemy jako GIF — wybierz format GIF dla tego pliku.")
+            result.message = convert_video(inp, staging, job.format_opts)
+            if not staging.is_file() or staging.stat().st_size == 0:
+                raise OSError("Nie udało się zapisać animacji")
+            if in_place:
+                os.replace(staging, out)
+            result.new_bytes = out.stat().st_size
+            result.status = JobStatus.OK
+            return result
+
         use_vips = not cmyk_tiff and fmt not in ("bmp", "jp2") and _init_vips()
         animated = (
             fmt in _ANIMATED_OUTPUTS

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inyfinn-resizer"
-version = "2.4.12"
+version = "2.5.0"
 description = "Native batch image converter and compressor — FastStone-style desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,6 +18,7 @@ dependencies = [
     "tifffile>=2024.1",
     "imagecodecs>=2024.1",
     "pillow-heif>=0.18",
+    "imageio-ffmpeg>=0.5",  # źródło binarki ffmpeg przy budowaniu paczki
     "watchdog>=4.0",
     "piexif>=1.1",
     "rembg>=2.0.76",

@@ -9,6 +9,7 @@
   WebP:      cwebp           - dodatkowa kompresja WebP
   AVIF:      avifenc         - enkoder AVIF
   GIF:       gifsicle        - kompresja GIF (GIF-COMPRESOR)
+  Wideo:     ffmpeg          - klatki z MP4/MOV/WebM do konwersji na GIF
   TIFF CMYK: imagecodecs     - pakowane przez PyInstaller (nie ten skrypt)
 #>
 $ErrorActionPreference = "Stop"
@@ -155,3 +156,24 @@ foreach ($r in $rows) {
 Write-Host ""
 Write-Host "Lanczos: wbudowany w libvips (lanczos3) i Pillow fallback - osobny program nie jest potrzebny."
 Write-Host "TIFF LZW/CMYK: imagecodecs + tifffile - pakowane do _internal przy build.bat"
+
+# --- ffmpeg (wideo -> GIF) ---
+# Binarka pochodzi z pakietu imageio-ffmpeg z venv - nie pobieramy jej osobno z internetu.
+$ffmpegDir = Join-Path $tools "ffmpeg"
+$ffmpegExe = Join-Path $ffmpegDir "ffmpeg.exe"
+if (-not (Test-Path -LiteralPath $ffmpegExe)) {
+    $venvPy = Join-Path (Split-Path -Parent $PSScriptRoot) ".venv\Scripts\python.exe"
+    if (Test-Path -LiteralPath $venvPy) {
+        & $venvPy -m pip install -q imageio-ffmpeg
+        $src = (& $venvPy -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())").Trim()
+        if ($src -and (Test-Path -LiteralPath $src)) {
+            New-Item -ItemType Directory -Force -Path $ffmpegDir | Out-Null
+            Copy-Item -LiteralPath $src -Destination $ffmpegExe -Force
+            Write-Host "OK ffmpeg -> toolsfmpegfmpeg.exe"
+        } else {
+            Write-Warning "Nie znaleziono binarki ffmpeg (imageio-ffmpeg) - wideo -> GIF nie zadziala"
+        }
+    }
+} else {
+    Write-Host "OK ffmpeg"
+}

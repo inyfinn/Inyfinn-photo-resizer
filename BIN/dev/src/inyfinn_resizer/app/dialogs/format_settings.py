@@ -96,6 +96,10 @@ class FormatSettingsDialog(AppDialog):
         self._gif_ultra_frames: QSpinBox | None = None
         self._gif_ultra_lossy: QSpinBox | None = None
         self._gif_mode_hint: QLabel | None = None
+        self._video_mode: QComboBox | None = None
+        self._video_frames: QSpinBox | None = None
+        self._video_width: QSpinBox | None = None
+        self._video_fps: QSpinBox | None = None
         self._avif_rgb_only: QCheckBox | None = None
         self._avif_cap: QCheckBox | None = None
         self._avif_max_kb: QSpinBox | None = None
@@ -311,6 +315,40 @@ class FormatSettingsDialog(AppDialog):
         self._gif_colors_label.setObjectName("hintLabel")
         fl.addRow("Liczba kolorów:", self._gif_colors_label)
 
+        fl.addRow(QLabel(" "))
+        video_title = QLabel("Film → GIF (MP4, MOV, WebM…)")
+        video_title.setObjectName("sectionStepTitle")
+        fl.addRow(video_title)
+
+        self._video_mode = style_dropdown(QComboBox())
+        self._video_mode.addItem("Równomiernie — płynny ruch", "smooth")
+        self._video_mode.addItem("ULTRA — zatrzymania jako jedna klatka", "ultra")
+        self._video_mode.setToolTip(
+            "ULTRA zostawia kadr początkowy i te miejsca, w których obraz stoi najdłużej. "
+            "Długość animacji zostaje taka jak w filmie, a plik jest wielokrotnie mniejszy."
+        )
+        fl.addRow("Tryb dla filmu:", self._video_mode)
+
+        self._video_frames = QSpinBox()
+        self._video_frames.setRange(2, 300)
+        self._video_frames.setToolTip("Ile klatek ma mieć gotowy GIF.")
+        fl.addRow("Liczba klatek:", self._video_frames)
+
+        self._video_width = QSpinBox()
+        self._video_width.setRange(120, 1920)
+        self._video_width.setSingleStep(40)
+        self._video_width.setSuffix(" px")
+        self._video_width.setToolTip("Szerokość GIF-a. Wysokość dobiera się sama, proporcje zostają.")
+        fl.addRow("Szerokość:", self._video_width)
+
+        self._video_fps = QSpinBox()
+        self._video_fps.setRange(1, 30)
+        self._video_fps.setToolTip(
+            "Ile klatek na sekundę program pobiera z filmu, zanim wybierze te, które zostaną. "
+            "Więcej = dokładniej wykryte zatrzymania, dłuższe przetwarzanie."
+        )
+        fl.addRow("Próbkowanie filmu:", self._video_fps)
+
         cb = QCheckBox("Zachowaj dane EXIF / IPTC")
         cb.setChecked(self._opts.keep_metadata)
         fl.addRow(cb)
@@ -499,6 +537,14 @@ class FormatSettingsDialog(AppDialog):
         if self._png_mode:
             mode_map = {"auto": 0, "png8": 1, "png24": 2}
             self._png_mode.setCurrentIndex(mode_map.get(self._opts.png_mode, 0))
+        if self._video_mode:
+            self._video_mode.setCurrentIndex(max(0, self._video_mode.findData(self._opts.video_mode)))
+        if self._video_frames:
+            self._video_frames.setValue(int(self._opts.video_max_frames))
+        if self._video_width:
+            self._video_width.setValue(int(self._opts.video_max_width))
+        if self._video_fps:
+            self._video_fps.setValue(int(round(self._opts.video_fps)))
         if self._gif_dither:
             self._gif_dither.setChecked(self._opts.gif_dither)
         if self._gif_lossy:
@@ -558,6 +604,14 @@ class FormatSettingsDialog(AppDialog):
         if self._png_mode:
             modes = ["auto", "png8", "png24"]
             self._opts.png_mode = modes[self._png_mode.currentIndex()]
+        if self._video_mode:
+            self._opts.video_mode = str(self._video_mode.currentData() or "smooth")
+        if self._video_frames:
+            self._opts.video_max_frames = self._video_frames.value()
+        if self._video_width:
+            self._opts.video_max_width = self._video_width.value()
+        if self._video_fps:
+            self._opts.video_fps = float(self._video_fps.value())
         if self._gif_dither:
             self._opts.gif_dither = self._gif_dither.isChecked()
         if self._gif_mode:

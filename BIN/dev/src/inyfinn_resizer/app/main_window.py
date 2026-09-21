@@ -109,7 +109,12 @@ from inyfinn_resizer.app.user_settings import (
     save_theme,
     snapshot_from_window,
 )
-from inyfinn_resizer.core.formats.registry import is_image_file, output_extension, output_format_for_input
+from inyfinn_resizer.core.formats.registry import (
+    is_image_file,
+    is_video_file,
+    output_extension,
+    output_format_for_input,
+)
 from inyfinn_resizer.core.job import (
     CONVERTED_FOLDER_NAME,
     BatchSettings,
@@ -709,6 +714,8 @@ class MainWindow(QMainWindow):
         jobs: list[JobSpec] = []
         for inp in self._queue:
             fmt = output_format or output_format_for_input(inp)
+            if is_video_file(inp):
+                fmt = "gif"  # film zapisujemy jako animację, niezależnie od wybranego kafelka
             out = self._simple_output_path(inp, fmt, dest_dir, save_mode)
             jobs.append(JobSpec(
                 input_path=inp,

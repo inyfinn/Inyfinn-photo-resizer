@@ -28,6 +28,8 @@ BIN/dev/tests/output/*
 BIN/dev/tools/libvips/
 BIN/dev/tools/pngquant/pngquant.exe
 BIN/dev/tools/gifsicle/
+# ffmpeg 84 MB - pobiera setup_tools.ps1 z pakietu imageio-ffmpeg
+BIN/dev/tools/ffmpeg/
 BIN/dev/tools/rmbg/
 
 # Artefakty testow lokalnych

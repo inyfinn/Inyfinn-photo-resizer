@@ -8,6 +8,12 @@ INPUT_EXTENSIONS = {
     ".jp2", ".j2k", ".jxl", ".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2",
 }
 
+# Wideo → GIF / animowany WebP (core/video.py)
+VIDEO_EXTENSIONS = {
+    ".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".mpg", ".mpeg", ".mts", ".wmv",
+}
+VIDEO_OUTPUT_FORMATS = ("gif",)
+
 OUTPUT_FORMATS = {
     "jpeg": {"ext": ".jpg", "label": "JPEG Format (*.jpg)", "lossy": True},
     "png": {"ext": ".png", "label": "PNG Format (*.png)", "lossy": False},
@@ -21,13 +27,27 @@ OUTPUT_FORMATS = {
     "pdf": {"ext": ".pdf", "label": "PDF (*.pdf)", "lossy": False},
 }
 
-IMAGE_FILTER = "Images (*.jpg *.jpeg *.png *.gif *.bmp *.tif *.tiff *.webp *.avif *.heic);;All (*.*)"
+IMAGE_FILTER = (
+    "Zdjęcia i filmy (*.jpg *.jpeg *.png *.gif *.bmp *.tif *.tiff *.webp *.avif *.heic *.mp4 *.mov *.m4v *.webm *.mkv *.avi);;Wszystkie (*.*)"
+)
+
+
+def is_video_file(path) -> bool:
+    from pathlib import Path
+
+    return Path(path).suffix.lower() in VIDEO_EXTENSIONS
 
 
 def is_image_file(path) -> bool:
+    """Plik, który program przyjmie na listę (zdjęcie albo film)."""
     from pathlib import Path
-    p = Path(path)
-    return p.suffix.lower() in INPUT_EXTENSIONS or p.suffix.lower() in {v["ext"] for v in OUTPUT_FORMATS.values()}
+
+    suffix = Path(path).suffix.lower()
+    return (
+        suffix in INPUT_EXTENSIONS
+        or suffix in VIDEO_EXTENSIONS
+        or suffix in {v["ext"] for v in OUTPUT_FORMATS.values()}
+    )
 
 
 def output_extension(fmt: str) -> str:
@@ -68,4 +88,6 @@ def output_format_for_input(path) -> str:
         ".heif": "heic",
         ".jp2": "jp2",
     }
+    if ext in VIDEO_EXTENSIONS:
+        return "gif"  # film zamieniamy na animację
     return mapping.get(ext, "jpeg")

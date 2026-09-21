@@ -121,6 +121,11 @@ class FormatOptions:
     gif_level: int = 6
     gif_ultra_max_frames: int = 4
     gif_ultra_lossy: int = 70
+    # Wideo → GIF/WebP (core/video.py)
+    video_fps: float = 12.0          # co ile próbkujemy film
+    video_max_frames: int = 24       # ile klatek zostaje w animacji
+    video_max_width: int = 640       # szerokość wyniku (proporcje zostają)
+    video_mode: str = "smooth"       # smooth = równomiernie | ultra = zamrożenia
 
 
 @dataclass
@@ -230,6 +235,10 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
             "gif_level": fo.gif_level,
             "gif_ultra_max_frames": fo.gif_ultra_max_frames,
             "gif_ultra_lossy": fo.gif_ultra_lossy,
+            "video_fps": fo.video_fps,
+            "video_max_frames": fo.video_max_frames,
+            "video_max_width": fo.video_max_width,
+            "video_mode": fo.video_mode,
         },
         "resize": {
             "mode": _enum_val(ro.mode),

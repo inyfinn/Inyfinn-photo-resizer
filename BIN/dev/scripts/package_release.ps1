@@ -223,6 +223,10 @@ Własny format: zaznacz i podaj szerokość x wysokość.
 Kadr: róża wiatrów wybiera punkt odniesienia przycięcia.
 Usuwanie tła: model pobiera się przy pierwszym użyciu (214 MB lub 928 MB)
 do %LOCALAPPDATA%\Inyfinn\PhotoResizer\rmbg\
+Filmy (MP4, MOV, WebM) → GIF: Ustawienia GIF — tryb, liczba klatek, szerokość.
+
+Program korzysta z ffmpeg 7.1 (build gyan.dev, licencja GPL v3).
+Kod źródłowy ffmpeg: https://ffmpeg.org/download.html
 
 Zbudowano: $stamp
 "@
