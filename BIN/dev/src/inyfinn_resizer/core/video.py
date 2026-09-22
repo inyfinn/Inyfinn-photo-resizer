@@ -26,6 +26,8 @@ STATIC_PIXEL_RATIO = 0.002   # ułamek pikseli w ruchu, poniżej którego klatka
 COMPARE_SIZE = 128           # rozdzielczość porównania (szybkie, a widzi drobny ruch)
 MIN_FRAME_MS = 20  # GIF liczy czas w setnych sekundy — poniżej 2 cs przeglądarki zwalniają
 MAX_SAMPLE_FPS = 60.0
+ULTRA_MIN_SAMPLE_FPS = 12.0  # ULTRA musi widzieć film gęściej niż wynikowy GIF, inaczej gubi zatrzymania
+ULTRA_MAX_SAMPLE_FPS = 30.0
 
 
 def is_video_file(path) -> bool:
@@ -86,22 +88,39 @@ def probe(path: Path) -> VideoInfo:
     return VideoInfo(width=width, height=height, duration_sec=duration, fps=fps or 25.0)
 
 
-def output_size(info: VideoInfo, max_width: int) -> tuple[int, int]:
-    """Szerokość ograniczona do max_width, proporcje zachowane, wymiary parzyste (wymóg ffmpeg)."""
-    width = min(int(max_width), info.width) if max_width else info.width
+def output_size(info: VideoInfo, scale_percent: float) -> tuple[int, int]:
+    """Wymiary brane z filmu i zmniejszone o zadany procent (100% = oryginał).
+
+    GIF nigdy nie powiększa filmu — 100% to górna granica. Wymiary muszą być parzyste (wymóg ffmpeg).
+    """
+    percent = max(1.0, min(float(scale_percent or 100.0), 100.0))
+    width = max(2, int(round(info.width * percent / 100.0)))
     width = max(2, width - (width % 2))
     height = max(2, round(info.height * width / info.width))
     height -= height % 2
     return width, height
 
 
-def extract_frames(path: Path, *, fps: float, max_width: int):
+def sampling_fps(fps: float, mode: str) -> float:
+    """Ile klatek na sekundę pobieramy z filmu.
+
+    Równomiernie: dokładnie tyle, ile ma mieć GIF — użytkownik ustawia klatki na sekundę.
+    ULTRA: gęściej, bo z tych próbek dopiero wykrywamy zatrzymania; wynikowe czasy klatek
+    i tak liczy `ultra_plan_video`, więc próbkowanie nie zmienia tempa animacji.
+    """
+    wanted = max(1.0, min(float(fps or 1.0), MAX_SAMPLE_FPS))
+    if mode == "ultra":
+        return min(max(wanted, ULTRA_MIN_SAMPLE_FPS), ULTRA_MAX_SAMPLE_FPS)
+    return wanted
+
+
+def extract_frames(path: Path, *, fps: float, scale_percent: float, mode: str = "smooth"):
     """Klatki jako obrazy Pillow, informacje o filmie i czas jednej próbki w ms."""
     from PIL import Image
 
     info = probe(path)
-    width, height = output_size(info, max_width)
-    sample_fps = max(1.0, min(float(fps), MAX_SAMPLE_FPS))
+    width, height = output_size(info, scale_percent)
+    sample_fps = sampling_fps(fps, mode)
     proc = _run_ffmpeg(
         [
             "-v", "error",
@@ -222,15 +241,22 @@ def optimize_gif(path: Path, *, colors: int, lossy: int, dither: bool) -> str:
 def convert_video(src: Path, dst: Path, opts) -> str:
     """Wideo → GIF. Zwraca krótki opis tego, co powstało."""
     frames, info, frame_ms = extract_frames(
-        src, fps=opts.video_fps, max_width=opts.video_max_width
+        src,
+        fps=opts.video_fps,
+        scale_percent=opts.video_scale_percent,
+        mode=opts.video_mode,
     )
     merged, durations = merge_static_runs(frames, frame_ms)
-    indices, delays = plan_frames(durations, opts.video_max_frames, opts.video_mode)
+    # ULTRA: użytkownik podaje liczbę zatrzymań. Równomiernie: tempo ustala liczba klatek
+    # na sekundę, a `video_max_frames` jest tylko bezpiecznikiem dla długich filmów.
+    limit = opts.video_ultra_frames if opts.video_mode == "ultra" else opts.video_max_frames
+    indices, delays = plan_frames(durations, limit, opts.video_mode)
     chosen = [merged[i] for i in indices]
 
     save_gif(chosen, delays, dst)
+    out_w, out_h = output_size(info, opts.video_scale_percent)
     detail = (
-        f"{info.duration_sec:.1f}s → {len(chosen)} klatek "
+        f"{info.duration_sec:.1f}s → {len(chosen)} klatek, {out_w}×{out_h} "
         f"(próbki: {len(frames)}, po scaleniu zamrożeń: {len(merged)})"
     )
     from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality

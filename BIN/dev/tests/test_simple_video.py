@@ -50,4 +50,27 @@ def test_simple_opts_carry_video_settings(window) -> None:
     window.simple_video_frames.setValue(6)
     opts = window._simple_format_opts()
     assert opts.video_mode == "ultra"
-    assert opts.video_max_frames == 6
+    assert opts.video_ultra_frames == 6
+
+
+def test_simple_number_field_follows_mode(window, qapp) -> None:
+    """Plynnie pyta o klatki na sekunde, ULTRA o liczbe zatrzyman — jedno pole naraz."""
+    window.simple_video_tile.setVisible(True)
+    qapp.processEvents()
+    window.simple_video_mode.setCurrentIndex(0)  # plynnie
+    qapp.processEvents()
+    assert window.simple_video_fps.isVisible() and not window.simple_video_frames.isVisible()
+    assert "Klatki/s" in window.simple_video_num_label.text()
+
+    window.simple_video_mode.setCurrentIndex(1)  # ULTRA
+    qapp.processEvents()
+    assert window.simple_video_frames.isVisible() and not window.simple_video_fps.isVisible()
+    assert "Zatrzymań" in window.simple_video_num_label.text()
+
+
+def test_simple_fps_reaches_opts(window) -> None:
+    window.simple_video_mode.setCurrentIndex(0)
+    window.simple_video_fps.setValue(20)
+    opts = window._simple_format_opts()
+    assert opts.video_mode == "smooth"
+    assert opts.video_fps == 20

@@ -530,17 +530,26 @@ class MainWindow(QMainWindow):
         )
         self.simple_video_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         mark_large(self.simple_video_mode)
+        self.simple_video_fps = QSpinBox()
+        self.simple_video_fps.setRange(1, 30)
+        self.simple_video_fps.setValue(int(round(self._format_opts.video_fps)))
+        self.simple_video_fps.setToolTip("Tempo gotowego GIF-a. Mniej klatek na sekundę = mniejszy plik.")
+        self.simple_video_fps.setFixedWidth(84)
+        mark_large(self.simple_video_fps)
         self.simple_video_frames = QSpinBox()
         self.simple_video_frames.setRange(2, 300)
-        self.simple_video_frames.setValue(self._format_opts.video_max_frames)
-        self.simple_video_frames.setToolTip("Ile klatek ma mieć gotowy GIF. Mniej klatek = mniejszy plik.")
+        self.simple_video_frames.setValue(self._format_opts.video_ultra_frames)
+        self.simple_video_frames.setToolTip("Ile zatrzymań zostanie w gotowym GIF-ie.")
         self.simple_video_frames.setFixedWidth(84)
         mark_large(self.simple_video_frames)
-        frames_lbl = QLabel("Klatki:")
-        frames_lbl.setObjectName("fieldLabel")
+        self.simple_video_num_label = QLabel()
+        self.simple_video_num_label.setObjectName("fieldLabel")
         video_row.addWidget(self.simple_video_mode, stretch=1)
-        video_row.addWidget(frames_lbl)
+        video_row.addWidget(self.simple_video_num_label)
+        video_row.addWidget(self.simple_video_fps)
         video_row.addWidget(self.simple_video_frames)
+        self.simple_video_mode.currentIndexChanged.connect(self._refresh_simple_video_controls)
+        self._refresh_simple_video_controls()
         video_lay.addLayout(video_row)
         self.simple_video_tile.setVisible(False)
         col.addWidget(self.simple_video_tile)
@@ -655,6 +664,13 @@ class MainWindow(QMainWindow):
         self.simple_queue_label.setText(self.queue_label.text())
         self._refresh_simple_video_tile()
 
+    def _refresh_simple_video_controls(self) -> None:
+        """Jedno pole liczbowe, zależne od trybu: płynnie → klatki na sekundę, ULTRA → liczba zatrzymań."""
+        ultra = self.simple_video_mode.currentData() == "ultra"
+        self.simple_video_fps.setVisible(not ultra)
+        self.simple_video_frames.setVisible(ultra)
+        self.simple_video_num_label.setText("Zatrzymań:" if ultra else "Klatki/s:")
+
     def _refresh_simple_video_tile(self) -> None:
         """Ustawienia filmu pokazujemy tylko wtedy, gdy na liście naprawdę jest film."""
         tile = getattr(self, "simple_video_tile", None)
@@ -710,15 +726,18 @@ class MainWindow(QMainWindow):
     def _simple_format_opts(self) -> FormatOptions:
         quality = self.simple_quality_slider.value()
         video_mode = self._format_opts.video_mode
-        video_frames = self._format_opts.video_max_frames
+        video_frames = self._format_opts.video_ultra_frames
+        video_fps = self._format_opts.video_fps
         if hasattr(self, "simple_video_mode"):
             video_mode = self.simple_video_mode.currentData()
             video_frames = self.simple_video_frames.value()
+            video_fps = float(self.simple_video_fps.value())
         return replace(
             self._format_opts,
             quality=quality,
             video_mode=video_mode,
-            video_max_frames=video_frames,
+            video_ultra_frames=video_frames,
+            video_fps=video_fps,
             png_mode="auto",
             png_colors_auto=True,
             lossless=False,

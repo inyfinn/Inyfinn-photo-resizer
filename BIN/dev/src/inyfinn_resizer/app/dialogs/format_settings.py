@@ -98,7 +98,8 @@ class FormatSettingsDialog(AppDialog):
         self._gif_mode_hint: QLabel | None = None
         self._video_mode: QComboBox | None = None
         self._video_frames: QSpinBox | None = None
-        self._video_width: QSpinBox | None = None
+        self._video_ultra_frames: QSpinBox | None = None
+        self._video_scale: QSpinBox | None = None
         self._video_fps: QSpinBox | None = None
         self._avif_rgb_only: QCheckBox | None = None
         self._avif_cap: QCheckBox | None = None
@@ -329,25 +330,41 @@ class FormatSettingsDialog(AppDialog):
         )
         fl.addRow("Tryb dla filmu:", self._video_mode)
 
-        self._video_frames = QSpinBox()
-        self._video_frames.setRange(2, 300)
-        self._video_frames.setToolTip("Ile klatek ma mieć gotowy GIF.")
-        fl.addRow("Liczba klatek:", self._video_frames)
-
-        self._video_width = QSpinBox()
-        self._video_width.setRange(120, 1920)
-        self._video_width.setSingleStep(40)
-        self._video_width.setSuffix(" px")
-        self._video_width.setToolTip("Szerokość GIF-a. Wysokość dobiera się sama, proporcje zostają.")
-        fl.addRow("Szerokość:", self._video_width)
-
         self._video_fps = QSpinBox()
         self._video_fps.setRange(1, 30)
+        self._video_fps.setSuffix(" kl/s")
         self._video_fps.setToolTip(
-            "Ile klatek na sekundę program pobiera z filmu, zanim wybierze te, które zostaną. "
-            "Więcej = dokładniej wykryte zatrzymania, dłuższe przetwarzanie."
+            "Tempo gotowego GIF-a. 12 kl/s wystarcza do płynnego ruchu, 24 kl/s jest gładsze, "
+            "ale plik rośnie.\nW trybie ULTRA służy tylko do wykrywania zatrzymań — "
+            "czasy klatek liczy sam program."
         )
-        fl.addRow("Próbkowanie filmu:", self._video_fps)
+        fl.addRow("Klatki na sekundę:", self._video_fps)
+
+        self._video_ultra_frames = QSpinBox()
+        self._video_ultra_frames.setRange(2, 300)
+        self._video_ultra_frames.setToolTip(
+            "Tylko tryb ULTRA: ile zatrzymań zostanie w animacji.\n"
+            "Mniej = mniejszy plik; długość animacji i tak zostaje taka jak w filmie."
+        )
+        fl.addRow("ULTRA — liczba zatrzymań:", self._video_ultra_frames)
+
+        self._video_frames = QSpinBox()
+        self._video_frames.setRange(2, 900)
+        self._video_frames.setToolTip(
+            "Bezpiecznik trybu równomiernego: górna granica klatek dla długich filmów.\n"
+            "Tempo animacji ustawiasz polem „Klatki na sekundę”."
+        )
+        fl.addRow("Równomiernie — limit klatek:", self._video_frames)
+
+        self._video_scale = QSpinBox()
+        self._video_scale.setRange(1, 100)
+        self._video_scale.setSingleStep(5)
+        self._video_scale.setSuffix(" %")
+        self._video_scale.setToolTip(
+            "Rozmiar liczony od filmu źródłowego. 100% = wymiary oryginału, 50% z filmu "
+            "1000 px daje 500 px.\nProgram nigdy nie powiększa filmu."
+        )
+        fl.addRow("Rozmiar:", self._video_scale)
 
         cb = QCheckBox("Zachowaj dane EXIF / IPTC")
         cb.setChecked(self._opts.keep_metadata)
@@ -541,8 +558,10 @@ class FormatSettingsDialog(AppDialog):
             self._video_mode.setCurrentIndex(max(0, self._video_mode.findData(self._opts.video_mode)))
         if self._video_frames:
             self._video_frames.setValue(int(self._opts.video_max_frames))
-        if self._video_width:
-            self._video_width.setValue(int(self._opts.video_max_width))
+        if self._video_ultra_frames:
+            self._video_ultra_frames.setValue(int(self._opts.video_ultra_frames))
+        if self._video_scale:
+            self._video_scale.setValue(int(round(self._opts.video_scale_percent)))
         if self._video_fps:
             self._video_fps.setValue(int(round(self._opts.video_fps)))
         if self._gif_dither:
@@ -608,8 +627,10 @@ class FormatSettingsDialog(AppDialog):
             self._opts.video_mode = str(self._video_mode.currentData() or "smooth")
         if self._video_frames:
             self._opts.video_max_frames = self._video_frames.value()
-        if self._video_width:
-            self._opts.video_max_width = self._video_width.value()
+        if self._video_ultra_frames:
+            self._opts.video_ultra_frames = self._video_ultra_frames.value()
+        if self._video_scale:
+            self._opts.video_scale_percent = float(self._video_scale.value())
         if self._video_fps:
             self._opts.video_fps = float(self._video_fps.value())
         if self._gif_dither:

@@ -19,6 +19,16 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.5.2",
+        "2026-09-22",
+        [
+            "GIF z filmu bierze wymiary z filmu. Zamiast szerokości w pikselach jest „Rozmiar” od 1% do 100% — 100% to oryginał, 50% z filmu 1000 px daje 500 px. Program nigdy nie powiększa.",
+            "Nowe ustawienie „Klatki na sekundę” — tempo gotowego GIF-a. Zastępuje mylce „próbkowanie filmu”.",
+            "ULTRA ma własne pole „liczba zatrzymań”, a limit klatek trybu równomiernego nie przycina już po cichu dłuższych filmów.",
+            "Tryb prosty pyta o jedną liczbę zależnie od trybu: klatki na sekundę albo liczbę zatrzymań.",
+        ],
+    ),
+    (
         "2.5.1",
         "2026-09-21",
         [
