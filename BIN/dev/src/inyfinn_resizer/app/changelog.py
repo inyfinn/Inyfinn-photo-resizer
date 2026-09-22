@@ -19,6 +19,15 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.5.1",
+        "2026-09-21",
+        [
+            "Tryb prosty obsługuje filmy: wrzuć MP4, MOV albo WebM i naciśnij Konwertuj — wyjdzie GIF.",
+            "Gdy na liście jest film, pojawia się kafelek „Film → GIF” z wyborem trybu (płynnie albo ULTRA) i liczby klatek. Przy samych zdjęciach kafelek jest schowany.",
+            "Film ma na liście własną ikonę, więc nie myli się ze zdjęciem.",
+        ],
+    ),
+    (
         "2.5.0",
         "2026-09-21",
         [

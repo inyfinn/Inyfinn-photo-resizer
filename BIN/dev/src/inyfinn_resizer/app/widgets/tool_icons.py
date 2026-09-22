@@ -74,6 +74,25 @@ def icon_image_file() -> QIcon:
     return QIcon(px)
 
 
+def icon_video_file() -> QIcon:
+    """Ikona filmu — ta sama rodzina co ikona zdjęcia, ale klatka filmowa z play."""
+    size = 16
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(px)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QPen(QColor("#94a3b8"), 1.2))
+    painter.setBrush(QColor("#e2e8f0"))
+    painter.drawRoundedRect(2, 3, 12, 10, 1, 1)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#f59e0b"))
+    from PySide6.QtCore import QPoint
+
+    painter.drawPolygon([QPoint(7, 6), QPoint(7, 11), QPoint(11, 8)])
+    painter.end()
+    return QIcon(px)
+
+
 def icon_clear_gray() -> QIcon:
     """Wyczyść — szary krzyżyk."""
     size = 16

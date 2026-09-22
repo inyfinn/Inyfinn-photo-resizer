@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QSplitter,
     QStackedWidget,
     QTreeWidget,
@@ -98,6 +99,7 @@ from inyfinn_resizer.app.widgets.tool_icons import (
     icon_clear_gray,
     icon_folder_green,
     icon_image_file,
+    icon_video_file,
     icon_minus_red,
     icon_plus_green,
 )
@@ -170,7 +172,7 @@ DEFAULT_SPLITTER_SIZES = (600, 680)
 
 
 class MainWindow(QMainWindow):
-    DEFAULT_STATUS_MESSAGE = "Przeciągnij zdjęcia na listę po lewej"
+    DEFAULT_STATUS_MESSAGE = "Przeciągnij zdjęcia albo filmy na listę"
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"Inyfinn Photo Resizer {__version__}")
@@ -429,8 +431,8 @@ class MainWindow(QMainWindow):
 
         # 1 — pliki
         files_tile, files_lay = make_tile(
-            "1. Wrzuć zdjęcia",
-            "Przeciągnij pliki tutaj lub dodaj z dysku",
+            "1. Wrzuć zdjęcia albo filmy",
+            "Przeciągnij pliki tutaj lub dodaj z dysku. Film (MP4, MOV, WebM) zamieni się w GIF-a.",
             fill=True,
         )
         files_lay.addLayout(tool_button_row([
@@ -511,6 +513,38 @@ class MainWindow(QMainWindow):
         out_lay.addLayout(out_row)
         col.addWidget(out_tile)
 
+        # Film → GIF — kafelek pojawia się dopiero, gdy na liście jest film
+        self.simple_video_tile, video_lay = make_tile(
+            "Film → GIF",
+            "Zdjęcia zostają bez zmian. To ustawienie dotyczy tylko filmów z listy.",
+        )
+        video_row = QHBoxLayout()
+        video_row.setContentsMargins(0, 0, 0, 0)
+        video_row.setSpacing(8)
+        self.simple_video_mode = style_dropdown(QComboBox())
+        self.simple_video_mode.addItem("Płynnie — klatki co równy odstęp", "smooth")
+        self.simple_video_mode.addItem("ULTRA — zatrzymania jako jedna klatka", "ultra")
+        self.simple_video_mode.setToolTip(
+            "ULTRA zostawia kadr początkowy i te miejsca, w których obraz stoi najdłużej.\n"
+            "GIF trwa tyle co film, a plik jest wielokrotnie mniejszy."
+        )
+        self.simple_video_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        mark_large(self.simple_video_mode)
+        self.simple_video_frames = QSpinBox()
+        self.simple_video_frames.setRange(2, 300)
+        self.simple_video_frames.setValue(self._format_opts.video_max_frames)
+        self.simple_video_frames.setToolTip("Ile klatek ma mieć gotowy GIF. Mniej klatek = mniejszy plik.")
+        self.simple_video_frames.setFixedWidth(84)
+        mark_large(self.simple_video_frames)
+        frames_lbl = QLabel("Klatki:")
+        frames_lbl.setObjectName("fieldLabel")
+        video_row.addWidget(self.simple_video_mode, stretch=1)
+        video_row.addWidget(frames_lbl)
+        video_row.addWidget(self.simple_video_frames)
+        video_lay.addLayout(video_row)
+        self.simple_video_tile.setVisible(False)
+        col.addWidget(self.simple_video_tile)
+
         # Konwertuj + chipy formatu
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 0, 0, 0)
@@ -523,7 +557,9 @@ class MainWindow(QMainWindow):
         self.simple_convert_btn.setMinimumWidth(168)
         # footer_button daje 32 px; Konwertuj stoi w jednym rzędzie z formatami (36 px).
         self.simple_convert_btn.setFixedHeight(ACTION_H)
-        self.simple_convert_btn.setToolTip("Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła.")
+        self.simple_convert_btn.setToolTip(
+            "Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła. Film zamienia się w GIF-a."
+        )
         # Nad formatami jest podpis — dolne krawędzie mają być w jednej linii, nie środki.
         action_row.addWidget(self.simple_convert_btn, 0, Qt.AlignmentFlag.AlignBottom)
 
@@ -537,10 +573,11 @@ class MainWindow(QMainWindow):
         chips.setContentsMargins(0, 0, 0, 0)
         chips.setSpacing(6)
         self._simple_format_btns: list[QPushButton] = []
+        video_note = "\nFilm z listy i tak zapisze się jako GIF."
         for fmt, label, tip in (
-            ("png", "PNG", "Konwertuj do PNG — przezroczystość zostaje."),
-            ("jpeg", "JPG", "Konwertuj do JPG. JPG nie zachowuje przezroczystości (białe tło)."),
-            ("avif", "AVIF", "Konwertuj do AVIF — mniejszy plik, przezroczystość zostaje."),
+            ("png", "PNG", "Konwertuj do PNG — przezroczystość zostaje." + video_note),
+            ("jpeg", "JPG", "Konwertuj do JPG. JPG nie zachowuje przezroczystości (białe tło)." + video_note),
+            ("avif", "AVIF", "Konwertuj do AVIF — mniejszy plik, przezroczystość zostaje." + video_note),
         ):
             chip = QPushButton(label)
             chip.setObjectName("formatChip")
@@ -608,13 +645,22 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "simple_file_list"):
             return
         self.simple_file_list.clear()
-        icon = icon_image_file()
+        foto_icon = icon_image_file()
+        film_icon = icon_video_file()
         for p in self._queue:
-            item = QListWidgetItem(icon, p.name)
+            item = QListWidgetItem(film_icon if is_video_file(p) else foto_icon, p.name)
             item.setData(Qt.UserRole, str(p))
             item.setToolTip(str(p))
             self.simple_file_list.addItem(item)
         self.simple_queue_label.setText(self.queue_label.text())
+        self._refresh_simple_video_tile()
+
+    def _refresh_simple_video_tile(self) -> None:
+        """Ustawienia filmu pokazujemy tylko wtedy, gdy na liście naprawdę jest film."""
+        tile = getattr(self, "simple_video_tile", None)
+        if tile is None:
+            return
+        tile.setVisible(any(is_video_file(p) for p in self._queue))
 
     def _refresh_simple_output(self) -> None:
         """Tryb prosty ma własny folder — nie dziedziczy pola „Wyjście” z zaawansowanego ani z sesji.
@@ -663,9 +709,16 @@ class MainWindow(QMainWindow):
 
     def _simple_format_opts(self) -> FormatOptions:
         quality = self.simple_quality_slider.value()
+        video_mode = self._format_opts.video_mode
+        video_frames = self._format_opts.video_max_frames
+        if hasattr(self, "simple_video_mode"):
+            video_mode = self.simple_video_mode.currentData()
+            video_frames = self.simple_video_frames.value()
         return replace(
             self._format_opts,
             quality=quality,
+            video_mode=video_mode,
+            video_max_frames=video_frames,
             png_mode="auto",
             png_colors_auto=True,
             lossless=False,
