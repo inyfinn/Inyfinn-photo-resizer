@@ -651,3 +651,29 @@
 **Test/Ewaluacja:** pytest 129 passed (2 przebiegi); pomiar geometrii: Dodaj* 32, pole/folder 32, Konwertuj/PNG/JPG/AVIF 36 z tą samą dolną krawędzią; zrzuty jasny + ciemny.
 
 **Źródła:** Qt `QThreadPrivate::finish` (emit finished przed running=false); minidump ExceptionStream / ThreadListStream; `%LOCALAPPDATA%\CrashDumps`
+
+
+---
+
+## 2026-09-30 — v2.6.0 design Dobra Kaloria (motyw domyślny)
+
+**Komenda/Akcja:** User: „zmieniamy design na ten, który mamy w programie do pisania prezentacji. Jest cudowny.” — Photo Resizer ma wyglądać jak „Stwórz prezentację”. Tylko wygląd, bez zmian funkcji.
+
+**Log/Status:**
+1. Nowy motyw `dobra-kaloria` (wartości: skill `ds-dobra-kaloria`, `themes/photo-resizer/dobra_kaloria.py`, tryb zwarty) = domyślny. Jasny i ciemny zostają (menu Narzędzia).
+2. `app.qss`: nowe znaczniki `@CTA_BG@ @CTA_HOVER@ @CTA_TEXT@ @ACCENT_GRAD_END@ @FONT_FAMILY@ @RADIUS_BTN@ @RADIUS_FIELD@ @RADIUS_CARD@ @CARD_BORDER@ @MENU_STRIP_BG@ @MENU_STRIP_BORDER@ @DROP_BORDER@ @RADIUS_DROP@`. Jasny/ciemny mają wartości sprzed zmiany — wyrenderowany arkusz porównany z HEAD: identyczny poza jedną poprawką (czarne pasy w liście okna konwersji — viewport QScrollArea bez tła).
+3. DK: kremowe tło, białe karty z ramką sand-200, żółty CTA `#FFD42A` z brązowym tekstem (Konwertuj, OK, primary w dialogach), tekst `#3B2A20`, promienie 4/8/12, biały pasek nagłówka, przerywana strefa upuszczania w trybie prostym, ikony `check-dk.png` / `combo-down-dk.png`, odznaki przewodnika w zieleni/brązie.
+4. Lato Regular/Bold (OFL) w `app/themes/fonts/` + `LATO-LICENSE.txt`; `register_fonts()` + `app.setFont`. Spec zbiera cały `themes/`. Mindset NIE dołączony: w pliku „All rights reserved”, repo publiczne → nagłówki Lato Bold.
+5. Migracja `load_theme()`: brak wpisu lub `light` → raz `dobra-kaloria` (flaga `ui/theme_migrated_dobra_kaloria`); `dark` zostaje. Suwak słońce/księżyc: `ui/theme_last_light` ↔ `dark` (dwa stany, trzeci motyw tylko w menu — najmniej zaskakujące).
+6. `activity.log` przy starcie: „Motyw | <motyw> · czcionka <krój>”.
+7. Build bez kasowania: `package_release.ps1`/`build_installer.ps1` kasują rekurencyjnie `_internal`, `%TEMP%` — zakazane dla agenta. Ta sama sekwencja odtworzona skryptem, który przenosi stare na bok: `BIN\dev\build\_old-20260930-102053\` (dist, work, BIN_internal, stare EXE). Stary `installer-output\InyfinnPhotoResizer-2.5.2-setup.exe` nieusunięty.
+8. Pytest uruchomiony na tej stacji tworzy MainWindow z prawdziwym rejestrem → ustawił flagę migracji; motyw usera tu = `dark` i dalej `dark`.
+
+**Efekt/Fix:** 2.6.0 startuje w motywie Dobra Kaloria; stary jasny/ciemny bez zmian.
+
+**Test/Ewaluacja:**
+- `pytest tests` — 167 passed (153 + 14 w `test_theme_dobra_kaloria.py`), `compileall` OK.
+- Zrzuty przed/po (DK, jasny, ciemny; główne okno, tryb prosty, dialog formatu, zaawansowane, okno konwersji, przewodnik): `BIN\dev\logs\design-dk\` (poza gitem).
+- EXE ze świeżej kopii w `%TEMP%`, PATH = tylko `System32;Windows`: okno „Inyfinn Photo Resizer 2.6.0”, log „Motyw | dobra-kaloria · czcionka Lato”; DLL spoza paczki i Windows tylko ESET (`ebehmoni.dll`, `eamsi.dll` — antywirus).
+
+**Źródła:** skill `ds-dobra-kaloria` (DESIGN_SYSTEM.md, tokens_qt.py); `PREZENTACJE\— SZABLON AI - skrypt\WORK\src\ui\style.css`; Qt QFontDatabase.addApplicationFont; tabela `name` w Lato-Regular.ttf / Mindset.otf (licencje).

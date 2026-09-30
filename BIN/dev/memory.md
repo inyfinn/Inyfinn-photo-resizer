@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-17 · **Wersja aplikacji:** 2.4.8
+**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.0
 
 ---
 
@@ -187,6 +187,11 @@ Z DAM bierzemy **kanały**, nie limit wagi:
 
 ## UI — zasady
 
+- **Od 2.6.0 domyślny motyw = „dobra-kaloria”** (design z programu „Stwórz prezentację”, skill `ds-dobra-kaloria`). Jasny/ciemny zostają w menu Narzędzia. Migracja: zapisany `light` → raz na DK (flaga `ui/theme_migrated_dobra_kaloria`), `dark` zostaje. Suwak słońce/księżyc: `ui/theme_last_light` ↔ `dark`.
+- Każdy motyw w `_THEME_TOKENS` musi mieć każdy znacznik z `app.qss` (test `test_theme_dobra_kaloria.py`). Kształt/CTA/krój też są znacznikami (`@CTA_BG@`, `@RADIUS_BTN@`, `@FONT_FAMILY@`…); jasny i ciemny mają wartości sprzed 2.6.0 — arkusz jasnego/ciemnego jest identyczny jak w 2.5.2 poza poprawką czarnych pasów w oknie konwersji.
+- Ikony z pliku: wariant per motyw (`check-dk.png`, `combo-down-dk.png`); jasny motyw bez własnych ikon bierze `-light`, nigdy `-dark`.
+- Lato (OFL) w `app/themes/fonts/` — spec zbiera cały katalog `themes`. **Mindset NIE jest w paczce** („All rights reserved”, a repo jest publiczne) — nagłówki Lato Bold.
+- Kolory rysowane w kodzie (QPainter, `section_icons.py`) sprawdzają motyw — nowy motyw = dopisz paletę.
 - Separatory: token `@SEP@` w `app/themes`.
 - Dark/light: tokeny QSS, bez hardcoded kolorów light w dark mode.
 - Dokumentacja operacyjna: **tylko** `BIN/dev/` — nigdy w korzeniu projektu.

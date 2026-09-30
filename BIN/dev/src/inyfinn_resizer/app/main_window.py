@@ -64,7 +64,8 @@ from inyfinn_resizer.app.widgets.conversion_overlay import ConversionOverlay
 from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
-from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
+from inyfinn_resizer.app.themes import THEME_DARK, THEME_LABELS, THEMES
+from inyfinn_resizer.app.widgets.theme_toggle import TOGGLE_TOOLTIP, ThemeToggle
 from inyfinn_resizer.app.widgets.removable_items import install_remove_support
 from inyfinn_resizer.utils.reveal import reveal_in_explorer
 from inyfinn_resizer.app.widgets.layout_helpers import (
@@ -104,6 +105,7 @@ from inyfinn_resizer.app.widgets.tool_icons import (
     icon_plus_green,
 )
 from inyfinn_resizer.app.user_settings import (
+    load_last_light_theme,
     load_session,
     load_theme,
     persist_all,
@@ -312,8 +314,10 @@ class MainWindow(QMainWindow):
         tools_menu = menubar.addMenu("&Narzędzia")
         tools_menu.addAction("Zmiana nazw…", self._open_rename_dialog)
         tools_menu.addSeparator()
-        tools_menu.addAction("Jasny motyw", lambda: self._set_theme("light"))
-        tools_menu.addAction("Ciemny motyw", lambda: self._set_theme("dark"))
+        for theme_key in THEMES:
+            tools_menu.addAction(
+                THEME_LABELS[theme_key], lambda _=False, k=theme_key: self._set_theme(k)
+            )
         tools_menu.addSeparator()
         tools_menu.addAction("Wczytaj ustawienia…", self._load_preset)
         tools_menu.addAction("Zapisz ustawienia…", self._save_preset)
@@ -325,7 +329,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction("Sprawdź aktualizacje…", self._check_updates_manual)
         help_menu.addAction("O programie", self._about)
 
-        self._theme_toggle = ThemeToggle(dark=(self._theme == "dark"))
+        self._theme_toggle = ThemeToggle(dark=(self._theme == THEME_DARK))
         self._theme_toggle.toggled.connect(self._on_theme_toggle)
 
         self._menubar = menubar
@@ -375,7 +379,7 @@ class MainWindow(QMainWindow):
         strip_lay.addWidget(self._mode_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
         theme_lbl = QLabel("Motyw")
         theme_lbl.setObjectName("themeToggleLabel")
-        theme_lbl.setToolTip("Przełącz jasny lub ciemny motyw")
+        theme_lbl.setToolTip(TOGGLE_TOOLTIP)
         strip_lay.addWidget(theme_lbl, 0, Qt.AlignRight | Qt.AlignVCenter)
         self._theme_toggle.setMinimumSize(72, 32)
         self._theme_toggle.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -385,7 +389,8 @@ class MainWindow(QMainWindow):
         self._apply_header_for_mode()
 
     def _on_theme_toggle(self, dark: bool) -> None:
-        self._set_theme("dark" if dark else "light")
+        # Słońce = ostatni jasny motyw (domyślnie Dobra Kaloria, albo „Jasny”, jeśli wybrany w menu).
+        self._set_theme(THEME_DARK if dark else load_last_light_theme())
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -1556,7 +1561,7 @@ class MainWindow(QMainWindow):
         self._finalize_checkbox_indicators()
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
-            self._theme_toggle.set_dark(theme == "dark")
+            self._theme_toggle.set_dark(theme == THEME_DARK)
             self._theme_toggle.blockSignals(False)
         self._mark_dirty()
 

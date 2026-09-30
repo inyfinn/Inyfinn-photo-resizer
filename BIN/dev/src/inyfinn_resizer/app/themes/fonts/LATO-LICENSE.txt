@@ -1,0 +1,10 @@
+Lato (Lato-Regular.ttf, Lato-Bold.ttf)
+
+Copyright (c) 2011-2015 by tyPoland Lukasz Dziedzic (http://www.typoland.com/)
+with Reserved Font Name "Lato".
+
+Licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://openfontlicense.org/open-font-license-official-text/
+
+The font files are shipped unmodified. Inyfinn Photo Resizer uses them only
+for its own user interface (theme "Dobra Kaloria").

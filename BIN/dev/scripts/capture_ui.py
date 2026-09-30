@@ -59,6 +59,25 @@ def _set_output_format(widget: QWidget, fmt: str) -> None:
     setter([fmt])
 
 
+def _isolate_settings() -> None:
+    """Kopia ustawień użytkownika w pliku tymczasowym — zrzuty nie zmieniają rejestru
+    (np. migracji motywu z 2.6.0 ani sesji)."""
+    import tempfile
+
+    from PySide6.QtCore import QSettings
+
+    from inyfinn_resizer.app import user_settings
+
+    path = Path(tempfile.gettempdir()) / "inyfinn-capture-settings.ini"
+    src = QSettings("Inyfinn", "PhotoResizer")
+    dst = QSettings(str(path), QSettings.Format.IniFormat)
+    dst.clear()
+    for key in src.allKeys():
+        dst.setValue(key, src.value(key))
+    dst.sync()
+    user_settings._settings = lambda: QSettings(str(path), QSettings.Format.IniFormat)
+
+
 def _discard_widget(widget: QWidget) -> None:
     """hide + deleteLater — closeEvent woła persist_all i zapisałby sesję/motyw."""
     widget.hide()
@@ -66,29 +85,29 @@ def _discard_widget(widget: QWidget) -> None:
 
 
 def main() -> int:
+    # capture_ui.py [iteracja] [folder_wyjściowy] [motyw,motyw,...]
     root = Path(__file__).resolve().parents[2]
-    out = root / "ui-complete" / "screenshots"
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else root / "ui-complete" / "screenshots"
     out.mkdir(parents=True, exist_ok=True)
     iteration = sys.argv[1] if len(sys.argv) > 1 else "final"
+    themes = sys.argv[3].split(",") if len(sys.argv) > 3 else ["dobra-kaloria", "light", "dark"]
 
-    app = QApplication(sys.argv)
+    app = QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
+    _isolate_settings()
 
     # kind, theme, filename_kind, format_key (pusty = bez zmiany)
-    queue: list[tuple[str, str, str, str]] = [
-        ("main", "light", "main", "avif"),
-        ("main", "light", "main-png", "png"),
-        ("main", "light", "main-webp", "webp"),
-        ("format", "light", "format", ""),
-        ("advanced", "light", "advanced", ""),
-        ("main", "dark", "main", "avif"),
-        ("main", "dark", "main-png", "png"),
-        ("format", "dark", "format", ""),
-        ("advanced", "dark", "advanced", ""),
-        ("overlay", "light", "overlay", "png"),
-        ("overlay", "dark", "overlay", "png"),
-    ]
+    queue: list[tuple[str, str, str, str]] = []
+    for theme in themes:
+        queue += [
+            ("main", theme, "main", "avif"),
+            ("main", theme, "main-png", "png"),
+            ("simple", theme, "simple", ""),
+            ("format", theme, "format", ""),
+            ("advanced", theme, "advanced", ""),
+            ("overlay", theme, "overlay", "png"),
+        ]
 
     def run_step(idx: int = 0) -> None:
         if idx >= len(queue):
@@ -101,6 +120,10 @@ def main() -> int:
             widget = MainWindow()
             widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
             widget._set_ui_mode("advanced", mark_dirty=False)
+        elif kind == "simple":
+            widget = MainWindow()
+            widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+            widget._set_ui_mode("simple", mark_dirty=False)
         elif kind == "overlay":
             widget = MainWindow()
             widget.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)

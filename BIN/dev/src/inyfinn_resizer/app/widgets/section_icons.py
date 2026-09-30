@@ -42,13 +42,40 @@ HELP_ACCENTS_DARK = {
 }
 
 
-def _is_dark() -> bool:
+# Motyw Dobra Kaloria: odznaki w kolorach marki (zieleń, brąz, beż) zamiast indygo/fioletu.
+HELP_ACCENTS_DK = {
+    "start": "#0F763E",  # green-700
+    "list": "#7D5E44",  # brown-600
+    "compression": "#0B5F31",  # green-800
+    "advanced": "#AD8767",  # tan-400
+    "menu": "#9C8B72",  # sand-700
+    "update": "#0F763E",
+    "format": "#0F763E",
+    "dimensions": "#7D5E44",
+    "save": "#AD8767",
+}
+
+
+def _theme() -> str:
     try:
         from inyfinn_resizer.app.themes import current_theme
 
-        return current_theme() == "dark"
+        return current_theme()
     except Exception:
-        return False
+        return "light"
+
+
+def _is_dark() -> bool:
+    return _theme() == "dark"
+
+
+def _is_dk() -> bool:
+    return _theme() == "dobra-kaloria"
+
+
+def _accent() -> str:
+    """Akcent ikon rysowanych w kodzie: zieleń w Dobrej Kalorii, dawne indygo w jasnym i ciemnym."""
+    return "#0F763E" if _is_dk() else STEP_ACCENT_LIGHT
 
 BADGE_SIZE = 40
 RENDER_SCALE = 2
@@ -129,6 +156,8 @@ def step_pixmap(step_key: str, *, size: int | None = None) -> QPixmap:
     accent, _bg = STEP_ACCENTS.get(step_key, STEP_ACCENTS["format"])
     if _is_dark():
         accent = STEP_ACCENTS_DARK.get(step_key, accent)
+    elif _is_dk():
+        accent = HELP_ACCENTS_DK.get(step_key, accent)
     logical = size or BADGE_SIZE
     px, painter, side = _badge_canvas(logical)
     radius = 10.0
@@ -235,6 +264,8 @@ def help_section_pixmap(section_key: str, *, size: int | None = None) -> QPixmap
     accent, _bg = HELP_ACCENTS.get(section_key, STEP_ACCENTS.get(section_key, STEP_ACCENTS["format"]))
     if _is_dark():
         accent = HELP_ACCENTS_DARK.get(section_key, accent)
+    elif _is_dk():
+        accent = HELP_ACCENTS_DK.get(section_key, accent)
     logical = size or 32
     px, painter, side = _badge_canvas(logical)
     radius = 8.0
@@ -267,7 +298,7 @@ def action_icon_restore() -> QIcon:
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor("#6366f1"), 2.4)
+    pen = QPen(QColor(_accent()), 2.4)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)

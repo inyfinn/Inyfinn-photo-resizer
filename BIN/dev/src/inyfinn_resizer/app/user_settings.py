@@ -21,13 +21,43 @@ def _settings() -> QSettings:
     return QSettings("Inyfinn", "PhotoResizer")
 
 
+THEME_KEY = "ui/theme"
+LAST_LIGHT_THEME_KEY = "ui/theme_last_light"
+# 2.6.0: domyślny motyw zmienił się z „light” na „dobra-kaloria”. Zapisany „light” był zwykle
+# dawnym domyślnym, więc przechodzi raz na nowy. Flaga pilnuje, żeby późniejszy świadomy
+# wybór „Jasny motyw” już został.
+THEME_MIGRATION_KEY = "ui/theme_migrated_dobra_kaloria"
+
+
 def load_theme() -> str:
-    theme = _settings().value("ui/theme", "light")
-    return theme if theme in ("light", "dark") else "light"
+    from inyfinn_resizer.app.themes import DEFAULT_THEME, THEME_LIGHT, THEMES
+
+    s = _settings()
+    theme = s.value(THEME_KEY, None)
+    migrated = str(s.value(THEME_MIGRATION_KEY, "false")).lower() in ("1", "true")
+    if not migrated:
+        s.setValue(THEME_MIGRATION_KEY, True)
+        if theme in (None, "", THEME_LIGHT):
+            theme = DEFAULT_THEME
+            s.setValue(THEME_KEY, theme)
+    return theme if theme in THEMES else DEFAULT_THEME
 
 
 def save_theme(theme: str) -> None:
-    _settings().setValue("ui/theme", theme)
+    from inyfinn_resizer.app.themes import THEME_DARK
+
+    s = _settings()
+    s.setValue(THEME_KEY, theme)
+    if theme != THEME_DARK:
+        s.setValue(LAST_LIGHT_THEME_KEY, theme)
+
+
+def load_last_light_theme() -> str:
+    """Jasny motyw, do którego wraca przełącznik słońce/księżyc (domyślnie Dobra Kaloria)."""
+    from inyfinn_resizer.app.themes import DEFAULT_THEME, THEME_DARK, THEMES
+
+    theme = _settings().value(LAST_LIGHT_THEME_KEY, DEFAULT_THEME)
+    return theme if theme in THEMES and theme != THEME_DARK else DEFAULT_THEME
 
 
 def save_results_table_header(header) -> None:

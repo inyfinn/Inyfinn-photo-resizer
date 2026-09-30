@@ -18,6 +18,21 @@ BIN\_internal\tools\pngquant\     ← kompresja PNG
 
 Dlaczego EXE jest też w `BIN/`? PyInstaller **one-dir** wymaga, żeby EXE leżał obok `_internal/`. Korzeniowy EXE to tylko lekki starter — nie duplikat do ręcznego uruchamiania.
 
+## Wygląd (od 2.6.0): design Dobra Kaloria
+
+Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz prezentację”
+(design system Dobra Kaloria). Motyw **Dobra Kaloria** jest domyślny: ciepłe kremowe tło, białe
+karty z cienką piaskową ramką, zieleń marki, żółty przycisk głównej akcji, ciemnobrązowy tekst,
+czcionka Lato (w paczce, `app/themes/fonts/`, licencja OFL), promienie 4/8/12 px.
+
+- Dawne motywy „Jasny” i „Ciemny” zostają: menu **Narzędzia**. Suwak słońce/księżyc przełącza
+  ostatni jasny motyw (domyślnie Dobra Kaloria) i ciemny.
+- Migracja przy pierwszym starcie 2.6.0: zapisany „Jasny” (dawny domyślny) przechodzi raz na
+  Dobra Kaloria, „Ciemny” zostaje. Flaga `ui/theme_migrated_dobra_kaloria` w ustawieniach.
+- Aktywny motyw i czcionka trafiają do `logs/activity.log` przy każdym starcie („Motyw”).
+- Źródło wartości: skill `ds-dobra-kaloria` (`themes/photo-resizer/`). Kod: `app/themes/__init__.py`
+  (słowniki znaczników) + `app/themes/app.qss`. Zmiana dotyczy tylko wyglądu, nie funkcji.
+
 ## Kompresja (pipeline)
 
 | Format | Narzędzie |

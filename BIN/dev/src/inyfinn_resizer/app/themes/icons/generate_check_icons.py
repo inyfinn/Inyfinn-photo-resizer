@@ -18,9 +18,15 @@ def _draw_check(path: Path, bg: tuple[int, int, int], fg: tuple[int, int, int]) 
     img.save(path)
 
 
+def _draw_check_dk() -> None:
+    """Motyw Dobra Kaloria: zieleń marki green-700, biały znak."""
+    _draw_check(OUT / "check-dk.png", (15, 118, 62), (255, 255, 255))
+
+
 def main() -> None:
     _draw_check(OUT / "check-light.png", (99, 102, 241), (255, 255, 255))
     _draw_check(OUT / "check-dark.png", (129, 140, 248), (15, 23, 42))
+    _draw_check_dk()
     print("OK", OUT)
 
 

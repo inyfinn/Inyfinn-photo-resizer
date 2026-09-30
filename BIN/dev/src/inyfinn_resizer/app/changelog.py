@@ -19,6 +19,17 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.0",
+        "2026-09-30",
+        [
+            "Nowy wygląd: zmieniamy design na ten z programu do tworzenia prezentacji „Stwórz prezentację” (design system Dobra Kaloria). Motyw „Dobra Kaloria” jest teraz domyślny.",
+            "Ciepłe, jasne tło, zieleń marki, żółty przycisk głównej akcji (Konwertuj, OK), ciemnobrązowy tekst zamiast czarnego, czcionka Lato dołączona do programu, łagodniej zaokrąglone karty.",
+            "Kto miał dotąd domyślny jasny motyw, dostaje raz nowy wygląd. Ciemny motyw zostaje ciemny. Dawny jasny i ciemny są dalej w menu Narzędzia; suwak słońce/księżyc przełącza między ostatnim jasnym motywem a ciemnym.",
+            "Okno konwersji: bez czarnych pasów między kartami plików.",
+            "Funkcje programu się nie zmieniły — tylko wygląd.",
+        ],
+    ),
+    (
         "2.5.2",
         "2026-09-22",
         [

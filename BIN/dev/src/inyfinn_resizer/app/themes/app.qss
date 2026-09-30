@@ -3,7 +3,7 @@
 QMainWindow {
     background-color: @BG_WINDOW@;
     color: @FG_TEXT@;
-    font-family: "Segoe UI", system-ui, sans-serif;
+    font-family: @FONT_FAMILY@;
     font-size: 13px;
 }
 
@@ -96,8 +96,8 @@ QWidget#helpGuideBody {
 
 QFrame#helpGuideSection {
     background-color: @BG_PANEL@;
-    border: none;
-    border-radius: 16px;
+    border: @CARD_BORDER@;
+    border-radius: @RADIUS_CARD@;
 }
 
 QLabel#helpGuideBullet {
@@ -163,14 +163,14 @@ QLabel#previewMeta {
 /* —— Kafelki Bento —— */
 QFrame#bentoTile {
     background-color: @BG_PANEL@;
-    border: none;
-    border-radius: 16px;
+    border: @CARD_BORDER@;
+    border-radius: @RADIUS_CARD@;
 }
 
 QFrame#panel, QFrame#dropPanel, QFrame#sectionBox, QFrame#previewPanel {
     background-color: @BG_PANEL@;
-    border: none;
-    border-radius: 16px;
+    border: @CARD_BORDER@;
+    border-radius: @RADIUS_CARD@;
 }
 
 QLabel#sectionStepTitle {
@@ -251,8 +251,9 @@ QLabel#previewHint {
 }
 
 QWidget#menuStrip {
-    background-color: transparent;
+    background-color: @MENU_STRIP_BG@;
     border: none;
+    border-bottom: @MENU_STRIP_BORDER@;
 }
 
 QLabel#menuPresetLabel {
@@ -297,7 +298,7 @@ QMenu::item:selected {
 QPushButton {
     background-color: @BG_BUTTON@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     padding: 0 12px;
     min-height: 28px;
     max-height: 28px;
@@ -317,7 +318,7 @@ QPushButton#toolBtn {
     padding: 0 6px;
     font-size: 12px;
     min-width: 0;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 /* Tryb prosty: jedna wysokość kontrolek (CONTROL_H = 32 px) */
@@ -333,7 +334,7 @@ QPushButton#btnBrowse[large="true"] {
     max-height: 32px;
     padding: 0 14px;
     font-size: 13px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#toolBtn:hover {
@@ -345,7 +346,7 @@ QPushButton#btnSecondary {
     background-color: @BG_BUTTON@;
     border: none;
     min-width: 72px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#btnSecondary:hover {
@@ -360,18 +361,18 @@ QPushButton#footerSecondary {
     min-width: 108px;
     padding: 0 16px;
     font-size: 13px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#footerPrimary {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @CTA_BG@;
+    color: @CTA_TEXT@;
     border: none;
     font-weight: 700;
 }
 
 QPushButton#footerPrimary:hover {
-    background-color: @ACCENT_HOVER@;
+    background-color: @CTA_HOVER@;
 }
 
 QPushButton#footerPrimary:disabled {
@@ -397,15 +398,15 @@ QPushButton#footerConvert {
     min-width: 140px;
     padding: 0 18px;
     font-size: 13px;
-    border-radius: 10px;
-    background-color: @ACCENT@;
-    color: #ffffff;
+    border-radius: @RADIUS_BTN@;
+    background-color: @CTA_BG@;
+    color: @CTA_TEXT@;
     border: none;
     font-weight: 700;
 }
 
 QPushButton#footerConvert:hover {
-    background-color: @ACCENT_HOVER@;
+    background-color: @CTA_HOVER@;
 }
 
 QPushButton#footerConvert:disabled {
@@ -424,7 +425,7 @@ QPushButton#formatChip {
     background: transparent;
     border: 1.5px solid @ACCENT@;
     color: @FG_ACCENT@;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     min-width: 64px;
     max-width: 88px;
     /* 32 + obramowanie 2×2 = 36 px, tyle co Konwertuj (bez obramowania) */
@@ -462,23 +463,23 @@ QLabel#saveChoiceHint {
 }
 
 QPushButton#saveChoicePrimary {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @CTA_BG@;
+    color: @CTA_TEXT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     font-weight: 700;
     font-size: 13px;
 }
 
 QPushButton#saveChoicePrimary:hover {
-    background-color: @ACCENT_HOVER@;
+    background-color: @CTA_HOVER@;
 }
 
 QPushButton#saveChoiceOutline {
     background: transparent;
     color: @FG_ACCENT@;
     border: 1.5px solid @ACCENT@;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     font-weight: 700;
     font-size: 13px;
 }
@@ -500,7 +501,7 @@ QPushButton#footerClose {
     min-width: 112px;
     padding: 0 16px;
     font-size: 13px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     background-color: transparent;
     color: @FG_MUTED@;
     border: none;
@@ -513,19 +514,19 @@ QPushButton#footerClose:hover {
 }
 
 QPushButton#primaryBtn {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @CTA_BG@;
+    color: @CTA_TEXT@;
     border: none;
     font-weight: 700;
     font-size: 13px;
     min-height: 32px;
     max-height: 32px;
     min-width: 100px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#primaryBtn:hover {
-    background-color: @ACCENT_HOVER@;
+    background-color: @CTA_HOVER@;
 }
 
 QPushButton#primaryBtn:disabled {
@@ -555,7 +556,7 @@ QTreeWidget#inputList {
     background-color: @BG_INPUT@;
     alternate-background-color: @BG_PANEL_ALT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
     outline: none;
     padding: 2px;
@@ -579,6 +580,9 @@ QTreeWidget#inputList::item {
 QListWidget#simpleFileList {
     outline: none;
     padding: 4px;
+    /* Dobra Kaloria: strefa upuszczania z przerywaną ramką, jak w programie do prezentacji */
+    border: @DROP_BORDER@;
+    border-radius: @RADIUS_DROP@;
 }
 
 QListWidget#simpleFileList::item {
@@ -617,7 +621,7 @@ QHeaderView::section {
 QComboBox {
     background-color: @BG_INPUT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     padding: 2px 28px 2px 8px;
     min-height: 24px;
     max-height: 30px;
@@ -629,7 +633,7 @@ QComboBox {
 QLineEdit, QSpinBox {
     background-color: @BG_INPUT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     padding: 2px 8px;
     min-height: 28px;
     max-height: 28px;
@@ -650,7 +654,7 @@ QLineEdit#outputDirEdit[large="true"] {
     min-height: 32px;
     max-height: 32px;
     padding: 0 10px;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
 }
 
 QComboBox:hover, QLineEdit:hover, QSpinBox:hover {
@@ -667,8 +671,8 @@ QComboBox::drop-down {
     subcontrol-position: center right;
     width: 26px;
     border: none;
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
+    border-top-right-radius: @RADIUS_FIELD@;
+    border-bottom-right-radius: @RADIUS_FIELD@;
     background: transparent;
 }
 
@@ -704,7 +708,7 @@ QComboBox QAbstractItemView::item:selected {
 QListWidget {
     background-color: @BG_INPUT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
 }
 
@@ -821,7 +825,7 @@ QCheckBox:disabled {
 QFrame#moreOptions, QGroupBox#moreOptions {
     background-color: @BG_PANEL_ALT@;
     border: none;
-    border-radius: 16px;
+    border-radius: @RADIUS_CARD@;
 }
 
 QGroupBox#moreOptions {
@@ -839,7 +843,7 @@ QCheckBox#moreToggle {
 
 QLabel#previewBox {
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     background-color: @BG_INPUT@;
     min-width: 112px;
     min-height: 112px;
@@ -875,7 +879,7 @@ QDialog#appDialog QLabel {
 
 QTabWidget#dialogTabs::pane {
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     background: @BG_PANEL_ALT@;
     padding: 8px;
 }
@@ -975,7 +979,7 @@ QTableWidget#resultsTable QHeaderView::section {
 
 QLabel#mattePreview {
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     background-color: @BG_INPUT@;
 }
 
@@ -994,7 +998,7 @@ QPushButton#btnUpdatePath {
     max-height: 32px;
     min-width: 100px;
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#btnUpdatePath:hover {
@@ -1039,7 +1043,7 @@ QMessageBox {
     background-color: @BG_PANEL@;
     color: @FG_TEXT@;
     border: none;
-    border-radius: 16px;
+    border-radius: @RADIUS_CARD@;
 }
 
 QMessageBox QLabel {
@@ -1055,12 +1059,12 @@ QMessageBox QPushButton {
     max-height: 36px;
     padding: 0 14px;
     margin-left: 8px;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
 }
 
 QMessageBox QPushButton#primaryBtn {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @CTA_BG@;
+    color: @CTA_TEXT@;
     border: none;
 }
 
@@ -1079,8 +1083,8 @@ QWidget#conversionOverlay {
 
 QFrame#conversionOverlayPanel {
     background-color: @BG_PANEL@;
-    border: none;
-    border-radius: 16px;
+    border: @CARD_BORDER@;
+    border-radius: @RADIUS_CARD@;
 }
 
 QLabel#conversionOverlayTime {
@@ -1091,7 +1095,7 @@ QPushButton#overlayAbortBtn {
     background: transparent;
     color: @OVERLAY_ABORT_COLOR@;
     border: 1px solid @OVERLAY_ABORT_BORDER@;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     font-size: 14px;
     font-weight: 700;
     padding: 0;
@@ -1125,10 +1129,16 @@ QScrollArea#conversionOverlayScroll {
     background: transparent;
 }
 
+/* Viewport i kontener listy — bez tego przezroczyste tło malowało czarne pasy między kartami */
+QScrollArea#conversionOverlayScroll > QWidget,
+QScrollArea#conversionOverlayScroll > QWidget > QWidget {
+    background: @BG_PANEL@;
+}
+
 QFrame#fileProgressCard {
     background: @BG_PANEL_ALT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
 }
 
 QFrame#fileProgressCard[status="active"],
@@ -1166,14 +1176,14 @@ QProgressBar#conversionOverlayOverall {
 
 QProgressBar#fileProgressBar::chunk,
 QProgressBar#conversionOverlayOverall::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @ACCENT@, stop:1 #7c3aed);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @ACCENT@, stop:1 @ACCENT_GRAD_END@);
     border-radius: 10px;
 }
 
 QFrame#updateToast {
     background-color: @UPDATE_TOAST_BG@;
     border: 1px solid @UPDATE_TOAST_BORDER@;
-    border-radius: 16px;
+    border-radius: @RADIUS_CARD@;
     min-width: 280px;
     max-width: 360px;
 }
@@ -1198,7 +1208,7 @@ QPushButton#updateToastInstall {
     background-color: @UPDATE_TOAST_INSTALL_BG@;
     color: @UPDATE_TOAST_INSTALL_TEXT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     padding: 4px 14px;
     font-weight: 600;
 }
@@ -1216,7 +1226,7 @@ QPushButton#updateToastLater {
     background-color: @UPDATE_TOAST_LATER_BG@;
     color: @UPDATE_TOAST_LATER_TEXT@;
     border: none;
-    border-radius: 10px;
+    border-radius: @RADIUS_BTN@;
     padding: 4px 14px;
 }
 
@@ -1249,7 +1259,7 @@ QProgressBar#updateDialogProgress::chunk {
 QFrame#updateStatusBar {
     background-color: @UPDATE_TOAST_BG@;
     border: 1px solid @UPDATE_TOAST_BORDER@;
-    border-radius: 10px;
+    border-radius: @RADIUS_FIELD@;
     padding: 2px 6px;
     min-width: 340px;
     max-width: 520px;

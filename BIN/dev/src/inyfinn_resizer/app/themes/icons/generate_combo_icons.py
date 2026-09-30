@@ -16,9 +16,15 @@ def _draw_chevron(path: Path, color: tuple[int, int, int, int]) -> None:
     img.save(path)
 
 
+def _draw_chevron_dk() -> None:
+    """Motyw Dobra Kaloria: brąz brown-600, jak drugorzędny tekst."""
+    _draw_chevron(OUT / "combo-down-dk.png", (125, 94, 68, 255))
+
+
 def main() -> None:
     _draw_chevron(OUT / "combo-down-light.png", (99, 102, 241, 255))
     _draw_chevron(OUT / "combo-down-dark.png", (129, 140, 248, 255))
+    _draw_chevron_dk()
     print("OK", OUT)
 
 

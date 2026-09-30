@@ -85,7 +85,10 @@ def _boot_application_impl(app: QApplication, splash, icon: QIcon | None) -> Non
     log_event("Uruchomienie aplikacji", f"v{__version__}")
     splash.set_status("Ładowanie motywu…")
     app.processEvents()
-    apply_theme(app, load_theme())
+    theme = load_theme()
+    apply_theme(app, theme)
+    # Od 2.6.0 domyślny motyw to Dobra Kaloria (design z programu „Stwórz prezentację”).
+    log_event("Motyw", f"{theme} · czcionka {app.font().family()}")
 
     splash.set_status("Ładowanie okna…")
     app.processEvents()

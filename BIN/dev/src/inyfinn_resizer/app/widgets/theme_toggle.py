@@ -1,10 +1,17 @@
-"""Przełącznik jasny / ciemny motyw (suwak słońce–księżyc)."""
+"""Przełącznik jasny / ciemny motyw (suwak słońce–księżyc).
+
+Dwa stany: słońce = ostatnio wybrany jasny motyw (Dobra Kaloria albo Jasny), księżyc = Ciemny.
+Trzeci motyw nie dostaje trzeciej pozycji — suwak zostaje prosty, pełny wybór jest w menu Narzędzia.
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
+
+
+TOGGLE_TOOLTIP = "Przełącz jasny lub ciemny motyw (wybór motywu: Narzędzia)"
 
 
 class ThemeToggle(QWidget):
@@ -17,7 +24,7 @@ class ThemeToggle(QWidget):
         self._dark = dark
         self.setFixedSize(64, 30)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Przełącz jasny lub ciemny motyw")
+        self.setToolTip(TOGGLE_TOOLTIP)
         self.setObjectName("themeToggleWidget")
 
     def is_dark(self) -> bool:
