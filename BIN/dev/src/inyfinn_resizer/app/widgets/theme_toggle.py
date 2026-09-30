@@ -1,7 +1,7 @@
 """Przełącznik jasny / ciemny motyw (suwak słońce–księżyc).
 
-Dwa stany: słońce = ostatnio wybrany jasny motyw (Dobra Kaloria albo Jasny), księżyc = Ciemny.
-Trzeci motyw nie dostaje trzeciej pozycji — suwak zostaje prosty, pełny wybór jest w menu Narzędzia.
+Dwa stany: słońce = tryb jasny, księżyc = tryb ciemny. Styl kolorów (zieleń / krem) wybiera
+menu Narzędzia → Styl kolorów; suwak go nie zmienia. Kolory suwaka z bieżącego motywu.
 """
 
 from __future__ import annotations
@@ -11,7 +11,16 @@ from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 
-TOGGLE_TOOLTIP = "Przełącz jasny lub ciemny motyw (wybór motywu: Narzędzia)"
+def _token(name: str, fallback: str) -> str:
+    try:
+        from inyfinn_resizer.app.themes import theme_token
+
+        return theme_token(name)
+    except Exception:
+        return fallback
+
+
+TOGGLE_TOOLTIP = "Tryb jasny lub ciemny (styl kolorów: Narzędzia → Styl kolorów)"
 
 
 class ThemeToggle(QWidget):
@@ -49,15 +58,15 @@ class ThemeToggle(QWidget):
         w, h = self.width(), self.height()
         slot_h = h - 4
         slot = QRectF(2, 2, w - 4, slot_h)
-        slot_bg = QColor("#374151") if self._dark else QColor("#ffffff")
-        p.setPen(QPen(QColor("#94a3b8"), 1))
+        slot_bg = QColor(_token("@BG_INPUT@", "#ffffff"))
+        p.setPen(QPen(QColor(_token("@FIELD_BORDER@", "#9C8B72")), 1))
         p.setBrush(slot_bg)
         p.drawRoundedRect(slot, slot_h / 2, slot_h / 2)
 
         knob_d = slot_h - 6
         knob_x = slot.right() - knob_d - 3 if self._dark else slot.left() + 3
         knob = QRectF(knob_x, slot.top() + 3, knob_d, knob_d)
-        knob_fill = QColor("#485367") if self._dark else QColor("#ffeccf")
+        knob_fill = QColor(_token("@BG_HOVER@", "#2F4D39")) if self._dark else QColor("#ffeccf")
         p.setPen(Qt.NoPen)
         p.setBrush(knob_fill)
         p.drawEllipse(knob)
@@ -69,7 +78,7 @@ class ThemeToggle(QWidget):
             inner,
             inner,
         )
-        p.setBrush(QColor("#ffffff") if self._dark else QColor("#ffbb52"))
+        p.setBrush(QColor(_token("@FG_TEXT@", "#F5F1E8")) if self._dark else QColor("#ffbb52"))
         p.drawEllipse(inner_rect)
 
         if not self._dark:
@@ -88,7 +97,7 @@ class ThemeToggle(QWidget):
                 )
         else:
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#cbd5e1"))
+            p.setBrush(QColor(_token("@FG_MUTED@", "#C9BEA6")))
             c = knob.center()
             p.drawEllipse(QRectF(c.x() - knob_d * 0.22, c.y() - knob_d * 0.28, knob_d * 0.35, knob_d * 0.35))
 

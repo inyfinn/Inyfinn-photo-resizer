@@ -23,7 +23,7 @@ BTN_H = 26
 FOOTER_BTN_H = 32
 # Tryb prosty: dwie wysokości zamiast pięciu — kontrolki (pole, przeglądaj, dodaj) i akcje (Konwertuj, formaty).
 CONTROL_H = 32
-ACTION_H = 36
+ACTION_H = 44  # design system Dobra Kaloria: przycisk akcji min. 44 px
 ROW_GAP = 6
 FIELD_GAP = 4
 SECTION_GAP = 6

@@ -1,8 +1,13 @@
 """Theme loader — wspólna struktura + zamiana kolorów.
 
-Motywy: "dobra-kaloria" (domyślny od 2.6.0, design system Dobra Kaloria — ten sam wygląd co
-program „Stwórz prezentację”), "light" (dawny domyślny, indygo) i "dark".
+Od 2.6.1 wygląd = design system Dobra Kaloria (ten sam co program „Stwórz prezentację”).
+Dwa niezależne wybory:
+- **styl kolorów** (menu Narzędzia → Styl kolorów): „Dobra Kaloria 1 · zieleń” albo „Dobra Kaloria 2 · krem”,
+- **tryb** (suwak słońce/księżyc): jasny albo ciemny.
+Razem cztery motywy o id ``dobra-kaloria-<styl>-<tryb>`` (jak ``themes-list`` w tokens.json 1.3.0).
+Dawne nazwy („light”, „dark”, „dobra-kaloria”, „dobra-kaloria-ciemny”) mapuje ``resolve_theme``.
 Jeden arkusz ``app.qss`` ze znacznikami ``@NAZWA@``; każdy motyw definiuje każdy znacznik.
+Nagłówki: Mindset wielkimi literami, etykiety sekcji: Lato Bold wersalikami (``typography.py``).
 """
 
 from __future__ import annotations
@@ -12,206 +17,167 @@ from pathlib import Path
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
-THEME_LIGHT = "light"
-THEME_DARK = "dark"
-THEME_DK = "dobra-kaloria"
-DEFAULT_THEME = THEME_DK
-THEMES: tuple[str, ...] = (THEME_DK, THEME_LIGHT, THEME_DARK)
-THEME_LABELS: dict[str, str] = {
-    THEME_DK: "Motyw Dobra Kaloria",
-    THEME_LIGHT: "Jasny motyw",
-    THEME_DARK: "Ciemny motyw",
+from inyfinn_resizer.app.themes.palettes import ROLES
+
+STYLE_ZIELEN = "zielen"
+STYLE_KREM = "krem"
+MODE_LIGHT = "jasny"
+MODE_DARK = "ciemny"
+STYLES: tuple[str, ...] = (STYLE_ZIELEN, STYLE_KREM)
+MODES: tuple[str, ...] = (MODE_LIGHT, MODE_DARK)
+STYLE_LABELS: dict[str, str] = {
+    STYLE_ZIELEN: "Dobra Kaloria 1 · zieleń",
+    STYLE_KREM: "Dobra Kaloria 2 · krem",
+}
+MODE_LABELS: dict[str, str] = {MODE_LIGHT: "Tryb jasny", MODE_DARK: "Tryb ciemny"}
+DEFAULT_STYLE = STYLE_ZIELEN
+DEFAULT_MODE = MODE_LIGHT
+
+
+def theme_id(style: str, mode: str) -> str:
+    return f"dobra-kaloria-{style}-{mode}"
+
+
+def split_theme(theme: str) -> tuple[str, str]:
+    """'dobra-kaloria-krem-ciemny' → ('krem', 'ciemny')."""
+    style, mode = resolve_theme(theme).rsplit("-", 2)[-2:]
+    return style, mode
+
+
+THEMES: tuple[str, ...] = tuple(theme_id(s, m) for s in STYLES for m in MODES)
+DEFAULT_THEME = theme_id(DEFAULT_STYLE, DEFAULT_MODE)
+
+# Nazwy zapisane przez starsze wersje. Nic nie wraca do wyglądu indygo.
+_LEGACY_THEMES: dict[str, str] = {
+    "dark": theme_id(STYLE_ZIELEN, MODE_DARK),
+    "dobra-kaloria-ciemny": theme_id(STYLE_ZIELEN, MODE_DARK),
+    "dobra-kaloria": theme_id(STYLE_KREM, MODE_LIGHT),
+    "dobra-kaloria-krem": theme_id(STYLE_KREM, MODE_DARK),
 }
 
-# Kształt i krój wspólne dla jasnego i ciemnego (wygląd sprzed 2.6.0 — bez zmian).
-_CLASSIC_SHAPE: dict[str, str] = {
-    "@FONT_FAMILY@": '"Segoe UI", system-ui, sans-serif',
-    "@RADIUS_BTN@": "10px",
-    "@RADIUS_FIELD@": "10px",
-    "@RADIUS_CARD@": "16px",
-    "@CARD_BORDER@": "none",
-    "@MENU_STRIP_BG@": "transparent",
-    "@MENU_STRIP_BORDER@": "none",
-    "@DROP_BORDER@": "none",
-    "@RADIUS_DROP@": "10px",
+_SHAPE: dict[str, str] = {
+    "@FONT_FAMILY@": '"Lato", "Segoe UI", sans-serif',
+    "@FONT_DISPLAY@": '"Mindset", "Lato", "Segoe UI", sans-serif',
+    "@RADIUS_BTN@": "4px",
+    "@RADIUS_FIELD@": "8px",
+    "@RADIUS_CARD@": "12px",
+    "@RADIUS_DROP@": "16px",
 }
+
+
+def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field: str,
+            hover: str, scrim: str, menu_bg: str) -> dict[str, str]:
+    """Znaczniki app.qss z ról design systemu (nazwy ról jak w tokens_qt.py)."""
+    return {
+        "@BG_WINDOW@": window,
+        "@BG_PANEL@": panel,
+        "@BG_PANEL_ALT@": panel_alt,
+        "@BG_INPUT@": field,
+        "@BG_BUTTON@": field,
+        "@BG_HOVER@": hover,
+        "@BRAND_SOFT@": r["color_brand_soft"],
+        "@FG_TITLE@": r["color_text"],
+        "@FG_TEXT@": r["color_text"],
+        "@FG_MUTED@": r["color_text_muted"],
+        "@FG_LABEL@": r["color_label"],
+        "@FG_ACCENT@": r["color_brand"],
+        "@ACCENT@": r["color_brand"],
+        "@ACCENT_HOVER@": r["color_brand_hover"],
+        "@ON_ACCENT@": r["color_on_brand"],
+        "@ACCENT_GRAD_END@": r["color_brand_hover"],
+        "@BORDER@": r["color_border_strong"],
+        "@SEP@": r["color_border"],
+        "@FIELD_BORDER@": r["color_field_border"],
+        "@BORDER_FOCUS@": r["color_focus"],
+        "@COMBO_BORDER@": r["color_border"],
+        "@DISABLED_BG@": r["color_disabled_bg"],
+        "@CARD_BORDER@": f"1px solid {r['color_border']}",
+        "@MENU_STRIP_BG@": menu_bg,
+        "@MENU_STRIP_BORDER@": f"1px solid {r['color_border']}",
+        "@DROP_BORDER@": f"2px dashed {r['color_label']}",
+        "@CTA_BG@": r["color_cta"],
+        "@CTA_HOVER@": r["color_cta_hover"],
+        "@CTA_TEXT@": r["color_on_cta"],
+        "@FOOTER_CLOSE_BG@": "transparent",
+        "@FOOTER_CLOSE_HOVER@": hover,
+        "@FOOTER_CLOSE_BORDER@": "transparent",
+        "@UPDATE_TOAST_BG@": panel,
+        "@UPDATE_TOAST_BORDER@": r["color_brand"],
+        "@UPDATE_TOAST_TITLE@": r["color_text"],
+        "@UPDATE_TOAST_TEXT@": r["color_text_muted"],
+        "@UPDATE_TOAST_PROGRESS@": r["color_text_muted"],
+        "@UPDATE_TOAST_INSTALL_BG@": r["color_cta"],
+        "@UPDATE_TOAST_INSTALL_HOVER@": r["color_cta_hover"],
+        "@UPDATE_TOAST_INSTALL_TEXT@": r["color_on_cta"],
+        "@UPDATE_TOAST_LATER_BG@": panel_alt,
+        "@UPDATE_TOAST_LATER_HOVER@": hover,
+        "@UPDATE_TOAST_LATER_TEXT@": r["color_text"],
+        "@UPDATE_TOAST_LATER_BORDER@": r["color_border_strong"],
+        "@OVERLAY_SCRIM@": scrim,
+        "@OVERLAY_ABORT_COLOR@": r["color_danger"],
+        "@OVERLAY_ABORT_BORDER@": r["color_border_strong"],
+        "@OVERLAY_ABORT_HOVER_BG@": r["color_danger_soft"],
+        "@OVERLAY_ABORT_PRESSED@": hover,
+        "@OVERLAY_HINT@": r["color_text_muted"],
+        **_SHAPE,
+    }
+
 
 _THEME_TOKENS: dict[str, dict[str, str]] = {
-    THEME_LIGHT: {
-        "@BG_WINDOW@": "#EEF1F6",
-        "@BG_PANEL@": "#FFFFFF",
-        "@BG_PANEL_ALT@": "#F2F5F9",
-        "@BG_INPUT@": "#F2F5F9",
-        "@BG_BUTTON@": "#F2F5F9",
-        "@BG_HOVER@": "#E8EDF5",
-        "@FG_TITLE@": "#0F172A",
-        "@FG_TEXT@": "#1F2937",
-        "@FG_MUTED@": "#64748B",
-        "@FG_ACCENT@": "#6366F1",
-        "@ACCENT@": "#6366F1",
-        "@ACCENT_HOVER@": "#4F46E5",
-        "@BORDER@": "#E2E8F0",
-        "@BORDER_FOCUS@": "#6366F1",
-        "@COMBO_BORDER@": "#E2E8F0",
-        "@SEP@": "#E8EDF5",
-        "@FOOTER_CLOSE_BG@": "transparent",
-        "@FOOTER_CLOSE_HOVER@": "#E8EDF5",
-        "@FOOTER_CLOSE_BORDER@": "transparent",
-        "@UPDATE_TOAST_BG@": "#FFFFFF",
-        "@UPDATE_TOAST_BORDER@": "#6366F1",
-        "@UPDATE_TOAST_TITLE@": "#0F172A",
-        "@UPDATE_TOAST_TEXT@": "#475569",
-        "@UPDATE_TOAST_PROGRESS@": "#64748B",
-        "@UPDATE_TOAST_INSTALL_BG@": "#6366F1",
-        "@UPDATE_TOAST_INSTALL_HOVER@": "#4F46E5",
-        "@UPDATE_TOAST_INSTALL_TEXT@": "#FFFFFF",
-        "@UPDATE_TOAST_LATER_BG@": "#F2F5F9",
-        "@UPDATE_TOAST_LATER_HOVER@": "#E8EDF5",
-        "@UPDATE_TOAST_LATER_TEXT@": "#334155",
-        "@UPDATE_TOAST_LATER_BORDER@": "#E2E8F0",
-        "@OVERLAY_SCRIM@": "rgba(15, 23, 42, 0.42)",
-        "@OVERLAY_ABORT_COLOR@": "#EF4444",
-        "@OVERLAY_ABORT_BORDER@": "#FECACA",
-        "@OVERLAY_ABORT_HOVER_BG@": "#FEF2F2",
-        "@OVERLAY_ABORT_PRESSED@": "#FEE2E2",
-        "@OVERLAY_HINT@": "#64748B",
-        "@CTA_BG@": "#6366F1",
-        "@CTA_HOVER@": "#4F46E5",
-        "@CTA_TEXT@": "#ffffff",
-        "@ACCENT_GRAD_END@": "#7c3aed",
-        **_CLASSIC_SHAPE,
-    },
-    THEME_DARK: {
-        "@BG_WINDOW@": "#0E1116",
-        "@BG_PANEL@": "#181C23",
-        "@BG_PANEL_ALT@": "#212630",
-        "@BG_INPUT@": "#212630",
-        "@BG_BUTTON@": "#212630",
-        "@BG_HOVER@": "#2A303B",
-        "@FG_TITLE@": "#F1F5F9",
-        "@FG_TEXT@": "#E2E8F0",
-        "@FG_MUTED@": "#94A3B8",
-        "@FG_ACCENT@": "#818CF8",
-        "@ACCENT@": "#818CF8",
-        "@ACCENT_HOVER@": "#A5B4FC",
-        "@BORDER@": "#2A303B",
-        "@BORDER_FOCUS@": "#818CF8",
-        "@COMBO_BORDER@": "#2A303B",
-        "@SEP@": "#242933",
-        "@FOOTER_CLOSE_BG@": "transparent",
-        "@FOOTER_CLOSE_HOVER@": "#2A303B",
-        "@FOOTER_CLOSE_BORDER@": "transparent",
-        "@UPDATE_TOAST_BG@": "#181C23",
-        "@UPDATE_TOAST_BORDER@": "#818CF8",
-        "@UPDATE_TOAST_TITLE@": "#F1F5F9",
-        "@UPDATE_TOAST_TEXT@": "#CBD5E1",
-        "@UPDATE_TOAST_PROGRESS@": "#94A3B8",
-        "@UPDATE_TOAST_INSTALL_BG@": "#6366F1",
-        "@UPDATE_TOAST_INSTALL_HOVER@": "#818CF8",
-        "@UPDATE_TOAST_INSTALL_TEXT@": "#FFFFFF",
-        "@UPDATE_TOAST_LATER_BG@": "#212630",
-        "@UPDATE_TOAST_LATER_HOVER@": "#2A303B",
-        "@UPDATE_TOAST_LATER_TEXT@": "#E2E8F0",
-        "@UPDATE_TOAST_LATER_BORDER@": "#2A303B",
-        "@OVERLAY_SCRIM@": "rgba(0, 0, 0, 0.58)",
-        "@OVERLAY_ABORT_COLOR@": "#F87171",
-        "@OVERLAY_ABORT_BORDER@": "#7F1D1D",
-        "@OVERLAY_ABORT_HOVER_BG@": "#3F1515",
-        "@OVERLAY_ABORT_PRESSED@": "#551818",
-        "@OVERLAY_HINT@": "#94A3B8",
-        "@CTA_BG@": "#818CF8",
-        "@CTA_HOVER@": "#A5B4FC",
-        "@CTA_TEXT@": "#ffffff",
-        "@ACCENT_GRAD_END@": "#7c3aed",
-        **_CLASSIC_SHAPE,
-    },
-    # Design system Dobra Kaloria 1.0.0 (skill ds-dobra-kaloria, themes/photo-resizer), tryb zwarty.
-    # Względem szkicu: pola i przyciski na cream-100 (cream-50 na białym kafelku był niewidoczny),
-    # żółty przycisk głównej akcji, Lato, promienie 4/8/12, cienka piaskowa ramka kart.
-    THEME_DK: {
-        "@BG_WINDOW@": "#FBF3E0",  # cream-100
-        "@BG_PANEL@": "#FFFFFF",  # white
-        "@BG_PANEL_ALT@": "#FDF8EC",  # cream-50
-        "@BG_INPUT@": "#FBF3E0",  # cream-100
-        "@BG_BUTTON@": "#FBF3E0",  # cream-100
-        "@BG_HOVER@": "#F0EBDD",  # sand-150
-        "@FG_TITLE@": "#3B2A20",  # brown-900
-        "@FG_TEXT@": "#3B2A20",  # brown-900
-        "@FG_MUTED@": "#7D5E44",  # brown-600
-        "@FG_ACCENT@": "#0F763E",  # green-700
-        "@ACCENT@": "#0F763E",  # green-700
-        "@ACCENT_HOVER@": "#0B5F31",  # green-800
-        "@BORDER@": "#D9CFBB",  # sand-300
-        "@BORDER_FOCUS@": "#0F763E",  # green-700 (fokus = zieleń)
-        "@COMBO_BORDER@": "#D9CFBB",  # sand-300
-        "@SEP@": "#EDE7DA",  # sand-200
-        "@FOOTER_CLOSE_BG@": "transparent",
-        "@FOOTER_CLOSE_HOVER@": "#F0EBDD",  # sand-150
-        "@FOOTER_CLOSE_BORDER@": "transparent",
-        "@UPDATE_TOAST_BG@": "#FFFFFF",  # white
-        "@UPDATE_TOAST_BORDER@": "#0F763E",  # green-700
-        "@UPDATE_TOAST_TITLE@": "#3B2A20",  # brown-900
-        "@UPDATE_TOAST_TEXT@": "#7D5E44",  # brown-600
-        "@UPDATE_TOAST_PROGRESS@": "#7D5E44",  # brown-600
-        "@UPDATE_TOAST_INSTALL_BG@": "#FFD42A",  # yellow-400
-        "@UPDATE_TOAST_INSTALL_HOVER@": "#F6C700",  # yellow-500
-        "@UPDATE_TOAST_INSTALL_TEXT@": "#3B2A20",  # brown-900
-        "@UPDATE_TOAST_LATER_BG@": "#FDF8EC",  # cream-50
-        "@UPDATE_TOAST_LATER_HOVER@": "#F0EBDD",  # sand-150
-        "@UPDATE_TOAST_LATER_TEXT@": "#3B2A20",  # brown-900
-        "@UPDATE_TOAST_LATER_BORDER@": "#D9CFBB",  # sand-300
-        "@OVERLAY_SCRIM@": "rgba(59, 42, 32, 0.42)",
-        "@OVERLAY_ABORT_COLOR@": "#DA272D",  # red-600
-        "@OVERLAY_ABORT_BORDER@": "#F3B9BB",  # red-200
-        "@OVERLAY_ABORT_HOVER_BG@": "#FCE8E9",  # red-50
-        "@OVERLAY_ABORT_PRESSED@": "#F8D4D5",  # red-100
-        "@OVERLAY_HINT@": "#7D5E44",  # brown-600
-        "@CTA_BG@": "#FFD42A",  # yellow-400 — jedna główna akcja na ekran
-        "@CTA_HOVER@": "#F6C700",  # yellow-500
-        "@CTA_TEXT@": "#3B2A20",  # brown-900
-        "@ACCENT_GRAD_END@": "#0B5F31",  # green-800
-        "@FONT_FAMILY@": '"Lato", "Segoe UI", sans-serif',
-        "@RADIUS_BTN@": "4px",
-        "@RADIUS_FIELD@": "8px",
-        "@RADIUS_CARD@": "12px",
-        "@CARD_BORDER@": "1px solid #EDE7DA",  # sand-200
-        "@MENU_STRIP_BG@": "#FFFFFF",  # biały pasek nagłówka nad kremowym obszarem pracy
-        "@MENU_STRIP_BORDER@": "1px solid #EDE7DA",  # sand-200
-        "@DROP_BORDER@": "2px dashed #AD8767",  # tan-400, strefa upuszczania
-        "@RADIUS_DROP@": "16px",
-    },
+    # 1 · zieleń, jasny: szałwiowe tło, białe karty (semantic-zielen-jasny).
+    theme_id(STYLE_ZIELEN, MODE_LIGHT): _tokens(
+        ROLES["zielen-jasny"], window="#EEF4EF", panel="#FFFFFF", panel_alt="#EEF4EF",
+        field="#FFFFFF", hover="#E4EEE7", scrim="rgba(23, 41, 29, 0.42)", menu_bg="#FFFFFF",
+    ),
+    # 1 · zieleń, ciemny: leśna zieleń (semantic-dark).
+    theme_id(STYLE_ZIELEN, MODE_DARK): _tokens(
+        ROLES["zielen-ciemny"], window="#0F1F15", panel="#162B1E", panel_alt="#1D3526",
+        field="#1D3526", hover="#26422F", scrim="rgba(8, 18, 12, 0.62)", menu_bg="#162B1E",
+    ),
+    # 2 · krem, jasny: kremowe tło, białe karty (semantic) — wygląd z 2.6.0.
+    theme_id(STYLE_KREM, MODE_LIGHT): _tokens(
+        ROLES["krem-jasny"], window="#FBF3E0", panel="#FFFFFF", panel_alt="#FDF8EC",
+        field="#FBF3E0", hover="#F0EBDD", scrim="rgba(59, 42, 32, 0.42)", menu_bg="#FFFFFF",
+    ),
+    # 2 · krem, ciemny: ciemny krem / brąz (semantic-krem).
+    theme_id(STYLE_KREM, MODE_DARK): _tokens(
+        ROLES["krem-ciemny"], window="#1C1812", panel="#26211A", panel_alt="#302A21",
+        field="#302A21", hover="#3A3329", scrim="rgba(20, 16, 11, 0.62)", menu_bg="#26211A",
+    ),
 }
-
 
 _CURRENT_THEME = DEFAULT_THEME
 
-# Ikony z pliku: własne warianty motywu; jasny motyw bez własnych ikon bierze "light".
-_ICON_VARIANT = {THEME_LIGHT: "light", THEME_DARK: "dark", THEME_DK: "dk"}
-
-# Krój interfejsu (QApplication.setFont). Lato leży w paczce: themes/fonts/ (licencja OFL 1.1).
-_THEME_FONT_FAMILY = {THEME_DK: "Lato"}
-_CLASSIC_FONT_FAMILY = "Segoe UI"
+# Krój interfejsu. Pliki w themes/fonts/: Lato (OFL 1.1), Mindset (licencja komercyjna firmy).
+FONT_TEXT = "Lato"
+FONT_DISPLAY = "Mindset"
+_FALLBACK_FONT_FAMILY = "Segoe UI"
 _FONT_POINT_SIZE = 9
-_FONT_FILES = ("Lato-Regular.ttf", "Lato-Bold.ttf")
+_FONT_FILES = ("Lato-Regular.ttf", "Lato-Bold.ttf", "Mindset.otf")
 _LOADED_FAMILIES: set[str] | None = None
 
 
-def normalize_theme(theme: str | None) -> str:
-    return theme if theme in _THEME_TOKENS else DEFAULT_THEME
+def resolve_theme(theme: str | None) -> str:
+    """Dowolna zapisana wartość → jeden z czterech motywów DK (nieznana → domyślny)."""
+    if theme in _THEME_TOKENS:
+        return theme  # type: ignore[return-value]
+    return _LEGACY_THEMES.get(str(theme), DEFAULT_THEME)
+
+
+normalize_theme = resolve_theme
 
 
 def current_theme() -> str:
-    """Ostatnio zastosowany motyw ('dobra-kaloria' / 'light' / 'dark')."""
     return _CURRENT_THEME
 
 
 def is_dark_theme(theme: str | None = None) -> bool:
-    return (theme if theme is not None else _CURRENT_THEME) == THEME_DARK
+    return split_theme(theme if theme is not None else _CURRENT_THEME)[1] == MODE_DARK
 
 
 def theme_token(name: str, theme: str | None = None) -> str:
     """Wartość znacznika (np. "@ACCENT@") — dla kodu, który rysuje sam (QPainter)."""
-    return _THEME_TOKENS[normalize_theme(theme if theme is not None else _CURRENT_THEME)][name]
+    return _THEME_TOKENS[resolve_theme(theme if theme is not None else _CURRENT_THEME)][name]
 
 
 def fonts_dir() -> Path:
@@ -235,12 +201,14 @@ def register_fonts() -> set[str]:
     return families
 
 
-def theme_font_family(theme: str) -> str:
-    """Krój, którego motyw faktycznie użyje (Segoe UI, gdy plików Lato zabrakło)."""
-    wanted = _THEME_FONT_FAMILY.get(normalize_theme(theme), _CLASSIC_FONT_FAMILY)
-    if wanted == _CLASSIC_FONT_FAMILY:
-        return wanted
-    return wanted if wanted in register_fonts() else _CLASSIC_FONT_FAMILY
+def theme_font_family(theme: str | None = None) -> str:
+    """Krój tekstu: Lato z paczki, Segoe UI tylko gdy plików zabrakło."""
+    return FONT_TEXT if FONT_TEXT in register_fonts() else _FALLBACK_FONT_FAMILY
+
+
+def display_font_family() -> str:
+    """Krój nagłówków: Mindset z paczki, inaczej krój tekstu."""
+    return FONT_DISPLAY if FONT_DISPLAY in register_fonts() else theme_font_family()
 
 
 def _icon_path(name: str) -> Path:
@@ -248,18 +216,19 @@ def _icon_path(name: str) -> Path:
 
 
 def _themed_icon(prefix: str, theme: str) -> Path:
-    fallback = "dark" if theme == THEME_DARK else "light"
-    path = _icon_path(f"{prefix}-{_ICON_VARIANT.get(theme, fallback)}.png")
-    return path if path.is_file() else _icon_path(f"{prefix}-{fallback}.png")
+    style, mode = split_theme(theme)
+    return _icon_path(f"{prefix}-{style}-{mode}.png")
 
 
 def render_qss(theme: str) -> str:
     """Arkusz z podstawionymi znacznikami (bez nakładania na aplikację)."""
-    theme = normalize_theme(theme)
+    theme = resolve_theme(theme)
     qss = (Path(__file__).resolve().parent / "app.qss").read_text(encoding="utf-8")
     tokens = dict(_THEME_TOKENS[theme])
-    if theme_font_family(theme) == _CLASSIC_FONT_FAMILY:
-        tokens["@FONT_FAMILY@"] = _CLASSIC_SHAPE["@FONT_FAMILY@"]
+    if theme_font_family() != FONT_TEXT:
+        tokens["@FONT_FAMILY@"] = f'"{_FALLBACK_FONT_FAMILY}", sans-serif'
+    if display_font_family() != FONT_DISPLAY:
+        tokens["@FONT_DISPLAY@"] = tokens["@FONT_FAMILY@"]
     for token, value in tokens.items():
         qss = qss.replace(token, value)
 
@@ -275,9 +244,12 @@ def render_qss(theme: str) -> str:
 
 def apply_theme(app: QApplication, theme: str = DEFAULT_THEME) -> None:
     global _CURRENT_THEME
-    _CURRENT_THEME = normalize_theme(theme)
+    from inyfinn_resizer.app.themes.typography import install_typography
+
+    _CURRENT_THEME = resolve_theme(theme)
+    install_typography(app)
     font = QFont(app.font())
-    font.setFamily(theme_font_family(_CURRENT_THEME))
+    font.setFamily(theme_font_family())
     font.setPointSize(_FONT_POINT_SIZE)
     app.setFont(font)
     app.setStyleSheet(render_qss(_CURRENT_THEME))

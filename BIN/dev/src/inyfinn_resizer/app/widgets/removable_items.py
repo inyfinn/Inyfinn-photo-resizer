@@ -15,6 +15,15 @@ def remove_zone(cell: QRect) -> QRect:
     return QRect(cell.right() - _ZONE_W + 1, cell.top(), _ZONE_W, cell.height())
 
 
+def _on_accent() -> str:
+    try:
+        from inyfinn_resizer.app.themes import theme_token
+
+        return theme_token("@ON_ACCENT@")
+    except Exception:
+        return "#ffffff"
+
+
 class RemoveButtonDelegate(QStyledItemDelegate):
     """Rysuje ✕ po prawej stronie komórki; klik w ✕ = remove_clicked(index)."""
 
@@ -29,7 +38,7 @@ class RemoveButtonDelegate(QStyledItemDelegate):
             color = QColor(option.palette.text().color())
             color.setAlphaF(0.35)
         elif selected and not hovered:
-            color = QColor("#ffffff")
+            color = QColor(_on_accent())  # zaznaczony wiersz ma tło @ACCENT@
         else:
             color = QColor("#e5484d")  # czerwień „usuń” — jak ikona minus przy przycisku Usuń
         painter.save()

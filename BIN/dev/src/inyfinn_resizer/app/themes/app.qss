@@ -1,4 +1,4 @@
-/* Inyfinn Photo Resizer — płaski układ Bento (bez ramek kontenerów) */
+/* Inyfinn Photo Resizer — styl Dobra Kaloria (design system, tryb zwarty) */
 
 QMainWindow {
     background-color: @BG_WINDOW@;
@@ -31,8 +31,9 @@ QLabel#versionBadge {
 }
 
 QLabel#panelTitle {
-    font-size: 13px;
-    font-weight: 700;
+    font-family: @FONT_DISPLAY@;
+    font-size: 18px;
+    font-weight: 400;
     color: @FG_TITLE@;
     padding: 0;
     margin: 0;
@@ -40,9 +41,10 @@ QLabel#panelTitle {
 }
 
 QLabel#sectionTitle {
-    font-size: 12px;
+    font-family: @FONT_FAMILY@;
+    font-size: 11px;
     font-weight: 700;
-    color: @FG_MUTED@;
+    color: @FG_LABEL@;
     background: transparent;
 }
 
@@ -112,8 +114,9 @@ QScrollArea#helpGuideScroll {
 }
 
 QLabel#helpGuideTitle {
-    font-size: 15px;
-    font-weight: 700;
+    font-family: @FONT_DISPLAY@;
+    font-size: 20px;
+    font-weight: 400;
     color: @FG_TITLE@;
 }
 
@@ -174,8 +177,9 @@ QFrame#panel, QFrame#dropPanel, QFrame#sectionBox, QFrame#previewPanel {
 }
 
 QLabel#sectionStepTitle {
-    font-size: 13px;
-    font-weight: 700;
+    font-family: @FONT_DISPLAY@;
+    font-size: 16px;
+    font-weight: 400;
     color: @FG_TITLE@;
     background: transparent;
     padding: 0;
@@ -258,7 +262,7 @@ QWidget#menuStrip {
 
 QLabel#menuPresetLabel {
     color: @FG_TEXT@;
-    font-weight: 600;
+    font-weight: 700;
     padding-left: 8px;
 }
 
@@ -285,7 +289,7 @@ QMenuBar::item:selected {
 
 QMenu {
     background-color: @BG_PANEL@;
-    border: none;
+    border: 1px solid @SEP@;
     padding: 4px;
     color: @FG_TEXT@;
 }
@@ -296,25 +300,26 @@ QMenu::item:selected {
 }
 
 QPushButton {
-    background-color: @BG_BUTTON@;
-    border: none;
+    background-color: transparent;
+    border: 2px solid @ACCENT@;
     border-radius: @RADIUS_BTN@;
-    padding: 0 12px;
-    min-height: 28px;
-    max-height: 28px;
-    color: @FG_TEXT@;
-    font-weight: 500;
+    padding: 0 10px;
+    /* 24 + ramka 2×2 = 28 px, tyle co przed zmianą stylu */
+    min-height: 24px;
+    max-height: 24px;
+    color: @FG_ACCENT@;
+    font-weight: 700;
     font-size: 12px;
 }
 
 QPushButton:hover {
-    background-color: @BG_HOVER@;
+    background-color: @BRAND_SOFT@;
     color: @FG_ACCENT@;
 }
 
 QPushButton#toolBtn {
-    background-color: @BG_BUTTON@;
-    border: none;
+    background-color: transparent;
+    border: 2px solid @ACCENT@;
     padding: 0 6px;
     font-size: 12px;
     min-width: 0;
@@ -323,34 +328,35 @@ QPushButton#toolBtn {
 
 /* Tryb prosty: jedna wysokość kontrolek (CONTROL_H = 32 px) */
 QPushButton#toolBtn[large="true"] {
-    min-height: 32px;
-    max-height: 32px;
+    /* CONTROL_H = 32: 28 + ramka 2×2 */
+    min-height: 28px;
+    max-height: 28px;
     padding: 0 12px;
     font-size: 13px;
 }
 
 QPushButton#btnBrowse[large="true"] {
-    min-height: 32px;
-    max-height: 32px;
+    min-height: 28px;
+    max-height: 28px;
     padding: 0 14px;
     font-size: 13px;
     border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#toolBtn:hover {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @BRAND_SOFT@;
+    color: @FG_ACCENT@;
 }
 
 QPushButton#btnSecondary {
-    background-color: @BG_BUTTON@;
-    border: none;
+    background-color: transparent;
+    border: 2px solid @ACCENT@;
     min-width: 72px;
     border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#btnSecondary:hover {
-    background-color: @BG_HOVER@;
+    background-color: @BRAND_SOFT@;
     color: @FG_ACCENT@;
 }
 
@@ -382,22 +388,24 @@ QPushButton#footerPrimary:disabled {
 
 QPushButton#footerSecondary {
     background-color: transparent;
-    color: @FG_MUTED@;
-    border: none;
-    font-weight: 600;
+    color: @FG_ACCENT@;
+    border: 2px solid @ACCENT@;
+    font-weight: 700;
+    min-height: 28px;
+    max-height: 28px;
 }
 
 QPushButton#footerSecondary:hover {
-    background-color: @BG_HOVER@;
-    color: @FG_MUTED@;
+    background-color: @BRAND_SOFT@;
+    color: @FG_ACCENT@;
 }
 
 QPushButton#footerConvert {
-    min-height: 36px;
-    max-height: 36px;
+    min-height: 44px;
+    max-height: 44px;
     min-width: 140px;
-    padding: 0 18px;
-    font-size: 13px;
+    padding: 0 22px;
+    font-size: 14px;
     border-radius: @RADIUS_BTN@;
     background-color: @CTA_BG@;
     color: @CTA_TEXT@;
@@ -415,30 +423,30 @@ QPushButton#footerConvert:disabled {
 }
 
 QLabel#formatChipCaption {
-    color: @FG_MUTED@;
+    color: @FG_LABEL@;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     background: transparent;
 }
 
 QPushButton#formatChip {
     background: transparent;
-    border: 1.5px solid @ACCENT@;
+    border: 2px solid @ACCENT@;
     color: @FG_ACCENT@;
     border-radius: @RADIUS_BTN@;
     min-width: 64px;
     max-width: 88px;
-    /* 32 + obramowanie 2×2 = 36 px, tyle co Konwertuj (bez obramowania) */
-    min-height: 32px;
-    max-height: 32px;
+    /* 40 + ramka 2×2 = 44 px, tyle co Konwertuj (bez ramki) */
+    min-height: 40px;
+    max-height: 40px;
     padding: 0 12px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
 }
 
 QPushButton#formatChip:hover {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @BRAND_SOFT@;
+    color: @FG_ACCENT@;
 }
 
 QPushButton#formatChip:disabled {
@@ -447,8 +455,9 @@ QPushButton#formatChip:disabled {
 }
 
 QLabel#saveChoiceTitle {
-    font-size: 16px;
-    font-weight: 700;
+    font-family: @FONT_DISPLAY@;
+    font-size: 22px;
+    font-weight: 400;
     color: @FG_TITLE@;
 }
 
@@ -478,39 +487,41 @@ QPushButton#saveChoicePrimary:hover {
 QPushButton#saveChoiceOutline {
     background: transparent;
     color: @FG_ACCENT@;
-    border: 1.5px solid @ACCENT@;
+    border: 2px solid @ACCENT@;
     border-radius: @RADIUS_BTN@;
     font-weight: 700;
     font-size: 13px;
 }
 
 QPushButton#saveChoiceOutline:hover {
-    background-color: @ACCENT@;
-    color: #ffffff;
+    background-color: @BRAND_SOFT@;
+    color: @FG_ACCENT@;
 }
 
 QLabel#changelogVersion {
-    font-size: 15px;
-    font-weight: 700;
+    font-family: @FONT_DISPLAY@;
+    font-size: 20px;
+    font-weight: 400;
     color: @FG_ACCENT@;
 }
 
 QPushButton#footerClose {
-    min-height: 36px;
-    max-height: 36px;
+    min-height: 44px;
+    max-height: 44px;
     min-width: 112px;
-    padding: 0 16px;
-    font-size: 13px;
+    padding: 0 12px;
+    font-size: 14px;
     border-radius: @RADIUS_BTN@;
     background-color: transparent;
-    color: @FG_MUTED@;
+    color: @FG_ACCENT@;
     border: none;
-    font-weight: 600;
+    font-weight: 700;
+    text-decoration: underline;
 }
 
 QPushButton#footerClose:hover {
-    background-color: @BG_HOVER@;
-    color: @FG_MUTED@;
+    background-color: transparent;
+    color: @ACCENT_HOVER@;
 }
 
 QPushButton#primaryBtn {
@@ -553,9 +564,9 @@ QWidget#themeToggleWidget {
 }
 
 QTreeWidget#inputList {
-    background-color: @BG_INPUT@;
-    alternate-background-color: @BG_PANEL_ALT@;
-    border: none;
+    background-color: @BG_PANEL_ALT@;
+    alternate-background-color: @BG_PANEL@;
+    border: 1px solid @SEP@;
     border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
     outline: none;
@@ -593,7 +604,7 @@ QListWidget#simpleFileList::item {
 
 QListWidget#simpleFileList::item:selected {
     background-color: @ACCENT@;
-    color: #ffffff;
+    color: @ON_ACCENT@;
 }
 
 QListWidget#simpleFileList::item:hover:!selected {
@@ -602,7 +613,7 @@ QListWidget#simpleFileList::item:hover:!selected {
 
 QTreeWidget#inputList::item:selected {
     background-color: @ACCENT@;
-    color: #ffffff;
+    color: @ON_ACCENT@;
 }
 
 QTreeWidget#inputList::item:hover:!selected {
@@ -620,49 +631,50 @@ QHeaderView::section {
 
 QComboBox {
     background-color: @BG_INPUT@;
-    border: none;
+    border: 2px solid @FIELD_BORDER@;
     border-radius: @RADIUS_FIELD@;
-    padding: 2px 28px 2px 8px;
-    min-height: 24px;
-    max-height: 30px;
+    padding: 1px 26px 1px 8px;
+    min-height: 22px;
+    max-height: 28px;
     color: @FG_TEXT@;
     selection-background-color: @ACCENT@;
-    selection-color: #ffffff;
+    selection-color: @ON_ACCENT@;
 }
 
 QLineEdit, QSpinBox {
     background-color: @BG_INPUT@;
-    border: none;
+    border: 2px solid @FIELD_BORDER@;
     border-radius: @RADIUS_FIELD@;
-    padding: 2px 8px;
-    min-height: 28px;
-    max-height: 28px;
+    padding: 1px 8px;
+    /* 26 + padding 1×2 + ramka 2×2 = 32 px, tyle co przed zmianą stylu */
+    min-height: 26px;
+    max-height: 26px;
     color: @FG_TEXT@;
     selection-background-color: @ACCENT@;
-    selection-color: #ffffff;
+    selection-color: @ON_ACCENT@;
     qproperty-alignment: 'AlignLeft|AlignVCenter';
 }
 
 QLineEdit#outputDirEdit {
     font-size: 10px;
-    min-height: 26px;
-    max-height: 26px;
+    min-height: 24px;
+    max-height: 24px;
 }
 
 QLineEdit#outputDirEdit[large="true"] {
     font-size: 12px;
-    min-height: 32px;
-    max-height: 32px;
-    padding: 0 10px;
+    min-height: 26px;
+    max-height: 26px;
+    padding: 1px 10px;
     border-radius: @RADIUS_FIELD@;
 }
 
 QComboBox:hover, QLineEdit:hover, QSpinBox:hover {
-    background-color: @BG_HOVER@;
+    border-color: @FG_MUTED@;
 }
 
 QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
-    border: 1px solid @BORDER_FOCUS@;
+    border: 3px solid @BORDER_FOCUS@;
     background-color: @BG_INPUT@;
 }
 
@@ -691,7 +703,7 @@ QComboBox QAbstractItemView {
     color: @FG_TEXT@;
     border: none;
     selection-background-color: @ACCENT@;
-    selection-color: #ffffff;
+    selection-color: @ON_ACCENT@;
     outline: none;
 }
 
@@ -702,11 +714,11 @@ QComboBox QAbstractItemView::item {
 
 QComboBox QAbstractItemView::item:selected {
     background-color: @ACCENT@;
-    color: #ffffff;
+    color: @ON_ACCENT@;
 }
 
 QListWidget {
-    background-color: @BG_INPUT@;
+    background-color: @BG_PANEL_ALT@;
     border: none;
     border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
@@ -721,10 +733,10 @@ QSlider::groove:horizontal {
 QSlider::handle:horizontal {
     width: 12px;
     height: 12px;
-    margin: -4px 0;
+    margin: -6px 0;
     background: @ACCENT@;
     border: 2px solid @BG_PANEL@;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 QSlider::sub-page:horizontal {
@@ -781,15 +793,15 @@ QTabWidget::pane {
 
 QTabBar::tab {
     background: transparent;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     padding: 6px 14px;
     color: @FG_MUTED@;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 QTabBar::tab:selected {
     color: @FG_ACCENT@;
-    border-bottom: 2px solid @ACCENT@;
+    border-bottom: 3px solid @ACCENT@;
 }
 
 QCheckBox {
@@ -800,16 +812,17 @@ QCheckBox {
 }
 
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border-radius: 6px;
-    border: 1px solid @BORDER@;
+    /* 16 + ramka 2×2 = 20 px */
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 2px solid @FIELD_BORDER@;
     background: @BG_INPUT@;
 }
 
 QCheckBox::indicator:checked {
     background: @ACCENT@;
-    border: 1px solid @ACCENT@;
+    border: 2px solid @ACCENT@;
     image: url(@CHECK_ICON@);
 }
 
@@ -844,7 +857,7 @@ QCheckBox#moreToggle {
 QLabel#previewBox {
     border: none;
     border-radius: @RADIUS_FIELD@;
-    background-color: @BG_INPUT@;
+    background-color: @BG_PANEL_ALT@;
     min-width: 112px;
     min-height: 112px;
     max-width: 112px;
@@ -905,7 +918,7 @@ QAbstractItemView {
     color: @FG_TEXT@;
     border: none;
     selection-background-color: @ACCENT@;
-    selection-color: #ffffff;
+    selection-color: @ON_ACCENT@;
     outline: none;
 }
 
@@ -919,9 +932,9 @@ QListView#formatMultiList::item:hover:!selected {
 }
 
 QComboBox#formatMultiCombo {
-    min-height: 24px;
-    max-height: 30px;
-    border: none;
+    min-height: 22px;
+    max-height: 28px;
+    border: 2px solid @FIELD_BORDER@;
 }
 
 QComboBox#formatMultiCombo::drop-down {
@@ -945,7 +958,7 @@ QComboBox#formatMultiCombo QLineEdit {
 }
 
 QComboBox#formatMultiCombo:focus {
-    border: 1px solid @BORDER_FOCUS@;
+    border: 2px solid @BORDER_FOCUS@;
 }
 
 QTableWidget#resultsTable {
@@ -980,7 +993,7 @@ QTableWidget#resultsTable QHeaderView::section {
 QLabel#mattePreview {
     border: none;
     border-radius: @RADIUS_FIELD@;
-    background-color: @BG_INPUT@;
+    background-color: @BG_PANEL_ALT@;
 }
 
 QPushButton#btnBrowse {
@@ -989,26 +1002,27 @@ QPushButton#btnBrowse {
 }
 
 QPushButton#btnUpdatePath {
-    background-color: @ACCENT@;
-    color: #ffffff;
-    border: none;
+    background-color: transparent;
+    color: @FG_ACCENT@;
+    border: 2px solid @ACCENT@;
     font-weight: 700;
     font-size: 13px;
-    min-height: 32px;
-    max-height: 32px;
+    min-height: 28px;
+    max-height: 28px;
     min-width: 100px;
     padding: 0 12px;
     border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#btnUpdatePath:hover {
-    background-color: @ACCENT_HOVER@;
+    background-color: @BRAND_SOFT@;
 }
 
 QPushButton#btnUpdatePath:disabled {
-    background-color: @BG_PANEL_ALT@;
+    background-color: @DISABLED_BG@;
+    border-color: @DISABLED_BG@;
     color: @FG_MUTED@;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 QPushButton#cropAnchorBtn {
@@ -1026,17 +1040,19 @@ QPushButton#cropAnchorBtn:hover {
 
 QPushButton#cropAnchorBtn:checked {
     background-color: @ACCENT@;
-    color: #ffffff;
+    color: @ON_ACCENT@;
 }
 
 QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled {
     color: @FG_MUTED@;
-    background-color: @BG_PANEL_ALT@;
+    background-color: @DISABLED_BG@;
+    border-color: @SEP@;
 }
 
 QPushButton:disabled {
     color: @FG_MUTED@;
-    background-color: @BG_PANEL_ALT@;
+    background-color: @DISABLED_BG@;
+    border-color: @DISABLED_BG@;
 }
 
 QMessageBox {
@@ -1055,8 +1071,9 @@ QMessageBox QLabel {
 
 QMessageBox QPushButton {
     min-width: 88px;
-    min-height: 36px;
-    max-height: 36px;
+    /* 32 + ramka 2×2 = 36 px */
+    min-height: 32px;
+    max-height: 32px;
     padding: 0 14px;
     margin-left: 8px;
     border-radius: @RADIUS_BTN@;
@@ -1066,14 +1083,16 @@ QMessageBox QPushButton#primaryBtn {
     background-color: @CTA_BG@;
     color: @CTA_TEXT@;
     border: none;
+    min-height: 36px;
+    max-height: 36px;
 }
 
 QMessageBox QPushButton#btnSecondary {
-    background-color: @BG_BUTTON@;
-    color: @FG_TEXT@;
-    border: none;
-    min-height: 36px;
-    max-height: 36px;
+    background-color: transparent;
+    color: @FG_ACCENT@;
+    border: 2px solid @ACCENT@;
+    min-height: 32px;
+    max-height: 32px;
 }
 
 /* —— Overlay konwersji —— */
@@ -1305,4 +1324,56 @@ QPushButton#updateStatusInstall {
 
 QPushButton#updateStatusInstall:hover {
     background-color: @UPDATE_TOAST_INSTALL_HOVER@;
+}
+
+/* —— Styl Dobra Kaloria: stany, których nie było wcześniej —— */
+QLabel#appTitleLabel {
+    font-family: @FONT_DISPLAY@;
+    font-size: 17px;
+    font-weight: 400;
+    color: @FG_TITLE@;
+    padding-left: 8px;
+}
+
+QPushButton:pressed {
+    background-color: @BG_HOVER@;
+}
+
+QPushButton#footerConvert:pressed,
+QPushButton#footerPrimary:pressed,
+QPushButton#primaryBtn:pressed,
+QPushButton#saveChoicePrimary:pressed {
+    background-color: @CTA_HOVER@;
+}
+
+QPushButton#footerClose:disabled {
+    background-color: transparent;
+    color: @FG_MUTED@;
+}
+
+QPushButton#formatChip:disabled {
+    background-color: @DISABLED_BG@;
+    border-color: @DISABLED_BG@;
+    color: @FG_MUTED@;
+}
+
+/* Fokus 3 px bez przesuwania tekstu: ramka +1, wypełnienie −1 */
+QComboBox:focus {
+    padding: 0px 25px 0px 7px;
+}
+
+QLineEdit:focus, QSpinBox:focus {
+    padding: 0px 7px;
+}
+
+QLineEdit#outputDirEdit[large="true"]:focus {
+    padding: 0px 9px;
+}
+
+QCheckBox::indicator:hover {
+    border-color: @ACCENT@;
+}
+
+QCheckBox::indicator:checked:disabled, QCheckBox::indicator:disabled {
+    border-color: @SEP@;
 }

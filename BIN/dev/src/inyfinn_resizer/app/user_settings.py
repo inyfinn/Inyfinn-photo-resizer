@@ -21,43 +21,61 @@ def _settings() -> QSettings:
     return QSettings("Inyfinn", "PhotoResizer")
 
 
-THEME_KEY = "ui/theme"
-LAST_LIGHT_THEME_KEY = "ui/theme_last_light"
-# 2.6.0: domyślny motyw zmienił się z „light” na „dobra-kaloria”. Zapisany „light” był zwykle
-# dawnym domyślnym, więc przechodzi raz na nowy. Flaga pilnuje, żeby późniejszy świadomy
-# wybór „Jasny motyw” już został.
-THEME_MIGRATION_KEY = "ui/theme_migrated_dobra_kaloria"
+# 2.6.1: wygląd = dwa niezależne wybory, zapisywane osobno.
+THEME_MODE_KEY = "ui/theme_mode"  # jasny / ciemny (suwak słońce-księżyc)
+THEME_STYLE_KEY = "ui/theme_style"  # zielen / krem (Narzędzia → Styl kolorów)
+# Klucz motywu do 2.6.0 — czytany tylko przy migracji.
+LEGACY_THEME_KEY = "ui/theme"
+# Jednorazowa migracja do stylu + trybu. Zachowuje to, co user widzi dziś:
+# „dark” / „dobra-kaloria-ciemny” → zieleń + ciemny, „dobra-kaloria” (krem, 2.6.0) → krem + jasny,
+# „dobra-kaloria-krem” → krem + ciemny, brak / „light” / cokolwiek innego → domyślnie zieleń + jasny.
+THEME_MIGRATION_KEY = "ui/theme_migrated_dk3"
+_OBSOLETE_THEME_KEYS = (
+    LEGACY_THEME_KEY,
+    "ui/theme_last_light",
+    "ui/theme_migrated_dobra_kaloria",
+    "ui/theme_migrated_dk2",
+)
 
 
 def load_theme() -> str:
-    from inyfinn_resizer.app.themes import DEFAULT_THEME, THEME_LIGHT, THEMES
+    """Id motywu (dobra-kaloria-<styl>-<tryb>) z zapisanego stylu i trybu."""
+    from inyfinn_resizer.app.themes import (
+        DEFAULT_MODE,
+        DEFAULT_STYLE,
+        MODES,
+        STYLES,
+        resolve_theme,
+        split_theme,
+        theme_id,
+    )
 
     s = _settings()
-    theme = s.value(THEME_KEY, None)
     migrated = str(s.value(THEME_MIGRATION_KEY, "false")).lower() in ("1", "true")
     if not migrated:
+        legacy = s.value(LEGACY_THEME_KEY, None)
+        style, mode = split_theme(resolve_theme(legacy))
+        for key in _OBSOLETE_THEME_KEYS:
+            s.remove(key)
+        s.setValue(THEME_STYLE_KEY, style)
+        s.setValue(THEME_MODE_KEY, mode)
         s.setValue(THEME_MIGRATION_KEY, True)
-        if theme in (None, "", THEME_LIGHT):
-            theme = DEFAULT_THEME
-            s.setValue(THEME_KEY, theme)
-    return theme if theme in THEMES else DEFAULT_THEME
+    style = s.value(THEME_STYLE_KEY, DEFAULT_STYLE)
+    mode = s.value(THEME_MODE_KEY, DEFAULT_MODE)
+    if style not in STYLES:
+        style = DEFAULT_STYLE
+    if mode not in MODES:
+        mode = DEFAULT_MODE
+    return theme_id(style, mode)
 
 
 def save_theme(theme: str) -> None:
-    from inyfinn_resizer.app.themes import THEME_DARK
+    from inyfinn_resizer.app.themes import split_theme
 
+    style, mode = split_theme(theme)
     s = _settings()
-    s.setValue(THEME_KEY, theme)
-    if theme != THEME_DARK:
-        s.setValue(LAST_LIGHT_THEME_KEY, theme)
-
-
-def load_last_light_theme() -> str:
-    """Jasny motyw, do którego wraca przełącznik słońce/księżyc (domyślnie Dobra Kaloria)."""
-    from inyfinn_resizer.app.themes import DEFAULT_THEME, THEME_DARK, THEMES
-
-    theme = _settings().value(LAST_LIGHT_THEME_KEY, DEFAULT_THEME)
-    return theme if theme in THEMES and theme != THEME_DARK else DEFAULT_THEME
+    s.setValue(THEME_STYLE_KEY, style)
+    s.setValue(THEME_MODE_KEY, mode)
 
 
 def save_results_table_header(header) -> None:

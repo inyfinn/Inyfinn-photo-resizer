@@ -21,17 +21,26 @@ Dlaczego EXE jest też w `BIN/`? PyInstaller **one-dir** wymaga, żeby EXE leża
 ## Wygląd (od 2.6.0): design Dobra Kaloria
 
 Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz prezentację”
-(design system Dobra Kaloria). Motyw **Dobra Kaloria** jest domyślny: ciepłe kremowe tło, białe
-karty z cienką piaskową ramką, zieleń marki, żółty przycisk głównej akcji, ciemnobrązowy tekst,
-czcionka Lato (w paczce, `app/themes/fonts/`, licencja OFL), promienie 4/8/12 px.
+(design system Dobra Kaloria). Od 2.6.1 cały program ma ten styl, nie tylko kolory:
 
-- Dawne motywy „Jasny” i „Ciemny” zostają: menu **Narzędzia**. Suwak słońce/księżyc przełącza
-  ostatni jasny motyw (domyślnie Dobra Kaloria) i ciemny.
-- Migracja przy pierwszym starcie 2.6.0: zapisany „Jasny” (dawny domyślny) przechodzi raz na
-  Dobra Kaloria, „Ciemny” zostaje. Flaga `ui/theme_migrated_dobra_kaloria` w ustawieniach.
-- Aktywny motyw i czcionka trafiają do `logs/activity.log` przy każdym starcie („Motyw”).
-- Źródło wartości: skill `ds-dobra-kaloria` (`themes/photo-resizer/`). Kod: `app/themes/__init__.py`
-  (słowniki znaczników) + `app/themes/app.qss`. Zmiana dotyczy tylko wyglądu, nie funkcji.
+- **Nagłówki** kafelków i okien: czcionka **Mindset** wielkimi literami (licencja komercyjna firmy,
+  potwierdzona przez właściciela projektu 30.09.2026). **Tekst:** Lato (OFL). Małe etykiety sekcji:
+  Lato Bold wersalikami z odstępem liter. Obie czcionki są w paczce (`app/themes/fonts/`).
+- **Przyciski:** główna akcja żółta (#FFD42A, brązowy tekst, 44 px, jedna na ekran), drugorzędne
+  z zieloną ramką i zielonym tekstem (hover = miękkie wypełnienie), „Zamknij” jako podkreślony link.
+- **Pola** z ramką w kolorze `field-border`, fokus 3 px w kolorze akcentu (tekst się nie przesuwa),
+  zaokrąglenia 4 / 8 / 12 px, karty z cienką ramką.
+- **Dwa niezależne wybory:** styl kolorów (menu **Narzędzia → Styl kolorów**: „Dobra Kaloria 1 · zieleń”,
+  „Dobra Kaloria 2 · krem”) i tryb (suwak słońce/księżyc, też **Narzędzia → Tryb**). Cztery motywy
+  `dobra-kaloria-<zielen|krem>-<jasny|ciemny>` = `themes-list` z design systemu 1.3.0.
+  Ustawienia: `ui/theme_style`, `ui/theme_mode`.
+- **Migracja** (raz, flaga `ui/theme_migrated_dk3`) zachowuje to, co user widzi: `dark` /
+  `dobra-kaloria-ciemny` → zieleń ciemna, `dobra-kaloria` (kremowy z 2.6.0) → krem jasny, brak / `light` /
+  inne → zieleń jasna. Stare klucze (`ui/theme` i flagi 2.6.0) są usuwane. Motywy indygo usunięte.
+- Aktywny motyw i czcionki trafiają do `logs/activity.log` przy każdym starcie („Motyw”).
+- Kolory: `app/themes/palettes.py` (kopia ról z `tokens_qt.py` design systemu). Znaczniki:
+  `app/themes/__init__.py`, arkusz: `app/themes/app.qss`, wersaliki: `app/themes/typography.py`.
+  Zmiana dotyczy tylko wyglądu, nie funkcji.
 
 ## Kompresja (pipeline)
 

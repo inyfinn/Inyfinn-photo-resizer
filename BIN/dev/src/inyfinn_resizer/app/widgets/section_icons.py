@@ -5,45 +5,8 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
-STEP_ACCENT_LIGHT = "#6366f1"
-STEP_ACCENT_DARK = "#818cf8"
-
-STEP_ACCENTS = {
-    "format": (STEP_ACCENT_LIGHT, "#eef2ff"),
-    "dimensions": (STEP_ACCENT_LIGHT, "#eef2ff"),
-    "save": (STEP_ACCENT_LIGHT, "#eef2ff"),
-}
-
-STEP_ACCENTS_DARK = {
-    "format": STEP_ACCENT_DARK,
-    "dimensions": STEP_ACCENT_DARK,
-    "save": STEP_ACCENT_DARK,
-}
-
-HELP_ACCENTS = {
-    "start": ("#2563eb", "#eff6ff"),
-    "list": ("#7c3aed", "#f5f3ff"),
-    "compression": ("#0891b2", "#ecfeff"),
-    "advanced": ("#ca8a04", "#fefce8"),
-    "menu": ("#64748b", "#f8fafc"),
-    "update": ("#4f46e5", "#eef2ff"),
-}
-
-HELP_ACCENTS_DARK = {
-    "start": "#2c4a86",
-    "list": "#4a3a7a",
-    "compression": "#155e73",
-    "advanced": "#7a5410",
-    "menu": "#3f4a5c",
-    "update": "#3b3f7a",
-    "format": "#3b3f7a",
-    "dimensions": "#4a5a54",
-    "save": "#8a4416",
-}
-
-
-# Motyw Dobra Kaloria: odznaki w kolorach marki (zieleń, brąz, beż) zamiast indygo/fioletu.
-HELP_ACCENTS_DK = {
+# Odznaki w kolorach marki Dobra Kaloria (zieleń, brąz, beż); biały znak na odznace.
+BADGE_ACCENTS_DK = {
     "start": "#0F763E",  # green-700
     "list": "#7D5E44",  # brown-600
     "compression": "#0B5F31",  # green-800
@@ -55,27 +18,43 @@ HELP_ACCENTS_DK = {
     "save": "#AD8767",
 }
 
-
-def _theme() -> str:
-    try:
-        from inyfinn_resizer.app.themes import current_theme
-
-        return current_theme()
-    except Exception:
-        return "light"
+# Dobra Kaloria ciemny: te same role, przyciemnione beże, żeby biały znak był czytelny
+# na ciemnozielonym tle (#162B1E).
+BADGE_ACCENTS_DK_DARK = {
+    "start": "#0F763E",
+    "list": "#7D5E44",
+    "compression": "#0B5F31",
+    "advanced": "#8C6B4F",
+    "menu": "#5E7A66",
+    "update": "#0F763E",
+    "format": "#0F763E",
+    "dimensions": "#7D5E44",
+    "save": "#8C6B4F",
+}
 
 
 def _is_dark() -> bool:
-    return _theme() == "dark"
+    try:
+        from inyfinn_resizer.app.themes import is_dark_theme
+
+        return is_dark_theme()
+    except Exception:
+        return False
 
 
-def _is_dk() -> bool:
-    return _theme() == "dobra-kaloria"
+def _badge_accent(key: str) -> str:
+    palette = BADGE_ACCENTS_DK_DARK if _is_dark() else BADGE_ACCENTS_DK
+    return palette.get(key, palette["format"])
 
 
 def _accent() -> str:
-    """Akcent ikon rysowanych w kodzie: zieleń w Dobrej Kalorii, dawne indygo w jasnym i ciemnym."""
-    return "#0F763E" if _is_dk() else STEP_ACCENT_LIGHT
+    """Akcent ikon rysowanych w kodzie = @ACCENT@ bieżącego motywu."""
+    try:
+        from inyfinn_resizer.app.themes import theme_token
+
+        return theme_token("@ACCENT@")
+    except Exception:
+        return BADGE_ACCENTS_DK["format"]
 
 BADGE_SIZE = 40
 RENDER_SCALE = 2
@@ -153,11 +132,7 @@ def _draw_save_white(painter: QPainter, size: float) -> None:
 
 
 def step_pixmap(step_key: str, *, size: int | None = None) -> QPixmap:
-    accent, _bg = STEP_ACCENTS.get(step_key, STEP_ACCENTS["format"])
-    if _is_dark():
-        accent = STEP_ACCENTS_DARK.get(step_key, accent)
-    elif _is_dk():
-        accent = HELP_ACCENTS_DK.get(step_key, accent)
+    accent = _badge_accent(step_key)
     logical = size or BADGE_SIZE
     px, painter, side = _badge_canvas(logical)
     radius = 10.0
@@ -261,11 +236,7 @@ _HELP_DRAWERS = {
 
 
 def help_section_pixmap(section_key: str, *, size: int | None = None) -> QPixmap:
-    accent, _bg = HELP_ACCENTS.get(section_key, STEP_ACCENTS.get(section_key, STEP_ACCENTS["format"]))
-    if _is_dark():
-        accent = HELP_ACCENTS_DARK.get(section_key, accent)
-    elif _is_dk():
-        accent = HELP_ACCENTS_DK.get(section_key, accent)
+    accent = _badge_accent(section_key)
     logical = size or 32
     px, painter, side = _badge_canvas(logical)
     radius = 8.0

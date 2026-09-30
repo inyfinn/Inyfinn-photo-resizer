@@ -1,10 +1,15 @@
-"""Generuje strzałki rozwijane listy dla QComboBox."""
+"""Generuje strzałki rozwijanej listy dla QComboBox — po jednej na motyw Dobra Kaloria.
+
+Kolor = color_text_muted (palettes.py). Plik: combo-down-<styl>-<tryb>.png.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageColor, ImageDraw
+
+from inyfinn_resizer.app.themes.palettes import ROLES
 
 OUT = Path(__file__).resolve().parent
 
@@ -16,15 +21,9 @@ def _draw_chevron(path: Path, color: tuple[int, int, int, int]) -> None:
     img.save(path)
 
 
-def _draw_chevron_dk() -> None:
-    """Motyw Dobra Kaloria: brąz brown-600, jak drugorzędny tekst."""
-    _draw_chevron(OUT / "combo-down-dk.png", (125, 94, 68, 255))
-
-
 def main() -> None:
-    _draw_chevron(OUT / "combo-down-light.png", (99, 102, 241, 255))
-    _draw_chevron(OUT / "combo-down-dark.png", (129, 140, 248, 255))
-    _draw_chevron_dk()
+    for name, roles in ROLES.items():
+        _draw_chevron(OUT / f"combo-down-{name}.png", ImageColor.getrgb(roles["color_text_muted"]) + (255,))
     print("OK", OUT)
 
 

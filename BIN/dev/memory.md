@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.0
+**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.1
 
 ---
 
@@ -187,11 +187,14 @@ Z DAM bierzemy **kanały**, nie limit wagi:
 
 ## UI — zasady
 
-- **Od 2.6.0 domyślny motyw = „dobra-kaloria”** (design z programu „Stwórz prezentację”, skill `ds-dobra-kaloria`). Jasny/ciemny zostają w menu Narzędzia. Migracja: zapisany `light` → raz na DK (flaga `ui/theme_migrated_dobra_kaloria`), `dark` zostaje. Suwak słońce/księżyc: `ui/theme_last_light` ↔ `dark`.
-- Każdy motyw w `_THEME_TOKENS` musi mieć każdy znacznik z `app.qss` (test `test_theme_dobra_kaloria.py`). Kształt/CTA/krój też są znacznikami (`@CTA_BG@`, `@RADIUS_BTN@`, `@FONT_FAMILY@`…); jasny i ciemny mają wartości sprzed 2.6.0 — arkusz jasnego/ciemnego jest identyczny jak w 2.5.2 poza poprawką czarnych pasów w oknie konwersji.
-- Ikony z pliku: wariant per motyw (`check-dk.png`, `combo-down-dk.png`); jasny motyw bez własnych ikon bierze `-light`, nigdy `-dark`.
-- Lato (OFL) w `app/themes/fonts/` — spec zbiera cały katalog `themes`. **Mindset NIE jest w paczce** („All rights reserved”, a repo jest publiczne) — nagłówki Lato Bold.
-- Kolory rysowane w kodzie (QPainter, `section_icons.py`) sprawdzają motyw — nowy motyw = dopisz paletę.
+- **Od 2.6.1: styl kolorów × tryb.** Style `zielen` („Dobra Kaloria 1 · zieleń”) i `krem` („Dobra Kaloria 2 · krem”), tryby `jasny`/`ciemny`; id `dobra-kaloria-<styl>-<tryb>`. Menu Narzędzia → Styl kolorów / Tryb, suwak = tylko tryb. Ustawienia `ui/theme_style` + `ui/theme_mode`; migracja `ui/theme_migrated_dk3` (dark → zieleń ciemna, `dobra-kaloria` → krem jasny, reszta → zieleń jasna; usuwa `ui/theme` i flagi 2.6.0). Motywy indygo usunięte. `resolve_theme()` mapuje stare nazwy.
+- Kolory = `palettes.py` (kopia ról z design systemu 1.3.0, generowana skryptem z `tokens_qt.py`). `_tokens()` w `themes/__init__.py` robi z ról znaczniki QSS. Każdy motyw ma każdy znacznik (test). Tekst na akcencie = `@ON_ACCENT@` (w ciemnych ciemny, nie biały).
+- **Styl DK w QSS:** przyciski domyślnie drugorzędne (ramka 2 px akcent), CTA żółte tylko: footerConvert/footerPrimary/primaryBtn/saveChoicePrimary; footerClose = link. Pola ramka 2 px `@FIELD_BORDER@`, fokus 3 px z paddingiem −1, żeby tekst się nie przesuwał. Qt rysuje 1.5 px jak 2 px. Wysokości: QSS min/max-height NIE liczy ramki ani paddingu — przy każdej zmianie ramki przelicz (np. przycisk 28 = 24 + 2×2). `ACTION_H = 44`.
+- **Wersaliki / odstęp liter** — QSS ich nie zna: filtr zdarzeń `typography.py` (Polish) na etykietach z `DISPLAY_OBJECTS` / `EYEBROW_OBJECTS`. Tekst etykiet się nie zmienia. Nowy nagłówek = dodaj objectName do zbioru.
+- Ikony z pliku: `check-<styl>-<tryb>.png`, `combo-down-<styl>-<tryb>.png` (generatory czytają palettes). Pliki `-light`/`-dark` (indygo) są nieużywane.
+- Pytest tworzy MainWindow na prawdziwym rejestrze → uruchamia migrację motywu na tej stacji.
+- Czcionki w `app/themes/fonts/`: Lato (OFL) i Mindset (licencja komercyjna firmy — user potwierdził 30.09). Spec zbiera cały katalog `themes`.
+- Kolory rysowane w kodzie (QPainter: `section_icons.py`, `theme_toggle.py`, ✕ w `removable_items.py`, czcionka okna konwersji) biorą wartości z motywu (`theme_token`).
 - Separatory: token `@SEP@` w `app/themes`.
 - Dark/light: tokeny QSS, bez hardcoded kolorów light w dark mode.
 - Dokumentacja operacyjna: **tylko** `BIN/dev/` — nigdy w korzeniu projektu.

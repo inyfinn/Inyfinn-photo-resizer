@@ -16,7 +16,7 @@ from inyfinn_resizer.app.main_window import (
     DEFAULT_WINDOW_WIDTH,
     MainWindow,
 )
-from inyfinn_resizer.app.themes import apply_theme
+from inyfinn_resizer.app.themes import THEMES, apply_theme, is_dark_theme
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 
 
@@ -41,7 +41,7 @@ def _sync_window_theme(widget: QWidget, theme: str) -> None:
     toggle = getattr(widget, "_theme_toggle", None)
     if toggle is not None:
         toggle.blockSignals(True)
-        toggle.set_dark(theme == "dark")
+        toggle.set_dark(is_dark_theme(theme))
         toggle.blockSignals(False)
     refresh = getattr(widget, "_refresh_step_icons", None)
     if callable(refresh):
@@ -90,7 +90,7 @@ def main() -> int:
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else root / "ui-complete" / "screenshots"
     out.mkdir(parents=True, exist_ok=True)
     iteration = sys.argv[1] if len(sys.argv) > 1 else "final"
-    themes = sys.argv[3].split(",") if len(sys.argv) > 3 else ["dobra-kaloria", "light", "dark"]
+    themes = sys.argv[3].split(",") if len(sys.argv) > 3 else list(THEMES)
 
     app = QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)

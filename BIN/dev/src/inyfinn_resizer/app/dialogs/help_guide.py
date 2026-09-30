@@ -30,7 +30,7 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
                 "Obok Konwertuj są przyciski PNG / JPG / AVIF, gdy chcesz zmienić format.",
                 "Ustaw format, jakość i wymiary, wybierz folder wyjściowy, kliknij Konwertuj.",
                 "Prawy przycisk myszy na liście: konwersja wybranych, usuń, otwórz folder, kopiuj ścieżkę.",
-                "Domyślny wygląd to motyw Dobra Kaloria. Suwak w prawym górnym rogu przełącza jasny / ciemny, a wszystkie motywy (Dobra Kaloria, Jasny, Ciemny) są w menu Narzędzia.",
+                "Tryb jasny / ciemny przełączasz suwakiem w prawym górnym rogu okna. Styl kolorów (Dobra Kaloria 1 · zieleń albo 2 · krem) wybierasz w menu Narzędzia → Styl kolorów.",
             ],
         ),
         (

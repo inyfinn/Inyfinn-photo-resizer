@@ -19,6 +19,18 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.1",
+        "2026-09-30",
+        [
+            "Cały program w stylu programu do tworzenia prezentacji (design system Dobra Kaloria), nie tylko kolory: nagłówki czcionką Mindset wielkimi literami, tekst Lato, małe etykiety sekcji wersalikami.",
+            "Nowe przyciski: główna akcja żółta (jedna na ekran, 44 px), pozostałe z zieloną ramką, „Zamknij” jako podkreślony link. Pola z ramką i wyraźnym zielonym fokusem, zaokrąglenia 4 / 8 / 12 px.",
+            "Dwa style kolorów do wyboru w menu Narzędzia → Styl kolorów: „Dobra Kaloria 1 · zieleń” i „Dobra Kaloria 2 · krem”. Każdy ma tryb jasny i ciemny — przełącza je suwak słońce/księżyc.",
+            "Zieleń: jasny szałwiowy albo ciemna leśna zieleń. Krem: jasny kremowy (jak w 2.6.0) albo ciemny krem.",
+            "Dawne motywy indygo zostały usunięte. Ustawienia są przeniesione tak, żeby wygląd się nie cofnął: ciemny → zieleń ciemna, kremowy z 2.6.0 → krem jasny, nowa instalacja → zieleń jasna.",
+            "Funkcje programu się nie zmieniły — tylko wygląd.",
+        ],
+    ),
+    (
         "2.6.0",
         "2026-09-30",
         [

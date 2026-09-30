@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths, Qt, QThread, QTimer, QSize
-from PySide6.QtGui import QGuiApplication, QIntValidator, QPixmap
+from PySide6.QtGui import QActionGroup, QGuiApplication, QIntValidator, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -64,7 +64,17 @@ from inyfinn_resizer.app.widgets.conversion_overlay import ConversionOverlay
 from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
 from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
-from inyfinn_resizer.app.themes import THEME_DARK, THEME_LABELS, THEMES
+from inyfinn_resizer.app.themes import (
+    MODE_DARK,
+    MODE_LABELS,
+    MODE_LIGHT,
+    MODES,
+    STYLE_LABELS,
+    STYLES,
+    is_dark_theme,
+    split_theme,
+    theme_id,
+)
 from inyfinn_resizer.app.widgets.theme_toggle import TOGGLE_TOOLTIP, ThemeToggle
 from inyfinn_resizer.app.widgets.removable_items import install_remove_support
 from inyfinn_resizer.utils.reveal import reveal_in_explorer
@@ -105,7 +115,6 @@ from inyfinn_resizer.app.widgets.tool_icons import (
     icon_plus_green,
 )
 from inyfinn_resizer.app.user_settings import (
-    load_last_light_theme,
     load_session,
     load_theme,
     persist_all,
@@ -314,10 +323,26 @@ class MainWindow(QMainWindow):
         tools_menu = menubar.addMenu("&Narzędzia")
         tools_menu.addAction("Zmiana nazw…", self._open_rename_dialog)
         tools_menu.addSeparator()
-        for theme_key in THEMES:
-            tools_menu.addAction(
-                THEME_LABELS[theme_key], lambda _=False, k=theme_key: self._set_theme(k)
-            )
+        # Dwa niezależne wybory: styl kolorów (zieleń / krem) i tryb (jasny / ciemny).
+        self._style_actions: dict[str, object] = {}
+        self._mode_actions: dict[str, object] = {}
+        style_menu = tools_menu.addMenu("Styl kolorów")
+        style_group = QActionGroup(self)
+        for style_key in STYLES:
+            act = style_menu.addAction(STYLE_LABELS[style_key])
+            act.setCheckable(True)
+            style_group.addAction(act)
+            act.triggered.connect(lambda _=False, k=style_key: self._set_color_style(k))
+            self._style_actions[style_key] = act
+        mode_menu = tools_menu.addMenu("Tryb")
+        mode_group = QActionGroup(self)
+        for mode_key in MODES:
+            act = mode_menu.addAction(MODE_LABELS[mode_key])
+            act.setCheckable(True)
+            mode_group.addAction(act)
+            act.triggered.connect(lambda _=False, k=mode_key: self._set_theme_mode(k))
+            self._mode_actions[mode_key] = act
+        self._sync_theme_actions()
         tools_menu.addSeparator()
         tools_menu.addAction("Wczytaj ustawienia…", self._load_preset)
         tools_menu.addAction("Zapisz ustawienia…", self._save_preset)
@@ -329,7 +354,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction("Sprawdź aktualizacje…", self._check_updates_manual)
         help_menu.addAction("O programie", self._about)
 
-        self._theme_toggle = ThemeToggle(dark=(self._theme == THEME_DARK))
+        self._theme_toggle = ThemeToggle(dark=is_dark_theme(self._theme))
         self._theme_toggle.toggled.connect(self._on_theme_toggle)
 
         self._menubar = menubar
@@ -341,7 +366,7 @@ class MainWindow(QMainWindow):
         strip_lay.setContentsMargins(0, 0, 12, 0)
         strip_lay.setSpacing(8)
         self._app_title_label = QLabel(f"Inyfinn Photo Resizer {__version__}")
-        self._app_title_label.setObjectName("menuPresetLabel")
+        self._app_title_label.setObjectName("appTitleLabel")
         self._app_title_label.setToolTip("Tryb prosty — wrzuć zdjęcia, wybierz jakość i folder")
         strip_lay.addWidget(self._app_title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
         strip_lay.addWidget(menubar)
@@ -389,8 +414,21 @@ class MainWindow(QMainWindow):
         self._apply_header_for_mode()
 
     def _on_theme_toggle(self, dark: bool) -> None:
-        # Słońce = ostatni jasny motyw (domyślnie Dobra Kaloria, albo „Jasny”, jeśli wybrany w menu).
-        self._set_theme(THEME_DARK if dark else load_last_light_theme())
+        # Suwak zmienia tylko tryb; styl kolorów (zieleń / krem) zostaje.
+        self._set_theme_mode(MODE_DARK if dark else MODE_LIGHT)
+
+    def _set_color_style(self, style: str) -> None:
+        self._set_theme(theme_id(style, split_theme(self._theme)[1]))
+
+    def _set_theme_mode(self, mode: str) -> None:
+        self._set_theme(theme_id(split_theme(self._theme)[0], mode))
+
+    def _sync_theme_actions(self) -> None:
+        style, mode = split_theme(self._theme)
+        for key, act in getattr(self, "_style_actions", {}).items():
+            act.setChecked(key == style)
+        for key, act in getattr(self, "_mode_actions", {}).items():
+            act.setChecked(key == mode)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -569,7 +607,7 @@ class MainWindow(QMainWindow):
         )
         self.simple_convert_btn.setObjectName("footerConvert")
         self.simple_convert_btn.setMinimumWidth(168)
-        # footer_button daje 32 px; Konwertuj stoi w jednym rzędzie z formatami (36 px).
+        # footer_button daje 32 px; Konwertuj stoi w jednym rzędzie z formatami (ACTION_H = 44 px).
         self.simple_convert_btn.setFixedHeight(ACTION_H)
         self.simple_convert_btn.setToolTip(
             "Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła. Film zamienia się w GIF-a."
@@ -976,11 +1014,11 @@ class MainWindow(QMainWindow):
         self.convert_btn = footer_button("Konwertuj", primary=True, slot=self._start_convert)
         self.convert_btn.setObjectName("footerConvert")
         self.convert_btn.setMinimumWidth(140)
-        self.convert_btn.setFixedHeight(32)
+        self.convert_btn.setFixedHeight(ACTION_H)
         close_btn = footer_button("Zamknij", primary=False, slot=self.close)
         close_btn.setObjectName("footerClose")
         close_btn.setMinimumWidth(112)
-        close_btn.setFixedHeight(32)
+        close_btn.setFixedHeight(ACTION_H)
         action_row.addWidget(self.convert_btn)
         action_row.addWidget(close_btn)
         right_layout.addLayout(action_row)
@@ -1561,8 +1599,10 @@ class MainWindow(QMainWindow):
         self._finalize_checkbox_indicators()
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
-            self._theme_toggle.set_dark(theme == THEME_DARK)
+            self._theme_toggle.set_dark(is_dark_theme(theme))
             self._theme_toggle.blockSignals(False)
+            self._theme_toggle.update()
+        self._sync_theme_actions()
         self._mark_dirty()
 
     def _reload_size_combo(self, *, select_id: str | None = None) -> None:

@@ -87,8 +87,10 @@ def _boot_application_impl(app: QApplication, splash, icon: QIcon | None) -> Non
     app.processEvents()
     theme = load_theme()
     apply_theme(app, theme)
-    # Od 2.6.0 domyślny motyw to Dobra Kaloria (design z programu „Stwórz prezentację”).
-    log_event("Motyw", f"{theme} · czcionka {app.font().family()}")
+    # Design Dobra Kaloria (jak program „Stwórz prezentację”): styl kolorów × tryb, Lato + Mindset.
+    from inyfinn_resizer.app.themes import display_font_family
+
+    log_event("Motyw", f"{theme} · czcionka {app.font().family()} · nagłówki {display_font_family()}")
 
     splash.set_status("Ładowanie okna…")
     app.processEvents()

@@ -677,3 +677,27 @@
 - EXE ze świeżej kopii w `%TEMP%`, PATH = tylko `System32;Windows`: okno „Inyfinn Photo Resizer 2.6.0”, log „Motyw | dobra-kaloria · czcionka Lato”; DLL spoza paczki i Windows tylko ESET (`ebehmoni.dll`, `eamsi.dll` — antywirus).
 
 **Źródła:** skill `ds-dobra-kaloria` (DESIGN_SYSTEM.md, tokens_qt.py); `PREZENTACJE\— SZABLON AI - skrypt\WORK\src\ui\style.css`; Qt QFontDatabase.addApplicationFont; tabela `name` w Lato-Regular.ttf / Mindset.otf (licencje).
+
+
+---
+
+## 2026-09-30 — v2.6.1 pełny styl Dobra Kaloria: Mindset, przyciski, styl kolorów × tryb
+
+**Komenda/Akcja:** User: „kolory to tylko jedna rzecz, a jeszcze mieliśmy zmienić styl przycisków, styl całej aplikacji. Czyli Mindset i tak dalej.” + „Dwa naraz. Pozwól przełączać. Ciemna zieleń i ciemny krem” → ostatecznie: tryb (jasny/ciemny) i styl kolorów (1 · zieleń / 2 · krem) niezależnie. Mindset: „Licencja na to pozwala. Mamy licencję na komercyjne użytkowanie.”
+
+**Log/Status:**
+1. Cztery motywy `dobra-kaloria-<zielen|krem>-<jasny|ciemny>` = `themes-list` design systemu 1.3.0. Role kolorów skopiowane skryptem do `app/themes/palettes.py` (T_ZIELEN_JASNY, T_DARK, T, T_KREM); `_tokens()` robi z nich znaczniki QSS. Krem jasny = wygląd 2.6.0 (pola cream-100 zamiast bieli z DS, żeby odróżniały się od białych kart).
+2. Menu Narzędzia → „Styl kolorów” i „Tryb” (QActionGroup, zaznaczenie). Suwak słońce/księżyc zmienia tylko tryb.
+3. Ustawienia `ui/theme_style` + `ui/theme_mode`. Migracja `ui/theme_migrated_dk3`: `dark`/`dobra-kaloria-ciemny` → zieleń ciemna, `dobra-kaloria` → krem jasny, reszta → zieleń jasna; usuwa `ui/theme` i flagi 2.6.0/2.6.1-roboczej. Motywy indygo usunięte z kodu.
+4. Typografia: Mindset (w paczce, `MINDSET-LICENSE.txt`) w nagłówkach kafelków, okien, tytule programu i oknie konwersji; wersaliki i odstęp liter etykiet sekcji przez filtr zdarzeń `typography.py` (QSS nie ma text-transform ani letter-spacing). Sprawdzone: po zmianie motywu zostają.
+5. Przyciski: domyślnie drugorzędne (ramka 2 px akcent, zielony tekst, hover brand-soft), żółte CTA tylko Konwertuj / OK / główne w dialogach, „Zamknij” jako podkreślony link. Pola: ramka 2 px field-border, fokus 3 px akcentu z paddingiem −1 (tekst nie skacze). Qt rysuje 1,5 px jak 2 px — zostaje 2 px.
+6. Wysokości policzone na nowo pod ramki (QSS min-height bez ramki i paddingu). `ACTION_H` 36 → 44 (Konwertuj i PNG/JPG/AVIF w trybie prostym, Konwertuj/Zamknij w zaawansowanym). Pomiar: Konwertuj 44 = chipy 44 (ta sama dolna krawędź), pola i przyciski trybu prostego 32 — we wszystkich 4 motywach.
+7. Kolory rysowane w kodzie z motywu: suwak motywu, ✕ na zaznaczonym wierszu, czcionka okna konwersji (była na sztywno Segoe UI), odznaki przewodnika.
+8. Nagłówki Mindset 18 px (panel) / 16 px (kafelek) — przy 19–20 px ostatni rząd „Zapis plików” chował się pod krawędzią przewijania.
+
+**Test/Ewaluacja:**
+- `pytest tests` — 181 passed, 1 failed: `test_segregate_checkbox` czyta PRAWDZIWĄ sesję z rejestru (tam `segregate: True`) → na czystych ustawieniach (INI w %TEMP%) przechodzi. Nie ruszałem sesji usera.
+- `test_theme_dobra_kaloria.py` — 29 testów (id motywów, znaczniki, brak indygo, ikony, czcionki, wersaliki po zmianie motywu, migracja, niezależność stylu i trybu).
+- Zrzuty 4 wariantów (główne, tryb prosty, format, zaawansowane, okno konwersji, przewodnik): `BIN\dev\logs\design-dk\v2.6.1-styl\`.
+
+**Źródła:** skill `ds-dobra-kaloria` 1.3.0 (`tokens.json` themes-list, `tokens_qt.py`, `components.md`, `preview/shots/06-przyciski.png`, `17-pola.png`); `PREZENTACJE\— SZABLON AI - skrypt\WORK\src\ui\style.css`; Qt Style Sheets Reference (brak text-transform/letter-spacing → QFont.setCapitalization / setLetterSpacing).

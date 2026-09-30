@@ -22,9 +22,16 @@ from PySide6.QtWidgets import (
 from inyfinn_resizer.app.i18n_tooltips import UI_TOOLTIPS
 
 
-def _overlay_font(size_px: int, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
-    """Font w kodzie, nie w QSS — na Windows QSS font-weight podwójnie maluje glify."""
-    font = QFont("Segoe UI")
+def _overlay_font(
+    size_px: int, weight: QFont.Weight = QFont.Weight.Normal, *, display: bool = False
+) -> QFont:
+    """Font w kodzie, nie w QSS — na Windows QSS font-weight podwójnie maluje glify.
+
+    Krój z motywu: Lato (tekst) albo Mindset (``display`` — nagłówek, wersaliki nakłada typography.py).
+    """
+    from inyfinn_resizer.app.themes import display_font_family, theme_font_family
+
+    font = QFont(display_font_family() if display else theme_font_family())
     font.setPixelSize(size_px)
     font.setWeight(weight)
     font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
@@ -171,7 +178,7 @@ class ConversionOverlay(QWidget):
         title_row.setSpacing(8)
         self._title = QLabel("Konwersja plików")
         self._title.setObjectName("conversionOverlayTitle")
-        self._title.setFont(_overlay_font(16, QFont.Weight.DemiBold))
+        self._title.setFont(_overlay_font(20, QFont.Weight.Normal, display=True))
         title_row.addWidget(self._title, stretch=1)
         self._close_btn = QPushButton("✕")
         self._close_btn.setObjectName("overlayAbortBtn")

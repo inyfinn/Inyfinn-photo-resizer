@@ -14,7 +14,7 @@ from inyfinn_resizer.app.themes import apply_theme
 
 def main() -> int:
     widths = [375, 768, 1024]
-    theme = sys.argv[1] if len(sys.argv) > 1 else "light"
+    theme = sys.argv[1] if len(sys.argv) > 1 else "dobra-kaloria-zielen-jasny"
     loop = sys.argv[2] if len(sys.argv) > 2 else "1"
 
     out_dir = Path(__file__).resolve().parents[1] / "ui-complete" / "screenshots"
