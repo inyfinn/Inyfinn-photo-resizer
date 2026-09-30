@@ -19,7 +19,12 @@ def polish_dialog_buttons(box: QDialogButtonBox) -> None:
         btn = box.button(role)
         if btn:
             btn.setText(text)
-            btn.setObjectName("btnSecondary" if role != QDialogButtonBox.Ok else "primaryBtn")
+            if role == QDialogButtonBox.Ok:
+                btn.setObjectName("primaryBtn")
+            elif role in (QDialogButtonBox.Cancel, QDialogButtonBox.Close):
+                btn.setObjectName("btnLink")  # anulowanie i powrót = link (design system)
+            else:
+                btn.setObjectName("btnSecondary")
 
 
 class AppDialog(QDialog):
@@ -29,6 +34,6 @@ class AppDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("appDialog")
 
-    def polish_button(self, btn: QPushButton, *, primary: bool = False) -> None:
-        btn.setObjectName("primaryBtn" if primary else "btnSecondary")
+    def polish_button(self, btn: QPushButton, *, primary: bool = False, link: bool = False) -> None:
+        btn.setObjectName("primaryBtn" if primary else "btnLink" if link else "btnSecondary")
         btn.setMinimumHeight(36)

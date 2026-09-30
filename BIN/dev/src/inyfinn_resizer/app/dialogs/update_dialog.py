@@ -50,7 +50,7 @@ class UpdateDialog(AppDialog):
         root.addWidget(self._action_btn, 0, Qt.AlignRight)
 
         self._close_btn = QPushButton("Zamknij")
-        self.polish_button(self._close_btn)
+        self.polish_button(self._close_btn, link=True)
         self._close_btn.clicked.connect(self.close)
         root.addWidget(self._close_btn, 0, Qt.AlignRight)
 

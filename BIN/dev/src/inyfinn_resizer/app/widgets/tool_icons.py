@@ -1,9 +1,24 @@
-"""Ikony przycisków narzędziowych — plus zielony, minus czerwony."""
+"""Ikony przycisków narzędziowych — w kolorze tekstu przycisku (@FG_ACCENT@ bieżącego motywu).
+
+Od 2.6.2 ikony nie mają własnych kolorów (zielony plus, czerwony minus, pomarańczowy folder):
+przyciski Dobrej Kalorii mają jeden akcent, ikona idzie za tekstem. Po zmianie motywu
+``layout_helpers.refresh_themed_icons`` rysuje je od nowa.
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+
+
+def _fg() -> QColor:
+    """Kolor tekstu przycisku drugorzędnego w bieżącym motywie."""
+    try:
+        from inyfinn_resizer.app.themes import theme_token
+
+        return QColor(theme_token("@FG_ACCENT@"))
+    except Exception:
+        return QColor("#0F763E")
 
 
 def _glyph_icon(*, plus: bool, color: QColor, size: int = 16) -> QIcon:
@@ -26,25 +41,25 @@ def _glyph_icon(*, plus: bool, color: QColor, size: int = 16) -> QIcon:
 
 
 def icon_plus_green() -> QIcon:
-    return _glyph_icon(plus=True, color=QColor("#16a34a"))
+    """Plus w kolorze akcentu (nazwa historyczna)."""
+    return _glyph_icon(plus=True, color=_fg())
 
 
 def icon_minus_red() -> QIcon:
-    return _glyph_icon(plus=False, color=QColor("#dc2626"))
+    """Minus w kolorze akcentu (nazwa historyczna)."""
+    return _glyph_icon(plus=False, color=_fg())
 
 
 def icon_folder_green() -> QIcon:
-    """Zielona ikona folderu."""
+    """Ikona folderu w kolorze akcentu (nazwa historyczna)."""
     size = 16
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    fill = QColor("#16a34a")
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(fill)
+    painter.setBrush(_fg())
     painter.drawRoundedRect(2, 5, 12, 9, 1, 1)
-    painter.setBrush(QColor("#22c55e"))
     painter.drawRoundedRect(2, 3, 7, 4, 1, 1)
     painter.end()
     return QIcon(px)
@@ -94,13 +109,13 @@ def icon_video_file() -> QIcon:
 
 
 def icon_clear_gray() -> QIcon:
-    """Wyczyść — szary krzyżyk."""
+    """Wyczyść — krzyżyk w kolorze akcentu (nazwa historyczna)."""
     size = 16
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor("#64748b"), 2.2)
+    pen = QPen(_fg(), 2.2)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
     margin = 4

@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.1
+**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.2
 
 ---
 
@@ -195,6 +195,8 @@ Z DAM bierzemy **kanały**, nie limit wagi:
 - Pytest tworzy MainWindow na prawdziwym rejestrze → uruchamia migrację motywu na tej stacji.
 - Czcionki w `app/themes/fonts/`: Lato (OFL) i Mindset (licencja komercyjna firmy — user potwierdził 30.09). Spec zbiera cały katalog `themes`.
 - Kolory rysowane w kodzie (QPainter: `section_icons.py`, `theme_toggle.py`, ✕ w `removable_items.py`, czcionka okna konwersji) biorą wartości z motywu (`theme_token`).
+- **Ekran startowy 2.6.2** (`startup_splash.py`): rysowany ręcznie (bez QSS), wzór `WORK\src\launcher\launcher.cs` klasa Splash. Ciężki import okna + `QFontDatabase.families()` w wątku w tle (`main._boot_application`) — na stacji z ~3700 czcionkami samo wczytanie listy to ~1 s. Budowa okna (~4–5 s na tej stacji, tak samo z pustym QSS) musi być w wątku GUI → `pulse()` robi `repaint()` planszy między etapami (bez `processEvents`). Kąt kółka i pasek liczone z zegara. Zostaje jedna przerwa ~2 s w animacji. `finish()`: 100% przez 250 ms, potem plansza znika i okno się pokazuje (nigdy nad oknem). Czas startu → `startup/last_seconds` + wpis „Start programu” w activity.log.
+- Zrzuty ekranu dla dowodu: tylko z okna aplikacji (`widget.grab()` / PrintWindow), NIGDY zrzut całego ekranu — obok są okna usera (edytor z prywatną rozmową trafił raz do zrzutu, plik usunięty).
 - Separatory: token `@SEP@` w `app/themes`.
 - Dark/light: tokeny QSS, bez hardcoded kolorów light w dark mode.
 - Dokumentacja operacyjna: **tylko** `BIN/dev/` — nigdy w korzeniu projektu.

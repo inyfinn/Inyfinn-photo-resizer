@@ -19,6 +19,19 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.2",
+        "2026-09-30",
+        [
+            "Nowy ekran startowy w stylu Dobra Kaloria — taki sam jak w programie do tworzenia prezentacji: zielone tło, logo, nazwa programu czcionką Mindset.",
+            "Na dole widać, że program się ładuje: kręcące się kółko, „Uruchamiam program…”, ile jeszcze zostało (np. „zostało ok. 5 s”) i żółty pasek postępu.",
+            "Czas oczekiwania program liczy z poprzedniego uruchomienia na tym komputerze (za pierwszym razem 6 s, z dysku sieciowego 15 s).",
+            "Ekran startowy znika dokładnie wtedy, gdy pojawia się okno programu — nigdy go nie zasłania.",
+            "Nowa ikona programu (zielony kafelek „RE” z design systemu Dobra Kaloria) — na pulpicie, w pasku zadań, w oknie i w instalatorze.",
+            "Wszystkie przyciski w stylu Dobra Kaloria: „Przeglądaj” zamiast wersalików, ikony przycisków w kolorze tekstu (bez pomarańczowego folderu, zielonego plusa i czerwonego minusa), „Anuluj” / „Zamknij” / „Później” jako podkreślony link, jedna żółta akcja na okno.",
+            "Funkcje programu się nie zmieniły.",
+        ],
+    ),
+    (
         "2.6.1",
         "2026-09-30",
         [

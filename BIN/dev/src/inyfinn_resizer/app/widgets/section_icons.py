@@ -47,6 +47,16 @@ def _badge_accent(key: str) -> str:
     return palette.get(key, palette["format"])
 
 
+def _fg_accent() -> str:
+    """Kolor tekstu przycisków drugorzędnych bieżącego motywu (@FG_ACCENT@)."""
+    try:
+        from inyfinn_resizer.app.themes import theme_token
+
+        return theme_token("@FG_ACCENT@")
+    except Exception:
+        return BADGE_ACCENTS_DK["format"]
+
+
 def _accent() -> str:
     """Akcent ikon rysowanych w kodzie = @ACCENT@ bieżącego motywu."""
     try:
@@ -253,7 +263,7 @@ def action_icon_refresh_path() -> QIcon:
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor("#ffffff"), 2.4)
+    pen = QPen(QColor(_fg_accent()), 2.4)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -288,14 +298,13 @@ def action_icon_restore() -> QIcon:
 
 
 def action_icon_folder_orange() -> QIcon:
+    """Folder w kolorze tekstu przycisku (od 2.6.2 nie jest pomarańczowy; nazwa historyczna)."""
     px, painter, side = _badge_canvas(16)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor("#ea580c"))
-    painter.drawRoundedRect(0, 0, side, side, 4, 4)
-    pen = QPen(QColor("#ffffff"), 1.6)
+    pen = QPen(QColor(_fg_accent()), 1.6)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRoundedRect(3, 5, 10, 8, 1, 1)
-    painter.drawRoundedRect(3, 3, 5, 3, 1, 1)
+    painter.drawRoundedRect(2, 5, 12, 8, 1.5, 1.5)
+    painter.drawRoundedRect(2, 3, 5, 3, 1, 1)
     return QIcon(_finish_icon(px, painter, 16))

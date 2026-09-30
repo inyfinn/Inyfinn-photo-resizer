@@ -43,6 +43,11 @@ def _frame(size: int) -> Image.Image:
 
 
 def main() -> None:
+    # Od 2.6.2 ikona pochodzi z design systemu Dobra Kaloria (wariant A) i leży w assets/icon.ico.
+    # Ten generator rysuje starą ikonę (indygo) — nie nadpisuje istniejącego pliku.
+    if OUT.exists():
+        print(f"Ikona istnieje ({OUT}) - pomijam generowanie starej.")
+        return
     OUT.parent.mkdir(parents=True, exist_ok=True)
     sizes = [16, 24, 32, 48, 64, 128, 256]
     frames = [_frame(s) for s in sizes]

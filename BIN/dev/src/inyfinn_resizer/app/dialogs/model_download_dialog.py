@@ -76,7 +76,7 @@ class ModelDownloadDialog(AppDialog):
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         self._cancel_btn = QPushButton("Anuluj")
-        self.polish_button(self._cancel_btn)
+        self.polish_button(self._cancel_btn, link=True)
         self._cancel_btn.clicked.connect(self.reject)
         buttons.addWidget(self._cancel_btn)
         root.addLayout(buttons)

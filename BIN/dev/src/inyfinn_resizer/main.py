@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import sys
+import time
 
-from inyfinn_resizer.utils.frozen_stdio import ensure_stdio
+# Początek startu — od tej chwili liczy się czas pokazywany na ekranie startowym.
+_T0 = time.perf_counter()
+
+from inyfinn_resizer.utils.frozen_stdio import ensure_stdio  # noqa: E402
 
 ensure_stdio()
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer  # noqa: E402
+from PySide6.QtGui import QFont, QIcon  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+_IMPORT_POLL_MS = 30
 
 
 def _app_icon() -> QIcon | None:
@@ -47,26 +53,75 @@ def _configure_pillow() -> None:
 
 
 def _boot_application(app: QApplication, splash, icon: QIcon | None) -> None:
-    try:
-        _boot_application_impl(app, splash, icon)
-    except Exception as exc:
-        import traceback
+    """Ciężkie importy (okno główne, biblioteki obrazów) w wątku w tle, żeby ekran startowy żył.
 
-        from inyfinn_resizer.app.dialogs.message_boxes import show_critical
-        from inyfinn_resizer.utils.app_log import log_event
+    Na poziomie modułów nie powstają obiekty Qt, więc import poza wątkiem GUI jest bezpieczny;
+    samo okno tworzy już wątek główny (``_boot_application_impl``).
+    """
+    import threading
 
+    from inyfinn_resizer.utils.paths import bootstrap_runtime_paths
+
+    state: dict[str, BaseException] = {}
+
+    def _import_heavy() -> None:
         try:
-            splash.close()
+            import inyfinn_resizer.app.main_window  # noqa: F401
+        except BaseException as exc:  # przekazane do wątku głównego
+            state["error"] = exc
+            return
+        try:
+            # Lista czcionek systemu (na stacjach graficznych tysiące rodzin) — wczytana tu, a nie
+            # w trakcie budowy okna w wątku GUI. QFontDatabase w Qt 6 jest bezpieczny wątkowo.
+            from PySide6.QtGui import QFontDatabase
+
+            QFontDatabase.families()
         except Exception:
             pass
-        log_event("Błąd uruchomienia", str(exc), status="ERR")
-        show_critical(
-            None,
-            "Inyfinn Photo Resizer",
-            "Nie udało się uruchomić aplikacji.\n\n"
-            f"{exc}\n\n{traceback.format_exc()}",
-        )
-        app.quit()
+
+    try:
+        bootstrap_runtime_paths()
+    except Exception as exc:
+        _boot_failed(app, splash, exc)
+        return
+    worker = threading.Thread(target=_import_heavy, name="inyfinn-import", daemon=True)
+    worker.start()
+    poll = QTimer(app)
+    poll.setInterval(_IMPORT_POLL_MS)
+
+    def _check() -> None:
+        if worker.is_alive():
+            return
+        poll.stop()
+        try:
+            if "error" in state:
+                raise state["error"]
+            _boot_application_impl(app, splash, icon)
+        except Exception as exc:
+            _boot_failed(app, splash, exc)
+
+    poll.timeout.connect(_check)
+    poll.start()
+
+
+def _boot_failed(app: QApplication, splash, exc: BaseException) -> None:
+    import traceback
+
+    from inyfinn_resizer.app.dialogs.message_boxes import show_critical
+    from inyfinn_resizer.utils.app_log import log_event
+
+    try:
+        splash.close()
+    except Exception:
+        pass
+    log_event("Błąd uruchomienia", str(exc), status="ERR")
+    details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    show_critical(
+        None,
+        "Inyfinn Photo Resizer",
+        f"Nie udało się uruchomić aplikacji.\n\n{exc}\n\n{details}",
+    )
+    app.quit()
 
 
 def _boot_application_impl(app: QApplication, splash, icon: QIcon | None) -> None:
@@ -99,8 +154,16 @@ def _boot_application_impl(app: QApplication, splash, icon: QIcon | None) -> Non
     window = MainWindow()
     if icon is not None:
         window.setWindowIcon(icon)
-    window.show()
-    splash.finish(window)
+
+    def _on_shown() -> None:
+        from inyfinn_resizer.app.widgets.startup_splash import save_startup_seconds
+
+        seconds = time.perf_counter() - _T0
+        save_startup_seconds(seconds)
+        log_event("Start programu", f"{seconds:.1f} s")
+
+    # Plansza: 100% przez chwilę, potem znika i pojawia się okno (plansza nigdy nie zostaje nad oknem).
+    splash.finish(window, _on_shown)
 
 
 def main() -> int:
@@ -137,7 +200,7 @@ def main() -> int:
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Inyfinn")
 
-    splash = StartupSplash()
+    splash = StartupSplash(t0=_T0)
     splash.center_on_screen()
     splash.show()
     app.processEvents()

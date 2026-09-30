@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
@@ -26,8 +27,13 @@ class CustomSizePresetDialog(AppDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Zapisz własny preset wymiarów")
-        self.setMinimumSize(580, 820)
-        self.resize(580, 820)
+        # Od 2.6.1 pola mają ramkę 2 px i są wyższe — przy 820 px zawartość się ściskała (obcięte pola X/Y).
+        # Wysokość dopasowana do ekranu, ale nie mniej niż 820.
+        screen = QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry().height() - 40 if screen else 1040
+        height = max(820, min(1000, avail))
+        self.setMinimumSize(580, height)
+        self.resize(580, height)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)

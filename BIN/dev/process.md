@@ -701,3 +701,36 @@
 - Zrzuty 4 wariantów (główne, tryb prosty, format, zaawansowane, okno konwersji, przewodnik): `BIN\dev\logs\design-dk\v2.6.1-styl\`.
 
 **Źródła:** skill `ds-dobra-kaloria` 1.3.0 (`tokens.json` themes-list, `tokens_qt.py`, `components.md`, `preview/shots/06-przyciski.png`, `17-pola.png`); `PREZENTACJE\— SZABLON AI - skrypt\WORK\src\ui\style.css`; Qt Style Sheets Reference (brak text-transform/letter-spacing → QFont.setCapitalization / setLetterSpacing).
+
+---
+
+## 2026-09-30 — v2.6.2 ekran startowy Dobra Kaloria
+
+**Komenda/Akcja:** User: „W inyfinn resizer … nie ma tego ekranu powitalnego takiego samego jak w prezentacjach, że coś się ładuje, ALE w stylu Dobra Kaloria. Bo photoresizer ma, ale w gównianym stylu.”
+
+**Log/Status:**
+1. `startup_splash.py` od nowa: 560×330, #0F763E, `themes/splash/logo_white_box.png` (190 px, y=34), tytuł Mindset 34 px, kółko 22 px (tor biel 27%, łuk biały), „Uruchamiam program…” Lato 12,5 pt, „zostało ok. N s” / „jeszcze chwilkę…” #E0ECE4, pasek 6 px (tor biel 27%, wypełnienie #FFD42A) — ta sama krzywa co launcher.cs (92% w przewidywanym czasie, potem 0,92 + 0,07·(1 − e^(−t/8))). Limit 120 s.
+2. Przewidywany czas: QSettings `startup/last_seconds` (poprzedni start), inaczej 6 s lokalnie / 15 s dysk sieciowy (UNC albo GetDriveTypeW = DRIVE_REMOTE). Zapis po pokazaniu okna, czas liczony od początku `main.py`.
+3. `main.py`: import okna głównego + wczytanie listy czcionek systemu w wątku w tle (na module nie ma obiektów Qt), okno budowane w wątku GUI. `pulse()` odświeża planszę między etapami budowy okna.
+4. Pomiar tej stacji: MainWindow() 5,2–6,5 s niezależnie od arkusza (pusty QSS 5,7 s, stary 2.5.2 5,9–6,5 s, nowy 5,2–5,5 s) — 3740 rodzin czcionek. Po przeniesieniu listy czcionek do wątku: budowa okna 4,0–4,8 s.
+
+**Test/Ewaluacja:**
+- Start na ustawieniach w %TEMP% (prawdziwe `main.main()`): plansza po 1,3–1,8 s, 42 klatki, jedna przerwa 2,0 s w trakcie budowy okna, okno po 4,7–8,3 s (zależnie od pamięci podręcznej dysku), czas zapisany.
+- `tests/test_startup_splash.py` — 10 testów (krzywa paska, napis ETA, zapis/odczyt czasu, dysk sieciowy, granice, zamknięcie przed pokazaniem okna).
+- Zrzuty planszy z jej własnego okna (`widget.grab()`): `BIN\dev\logs\design-dk\v2.6.2-splash\`.
+
+**Źródła:** `PREZENTACJE\— SZABLON AI - skrypt\WORK\src\launcher\launcher.cs` (klasa Splash), `WORK\powitanie.py`; Qt 6 QFontDatabase (funkcje bezpieczne wątkowo).
+
+---
+
+## 2026-09-30 — v2.6.2 ikona programu i przyciski Dobra Kaloria
+
+**Komenda/Akcja:** User wybrał ikonę wariant A (design system, `photo-resizer.ico`) i poprosił, żeby każdy przycisk i sekcja miały styl Dobrej Kalorii („Przeglądaj” wyglądał inaczej).
+
+**Log/Status:**
+1. Ikona: `assets/icon.ico`, `BIN/InyfinnPhotoResizer.ico`, korzeń projektu = `photo-resizer.ico` (16–256 px). Stare: `assets/icon-old.ico`, `*-old.ico` w BIN i korzeniu. Specs/launcher/.iss/kod czytają `assets/icon.ico`, więc nic więcej nie trzeba było zmieniać. `generate_icon.py` pomija generowanie, jeśli ikona istnieje (inaczej `package_release.ps1` przywróciłby starą).
+2. Przyciski: trzy rodziny (żółty główny / ramka akcentu / link). Nowy `btnLink` (Anuluj i Zamknij w oknach i QMessageBox, „Anuluj” w oknach zapisu i pobierania modelu), `updateToastLater` jako link, `updateDialogAction` żółty, promień 4 px także w pasku i toaście aktualizacji, siatka kadru.
+3. „PRZEGLĄDAJ” → „Przeglądaj”. Ikony przycisków (plus, minus, folder, ✕, odśwież, przywróć, przeglądaj) rysowane kolorem `@FG_ACCENT@` motywu i odświeżane po zmianie motywu (`set_themed_icon` / `refresh_themed_icons`).
+4. Okno „Zapisz własny preset wymiarów”: przy stałych 820 px pola X/Y były ściśnięte (ramka 2 px z 2.6.1) — wysokość teraz do 1000 px wg ekranu.
+5. Testy: `tests/test_buttons_dk.py` (nowe), całość 200 passed + znany `test_segregate_checkbox` (czyta prawdziwą sesję z rejestru).
+6. Build bez kasowania (skrypt w scratchpadzie, stare katalogi → `BIN\devuild\_old-<data>`). Uwaga: `sign_file.ps1` podpisujący EXE bezpośrednio na D: zostawił w tym buildzie podpis z HashMismatch (D: to reparse/chmura) — plik z podpisem sprawdzonym na dysku C: kopiowany na D: zwykłym `Copy-Item` trzyma się poprawnie.

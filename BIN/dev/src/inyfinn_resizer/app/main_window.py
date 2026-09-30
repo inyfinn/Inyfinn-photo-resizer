@@ -75,6 +75,7 @@ from inyfinn_resizer.app.themes import (
     split_theme,
     theme_id,
 )
+from inyfinn_resizer.app.widgets.startup_splash import pulse as _splash_pulse
 from inyfinn_resizer.app.widgets.theme_toggle import TOGGLE_TOOLTIP, ThemeToggle
 from inyfinn_resizer.app.widgets.removable_items import install_remove_support
 from inyfinn_resizer.utils.reveal import reveal_in_explorer
@@ -88,6 +89,8 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     TILE_PADDING,
     TILE_PADDING_TOP,
     browse_button,
+    refresh_themed_icons,
+    set_themed_icon,
     mark_large,
     compact_row,
     field_label,
@@ -229,7 +232,9 @@ class MainWindow(QMainWindow):
         self._active_retail_preset_id = RETAIL_NONE
 
         self._build_menu()
+        _splash_pulse()  # plansza startowa żyje w trakcie budowy okna
         self._build_ui()
+        _splash_pulse()
         self._sync_png_colors_from_quality()
         self._update_advanced_summary()
         self._apply_saved_theme()
@@ -389,7 +394,7 @@ class MainWindow(QMainWindow):
         strip_lay.addWidget(self.retail_preset_combo, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.restore_retail_btn = QPushButton("Przywróć preset")
         self.restore_retail_btn.setObjectName("btnSecondary")
-        self.restore_retail_btn.setIcon(action_icon_restore())
+        set_themed_icon(self.restore_retail_btn, action_icon_restore)
         self.restore_retail_btn.setIconSize(QSize(16, 16))
         self.restore_retail_btn.setToolTip("Przywraca ustawienia wybranej sieci po ręcznych zmianach")
         self.restore_retail_btn.setEnabled(False)
@@ -441,7 +446,9 @@ class MainWindow(QMainWindow):
         self._view_stack.setObjectName("viewStack")
         self._view_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         advanced_body = self._build_convert_body()
+        _splash_pulse()
         self._simple_view = self._build_simple_view()
+        _splash_pulse()
         self._view_stack.addWidget(self._simple_view)   # index 0 — tryb prosty
         self._view_stack.addWidget(advanced_body)         # index 1 — tryb zaawansowany
         self._view_stack.setCurrentIndex(0 if self._ui_mode == "simple" else 1)
@@ -479,9 +486,9 @@ class MainWindow(QMainWindow):
             fill=True,
         )
         files_lay.addLayout(tool_button_row([
-            ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
-            ("Dodaj folder", self._add_folder_dialog, icon_folder_green()),
-            ("Wyczyść", self._clear_queue, icon_clear_gray()),
+            ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
+            ("Dodaj folder", self._add_folder_dialog, icon_folder_green),
+            ("Wyczyść", self._clear_queue, icon_clear_gray),
         ], large=True))
         self.simple_queue_label = QLabel("0 plików")
         self.simple_queue_label.setObjectName("queueCount")
@@ -536,8 +543,9 @@ class MainWindow(QMainWindow):
         self.simple_output_edit.setPlaceholderText("Nie wybrano — zapis obok oryginałów")
         self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         mark_large(self.simple_output_edit)
-        self.simple_output_clear = QPushButton("✕")
+        self.simple_output_clear = QPushButton()  # krzyżyk rysowany (glif ✕ nie ma we wszystkich czcionkach)
         self.simple_output_clear.setObjectName("btnBrowse")
+        set_themed_icon(self.simple_output_clear, icon_clear_gray)
         self.simple_output_clear.setToolTip("Nie zapisuj do tego folderu — zapis obok oryginałów")
         self.simple_output_clear.clicked.connect(self._clear_simple_output)
         mark_large(self.simple_output_clear)
@@ -547,7 +555,7 @@ class MainWindow(QMainWindow):
             tooltip="Wybierz folder na gotowe zdjęcia",
             slot=self._browse_output_simple,
         )
-        simple_browse.setIcon(action_icon_folder_orange())
+        set_themed_icon(simple_browse, action_icon_folder_orange)
         simple_browse.setIconSize(QSize(16, 16))
         mark_large(simple_browse)
         out_row.addWidget(self.simple_output_edit, stretch=1)
@@ -931,10 +939,10 @@ class MainWindow(QMainWindow):
         list_layout.addLayout(meta_row)
 
         list_layout.addLayout(tool_button_row([
-            ("Dodaj pliki", self._add_files_dialog, icon_plus_green()),
-            ("Dodaj folder", self._add_folder_dialog, icon_folder_green()),
-            ("Usuń", self._remove_selected, icon_minus_red()),
-            ("Wyczyść", self._clear_queue, icon_clear_gray()),
+            ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
+            ("Dodaj folder", self._add_folder_dialog, icon_folder_green),
+            ("Usuń", self._remove_selected, icon_minus_red),
+            ("Wyczyść", self._clear_queue, icon_clear_gray),
         ]))
 
         self.input_tree = InputFileTree(self)
@@ -968,7 +976,9 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(list_tile, stretch=1)
         left_layout.addWidget(self._build_preview_panel())
 
+        _splash_pulse()
         splitter.addWidget(left_column)
+        _splash_pulse()
 
         # —— Prawy panel: ustawienia na kanwie ——
         right_column = QWidget()
@@ -1023,7 +1033,9 @@ class MainWindow(QMainWindow):
         action_row.addWidget(close_btn)
         right_layout.addLayout(action_row)
 
+        _splash_pulse()
         splitter.addWidget(right_column)
+        _splash_pulse()
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
         splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
@@ -1233,7 +1245,7 @@ class MainWindow(QMainWindow):
         self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
         self.delete_preset_btn = QPushButton()
         self.delete_preset_btn.setObjectName("toolBtn")
-        self.delete_preset_btn.setIcon(icon_minus_red())
+        set_themed_icon(self.delete_preset_btn, icon_minus_red)
         self.delete_preset_btn.setIconSize(self.delete_preset_btn.iconSize())
         self.delete_preset_btn.setFixedSize(BTN_H, BTN_H)
         self.delete_preset_btn.setToolTip("Usuń własny preset wymiarów")
@@ -1376,7 +1388,7 @@ class MainWindow(QMainWindow):
         path_btn_row.setSpacing(6)
         self.update_output_btn = QPushButton("Aktualizuj ścieżkę")
         self.update_output_btn.setObjectName("btnUpdatePath")
-        self.update_output_btn.setIcon(action_icon_refresh_path())
+        set_themed_icon(self.update_output_btn, action_icon_refresh_path)
         self.update_output_btn.setIconSize(QSize(16, 16))
         self.update_output_btn.setToolTip(UI_TOOLTIPS["output_update_path"])
         self.update_output_btn.setMinimumHeight(BTN_H)
@@ -1384,11 +1396,11 @@ class MainWindow(QMainWindow):
         self.update_output_btn.clicked.connect(self._update_output_path)
         path_btn_row.addWidget(self.update_output_btn, stretch=1)
         browse_out = browse_button(
-            "PRZEGLĄDAJ",
+            "Przeglądaj",
             tooltip="Wybierz inny folder na gotowe zdjęcia",
             slot=self._browse_output,
         )
-        browse_out.setIcon(action_icon_folder_orange())
+        set_themed_icon(browse_out, action_icon_folder_orange)
         browse_out.setIconSize(QSize(16, 16))
         browse_out.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         path_btn_row.addWidget(browse_out, stretch=1)
@@ -1587,6 +1599,7 @@ class MainWindow(QMainWindow):
 
         apply_theme(QApplication.instance(), self._theme)
         self._finalize_checkbox_indicators()
+        refresh_themed_icons(self)
 
     def _set_theme(self, theme: str) -> None:
         from PySide6.QtWidgets import QApplication
@@ -1597,6 +1610,7 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), theme)
         save_theme(theme)
         self._finalize_checkbox_indicators()
+        refresh_themed_icons(self)
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
             self._theme_toggle.set_dark(is_dark_theme(theme))

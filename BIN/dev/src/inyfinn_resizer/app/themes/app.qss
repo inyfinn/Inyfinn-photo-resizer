@@ -360,6 +360,33 @@ QPushButton#btnSecondary:hover {
     color: @FG_ACCENT@;
 }
 
+QPushButton#btnLink {
+    background-color: transparent;
+    border: none;
+    color: @FG_ACCENT@;
+    font-weight: 700;
+    text-decoration: underline;
+    min-width: 72px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 12px;
+    border-radius: @RADIUS_BTN@;
+}
+
+QPushButton#btnLink:hover {
+    background-color: transparent;
+    color: @ACCENT_HOVER@;
+}
+
+QPushButton#btnLink:pressed {
+    background-color: transparent;
+}
+
+QPushButton#btnLink:disabled {
+    background-color: transparent;
+    color: @FG_MUTED@;
+}
+
 QPushButton#footerPrimary,
 QPushButton#footerSecondary {
     min-height: 32px;
@@ -524,7 +551,8 @@ QPushButton#footerClose:hover {
     color: @ACCENT_HOVER@;
 }
 
-QPushButton#primaryBtn {
+QPushButton#primaryBtn,
+QPushButton#updateDialogAction {
     background-color: @CTA_BG@;
     color: @CTA_TEXT@;
     border: none;
@@ -536,11 +564,13 @@ QPushButton#primaryBtn {
     border-radius: @RADIUS_BTN@;
 }
 
-QPushButton#primaryBtn:hover {
+QPushButton#primaryBtn:hover,
+QPushButton#updateDialogAction:hover {
     background-color: @CTA_HOVER@;
 }
 
-QPushButton#primaryBtn:disabled {
+QPushButton#primaryBtn:disabled,
+QPushButton#updateDialogAction:disabled {
     background-color: @BG_HOVER@;
     color: @FG_MUTED@;
 }
@@ -1028,7 +1058,7 @@ QPushButton#btnUpdatePath:disabled {
 QPushButton#cropAnchorBtn {
     background-color: @BG_INPUT@;
     border: none;
-    border-radius: 6px;
+    border-radius: @RADIUS_BTN@;
     color: @FG_TEXT@;
     padding: 0;
     font-size: 11px;
@@ -1241,16 +1271,20 @@ QPushButton#updateToastInstall:disabled {
     color: @FG_MUTED@;
 }
 
+/* „Później” = link (design system: anulowanie i powrót to link-przycisk) */
 QPushButton#updateToastLater {
-    background-color: @UPDATE_TOAST_LATER_BG@;
-    color: @UPDATE_TOAST_LATER_TEXT@;
+    background-color: transparent;
+    color: @FG_ACCENT@;
     border: none;
     border-radius: @RADIUS_BTN@;
     padding: 4px 14px;
+    font-weight: 700;
+    text-decoration: underline;
 }
 
 QPushButton#updateToastLater:hover {
-    background-color: @UPDATE_TOAST_LATER_HOVER@;
+    background-color: transparent;
+    color: @ACCENT_HOVER@;
 }
 
 QLabel#updateDialogStatus {
@@ -1302,7 +1336,7 @@ QPushButton#updateStatusCancel {
     background: transparent;
     color: @FG_MUTED@;
     border: none;
-    border-radius: 6px;
+    border-radius: @RADIUS_BTN@;
     font-size: 11px;
     padding: 0;
 }
@@ -1316,7 +1350,7 @@ QPushButton#updateStatusInstall {
     background-color: @UPDATE_TOAST_INSTALL_BG@;
     color: @UPDATE_TOAST_INSTALL_TEXT@;
     border: none;
-    border-radius: 6px;
+    border-radius: @RADIUS_BTN@;
     font-size: 11px;
     font-weight: 600;
     padding: 0 10px;
@@ -1342,6 +1376,7 @@ QPushButton:pressed {
 QPushButton#footerConvert:pressed,
 QPushButton#footerPrimary:pressed,
 QPushButton#primaryBtn:pressed,
+QPushButton#updateDialogAction:pressed,
 QPushButton#saveChoicePrimary:pressed {
     background-color: @CTA_HOVER@;
 }

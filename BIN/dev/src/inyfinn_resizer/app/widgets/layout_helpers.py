@@ -282,8 +282,22 @@ def add_grid_span(grid: QGridLayout, row: int, widget: QWidget) -> None:
     grid.addWidget(widget, row, 0, 1, 2)
 
 
+def set_themed_icon(btn: QPushButton, factory: Callable[[], QIcon]) -> QPushButton:
+    """Ikona rysowana z kolorów motywu — ``refresh_themed_icons`` odświeża ją po zmianie motywu."""
+    btn._icon_factory = factory  # type: ignore[attr-defined]
+    btn.setIcon(factory())
+    return btn
+
+
+def refresh_themed_icons(root: QWidget) -> None:
+    for btn in root.findChildren(QPushButton):
+        factory = getattr(btn, "_icon_factory", None)
+        if factory is not None:
+            btn.setIcon(factory())
+
+
 def tool_button_row(
-    specs: list[tuple[str, Callable[[], None], QIcon]],
+    specs: list[tuple[str, Callable[[], None], "QIcon | Callable[[], QIcon]"]],
     parent: QWidget | None = None,
     *,
     large: bool = False,
@@ -296,7 +310,10 @@ def tool_button_row(
     for text, slot, icon in specs:
         btn = QPushButton(text, parent)
         btn.setObjectName("toolBtn")
-        btn.setIcon(icon)
+        if callable(icon):
+            set_themed_icon(btn, icon)
+        else:
+            btn.setIcon(icon)
         btn.setIconSize(icon_size)
         btn.setToolTip(text)
         btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
@@ -363,7 +380,7 @@ def v_separator() -> QFrame:
     return line
 
 
-def browse_button(text: str = "PRZEGLĄDAJ", *, tooltip: str = "", slot=None) -> QPushButton:
+def browse_button(text: str = "Przeglądaj", *, tooltip: str = "", slot=None) -> QPushButton:
     btn = QPushButton(text)
     btn.setObjectName("btnBrowse")
     btn.setMinimumHeight(BTN_H)

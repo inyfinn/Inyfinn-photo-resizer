@@ -70,7 +70,7 @@ class SimpleSaveChoiceDialog(AppDialog):
         cancel_row = QHBoxLayout()
         cancel_row.addStretch(1)
         cancel = QPushButton("Anuluj")
-        cancel.setObjectName("btnSecondary")
+        cancel.setObjectName("btnLink")
         cancel.setMinimumHeight(36)
         cancel.setMinimumWidth(88)
         cancel.clicked.connect(self.reject)

@@ -11,8 +11,8 @@ def _polish_buttons(box: QMessageBox) -> None:
         QMessageBox.Yes: ("Tak", "primaryBtn"),
         QMessageBox.No: ("Nie", "btnSecondary"),
         QMessageBox.Ok: ("OK", "primaryBtn"),
-        QMessageBox.Cancel: ("Anuluj", "btnSecondary"),
-        QMessageBox.Close: ("Zamknij", "btnSecondary"),
+        QMessageBox.Cancel: ("Anuluj", "btnLink"),
+        QMessageBox.Close: ("Zamknij", "btnLink"),
     }
     for role, (text, obj_name) in mapping.items():
         btn = box.button(role)
@@ -105,8 +105,10 @@ def ask_multi_folder_output(parent: QWidget | None) -> str | None:
         "Stwórz foldery w miejscu docelowym plików",
         QMessageBox.ActionRole,
     )
-    box.addButton("Anuluj", QMessageBox.RejectRole)
+    btn_cancel = box.addButton("Anuluj", QMessageBox.RejectRole)
     _polish_buttons(box)
+    btn_cancel.setObjectName("btnLink")
+    btn_cancel.setMinimumHeight(36)
     if btn_single:
         btn_single.setObjectName("primaryBtn")
         btn_single.setMinimumHeight(36)
