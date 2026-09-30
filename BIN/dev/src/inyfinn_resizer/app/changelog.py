@@ -19,6 +19,19 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.3",
+        "2026-09-30",
+        [
+            "Jeden język wizualny Dobra Kaloria (design system 1.4.0): tło okna, karty, pola i elementy w polach mają stałe, delikatne stopnie jasności. W trybie jasnym im głębiej, tym odrobinę ciemniej, w ciemnym — odrobinę jaśniej. Nigdzie nie ma już czystej bieli.",
+            "Pola do wypełniania, listy plików, tabela wyników i podgląd są minimalnie ciemniejsze niż w 2.6.2 — lepiej odcinają się od karty.",
+            "Przyciski formatu (PNG, JPG, AVIF) i znaczniki formatu w oknie konwersji mają odcień wybranego stylu — każdy format lekko inną barwę, zawsze z napisem.",
+            "Okno „Nie wybrano folderu zapisu”: bezpieczne „Zapisz jako nowe (_conv)” jest teraz głównym żółtym przyciskiem i działa po Enter. „Nadpisz oryginały” to przycisk z ramką — nie da się go wybrać przypadkiem.",
+            "Kafelek „Kolory” (PNG, GIF) nie ma już pustego miejsca nad suwakiem: stoi pod „Tło i warianty”, a „Wymiary” obok — obie kolumny równej wysokości.",
+            "Menu, rozwijane listy i podpowiedzi w kolorach stylu.",
+            "Funkcje programu się nie zmieniły.",
+        ],
+    ),
+    (
         "2.6.2",
         "2026-09-30",
         [

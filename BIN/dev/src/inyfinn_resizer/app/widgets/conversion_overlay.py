@@ -64,6 +64,9 @@ class _FileCard(QFrame):
         chip = item.fmt.upper()[:8]
         self._icon = QLabel(chip)
         self._icon.setObjectName("fileProgressExt")
+        from inyfinn_resizer.app.themes import format_tag
+
+        self._icon.setProperty("tag", str(format_tag(item.fmt)))  # kolor tagu formatu (app.qss)
         self._icon.setAlignment(Qt.AlignCenter)
         self._icon.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._icon.setFont(_overlay_font(10, QFont.Weight.DemiBold))

@@ -266,7 +266,12 @@ class ResultsDialog(AppDialog):
                 status = f"Błąd — {r.message}"
             status_item = self._cell(status, tooltip=r.message or status)
             if r.status == JobStatus.ERROR:
-                status_item.setForeground(Qt.GlobalColor.darkRed)
+                # Czerwień z motywu (rola danger) — stała darkRed była nieczytelna w trybach ciemnych.
+                from PySide6.QtGui import QColor
+
+                from inyfinn_resizer.app.themes import theme_token
+
+                status_item.setForeground(QColor(theme_token("@OVERLAY_ABORT_COLOR@")))
             self.table.setItem(i, _COL_STATUS, status_item)
 
             self.table.setItem(i, _COL_OLD, self._cell(f"{r.old_kb:,.0f} KB"))

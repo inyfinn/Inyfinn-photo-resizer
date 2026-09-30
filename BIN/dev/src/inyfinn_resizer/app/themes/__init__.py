@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
-from inyfinn_resizer.app.themes.palettes import ROLES
+from inyfinn_resizer.app.themes.palettes import LADDER, ROLES, TAGS
 
 STYLE_ZIELEN = "zielen"
 STYLE_KREM = "krem"
@@ -65,16 +65,60 @@ _SHAPE: dict[str, str] = {
 }
 
 
+TAG_COUNT = 8
+
+# Kolejność kategorii tagów (formaty plików). Kategorię niesie też napis na tagu, nie sam kolor.
+_FORMAT_TAG: dict[str, int] = {
+    "png": 1,
+    "jpeg": 2,
+    "jpg": 2,
+    "avif": 3,
+    "webp": 4,
+    "gif": 5,
+    "tif": 6,
+    "tiff": 6,
+    "jp2": 7,
+    "heic": 7,
+    "heif": 7,
+}
+
+
+def format_tag(fmt: str | None) -> int:
+    """Numer tagu (1..TAG_COUNT) dla rozszerzenia — ten sam kolor formatu w całym programie."""
+    return _FORMAT_TAG.get(str(fmt or "").lower().lstrip("."), TAG_COUNT)
+
+
+def _tag_tokens(tags: list[tuple[str, str, str]]) -> dict[str, str]:
+    """(tło, ramka, tekst) tagów 1..TAG_COUNT → znaczniki @TAG<n>_BG@ / _BORDER@ / _FG@."""
+    assert len(tags) == TAG_COUNT, len(tags)
+    out: dict[str, str] = {}
+    for n, (bg, border, fg) in enumerate(tags, start=1):
+        out[f"@TAG{n}_BG@"] = bg
+        out[f"@TAG{n}_BORDER@"] = border
+        out[f"@TAG{n}_FG@"] = fg
+    return out
+
+
 def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field: str,
-            hover: str, scrim: str, menu_bg: str) -> dict[str, str]:
-    """Znaczniki app.qss z ról design systemu (nazwy ról jak w tokens_qt.py)."""
+            hover: str, scrim: str, menu_bg: str, l3: str, l4: str,
+            tags: list[tuple[str, str, str]]) -> dict[str, str]:
+    """Znaczniki app.qss z ról design systemu (nazwy ról jak w tokens_qt.py).
+
+    Drabina powierzchni (design system 1.4.0): L0 ``window`` → L1 ``panel`` (karta, pasek menu, okno
+    dialogu) → L2 ``field``/``panel_alt`` (rubryki: pola, listy, tabela, podgląd, zakładki) → L3 ``l3``
+    (element w rubryce: co drugi wiersz, pole na zakładce, najechanie w liście) → L4 ``l4`` (menu,
+    rozwinięta lista, podpowiedź).
+    """
     return {
         "@BG_WINDOW@": window,
         "@BG_PANEL@": panel,
         "@BG_PANEL_ALT@": panel_alt,
         "@BG_INPUT@": field,
         "@BG_BUTTON@": field,
+        "@BG_L3@": l3,
+        "@BG_L4@": l4,
         "@BG_HOVER@": hover,
+        **_tag_tokens(tags),
         "@BRAND_SOFT@": r["color_brand_soft"],
         "@FG_TITLE@": r["color_text"],
         "@FG_TEXT@": r["color_text"],
@@ -91,7 +135,9 @@ def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field
         "@BORDER_FOCUS@": r["color_focus"],
         "@COMBO_BORDER@": r["color_border"],
         "@DISABLED_BG@": r["color_disabled_bg"],
-        "@CARD_BORDER@": f"1px solid {r['color_border']}",
+        # Skok jasności L0 → L1 w DS 1.4.0 jest mały (karta prawie jak tło okna) — ramka karty mocniejsza
+        # (rola border-strong), zgodnie z zasadą „ramka tam, gdzie sam skok jasności nie wystarcza”.
+        "@CARD_BORDER@": f"1px solid {r['color_border_strong']}",
         "@MENU_STRIP_BG@": menu_bg,
         "@MENU_STRIP_BORDER@": f"1px solid {r['color_border']}",
         "@DROP_BORDER@": f"2px dashed {r['color_label']}",
@@ -123,27 +169,34 @@ def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field
     }
 
 
+_SCRIM: dict[str, str] = {
+    "zielen-jasny": "rgba(23, 41, 29, 0.42)",
+    "zielen-ciemny": "rgba(8, 18, 12, 0.62)",
+    "krem-jasny": "rgba(59, 42, 32, 0.42)",
+    "krem-ciemny": "rgba(20, 16, 11, 0.62)",
+}
+
+
+def _theme_tokens(key: str) -> dict[str, str]:
+    """Motyw ``<styl>-<tryb>`` z drabiny powierzchni L0…L4 i tagów design systemu (palettes.py)."""
+    lad = LADDER[key]
+    return _tokens(
+        ROLES[key],
+        window=lad["surface_0"],
+        panel=lad["surface_1"],
+        menu_bg=lad["surface_1"],
+        panel_alt=lad["surface_2"],
+        field=lad["surface_2"],
+        hover=ROLES[key]["color_surface_hover"],
+        l3=lad["surface_3"],
+        l4=lad["surface_4"],
+        scrim=_SCRIM[key],
+        tags=TAGS[key],
+    )
+
+
 _THEME_TOKENS: dict[str, dict[str, str]] = {
-    # 1 · zieleń, jasny: szałwiowe tło, białe karty (semantic-zielen-jasny).
-    theme_id(STYLE_ZIELEN, MODE_LIGHT): _tokens(
-        ROLES["zielen-jasny"], window="#EEF4EF", panel="#FFFFFF", panel_alt="#EEF4EF",
-        field="#FFFFFF", hover="#E4EEE7", scrim="rgba(23, 41, 29, 0.42)", menu_bg="#FFFFFF",
-    ),
-    # 1 · zieleń, ciemny: leśna zieleń (semantic-dark).
-    theme_id(STYLE_ZIELEN, MODE_DARK): _tokens(
-        ROLES["zielen-ciemny"], window="#0F1F15", panel="#162B1E", panel_alt="#1D3526",
-        field="#1D3526", hover="#26422F", scrim="rgba(8, 18, 12, 0.62)", menu_bg="#162B1E",
-    ),
-    # 2 · krem, jasny: kremowe tło, białe karty (semantic) — wygląd z 2.6.0.
-    theme_id(STYLE_KREM, MODE_LIGHT): _tokens(
-        ROLES["krem-jasny"], window="#FBF3E0", panel="#FFFFFF", panel_alt="#FDF8EC",
-        field="#FBF3E0", hover="#F0EBDD", scrim="rgba(59, 42, 32, 0.42)", menu_bg="#FFFFFF",
-    ),
-    # 2 · krem, ciemny: ciemny krem / brąz (semantic-krem).
-    theme_id(STYLE_KREM, MODE_DARK): _tokens(
-        ROLES["krem-ciemny"], window="#1C1812", panel="#26211A", panel_alt="#302A21",
-        field="#302A21", hover="#3A3329", scrim="rgba(20, 16, 11, 0.62)", menu_bg="#26211A",
-    ),
+    theme_id(s, m): _theme_tokens(f"{s}-{m}") for s in STYLES for m in MODES
 }
 
 _CURRENT_THEME = DEFAULT_THEME

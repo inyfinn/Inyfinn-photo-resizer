@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Role kolorów design systemu Dobra Kaloria 1.3.0 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
+"""Kolory design systemu Dobra Kaloria 1.4.0 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
 
-Skopiowane 1:1 — zmiana koloru = zmiana w tokens.json design systemu, potem ponowne skopiowanie.
-Kontrast par tekst/tło sprawdza generator design systemu.
+PLIK GENEROWANY: python scripts/sync_design_tokens.py — nie edytuj ręcznie. Zmiana koloru = zmiana
+w tokens.json design systemu, build_tokens.py, potem ponowne uruchomienie skryptu.
+Kontrast par tekst/tło i tagów sprawdza generator design systemu.
+
+ROLES  — role kolorów (tekst, akcent, CTA, ramki…).
+LADDER — drabina powierzchni L0…L4: surface_<n> (tło poziomu), border_subtle_<n> (ramka poziomu).
+         Jasny: głębiej = ciemniej. Ciemny: głębiej = jaśniej.
+TAGS   — 8 tagów (tło, ramka, tekst): odcień stylu z przesunięciem barwy (hue) o ±12°, ±24°…
 """
 
 ROLES: dict[str, dict[str, str]] = {
-    "zielen-jasny": {  # T_ZIELEN_JASNY
+    "zielen-jasny": {  # zielen-jasny
         "color_text": "#17291D",
         "color_text_muted": "#4A6352",
         "color_label": "#5E7A4A",
-        "color_bg": "#EEF4EF",
-        "color_surface": "#FFFFFF",
-        "color_surface_hover": "#E4EEE7",
+        "color_bg": "#F8FBF9",
+        "color_surface": "#EFF5F1",
+        "color_surface_hover": "#E6F0E8",
         "color_border": "#D3E1D7",
         "color_border_strong": "#B3C9BA",
         "color_field_border": "#6E8C78",
@@ -35,13 +41,13 @@ ROLES: dict[str, dict[str, str]] = {
         "color_on_inverse": "#FFFFFF",
         "color_focus": "#0F763E",
     },
-    "zielen-ciemny": {  # T_DARK
+    "zielen-ciemny": {  # zielen-ciemny
         "color_text": "#F5F1E8",
         "color_text_muted": "#C9BEA6",
         "color_label": "#D2B48F",
         "color_bg": "#0F1F15",
-        "color_surface": "#162B1E",
-        "color_surface_hover": "#1D3526",
+        "color_surface": "#14281C",
+        "color_surface_hover": "#1A3123",
         "color_border": "#2F4D39",
         "color_border_strong": "#44664F",
         "color_field_border": "#7E9C88",
@@ -64,13 +70,13 @@ ROLES: dict[str, dict[str, str]] = {
         "color_on_inverse": "#0F1F15",
         "color_focus": "#6FC792",
     },
-    "krem-jasny": {  # T
+    "krem-jasny": {  # krem-jasny
         "color_text": "#3B2A20",
         "color_text_muted": "#7D5E44",
-        "color_label": "#AD8767",
-        "color_bg": "#FFFFFF",
-        "color_surface": "#FDF8EC",
-        "color_surface_hover": "#FBF3E0",
+        "color_label": "#A47E5E",
+        "color_bg": "#FEFCF6",
+        "color_surface": "#FCF5E3",
+        "color_surface_hover": "#F5EEDD",
         "color_border": "#EDE7DA",
         "color_border_strong": "#D9CFBB",
         "color_field_border": "#9C8B72",
@@ -93,13 +99,13 @@ ROLES: dict[str, dict[str, str]] = {
         "color_on_inverse": "#FFFFFF",
         "color_focus": "#0F763E",
     },
-    "krem-ciemny": {  # T_KREM
+    "krem-ciemny": {  # krem-ciemny
         "color_text": "#F5F1E8",
         "color_text_muted": "#CBBFA8",
         "color_label": "#D2B48F",
         "color_bg": "#1C1812",
-        "color_surface": "#26211A",
-        "color_surface_hover": "#302A21",
+        "color_surface": "#252019",
+        "color_surface_hover": "#2E2820",
         "color_border": "#4A4135",
         "color_border_strong": "#6B5E4B",
         "color_field_border": "#8C7D65",
@@ -122,4 +128,99 @@ ROLES: dict[str, dict[str, str]] = {
         "color_on_inverse": "#1C1812",
         "color_focus": "#4CC46A",
     },
+}
+
+LADDER: dict[str, dict[str, str]] = {
+    "zielen-jasny": {
+        "surface_0": "#F8FBF9",
+        "surface_1": "#EFF5F1",
+        "surface_2": "#E6F0E8",
+        "surface_3": "#DDEAE0",
+        "surface_4": "#D4E5D8",
+        "border_subtle_0": "#E2EDE4",
+        "border_subtle_1": "#D9E7DC",
+        "border_subtle_2": "#D0E2D4",
+        "border_subtle_3": "#CADBCE",
+        "border_subtle_4": "#C3D5C7",
+    },
+    "zielen-ciemny": {
+        "surface_0": "#0F1F15",
+        "surface_1": "#14281C",
+        "surface_2": "#1A3123",
+        "surface_3": "#203A2A",
+        "surface_4": "#264431",
+        "border_subtle_0": "#1E3727",
+        "border_subtle_1": "#24412F",
+        "border_subtle_2": "#2A4A36",
+        "border_subtle_3": "#31543E",
+        "border_subtle_4": "#385E46",
+    },
+    "krem-jasny": {
+        "surface_0": "#FEFCF6",
+        "surface_1": "#FCF5E3",
+        "surface_2": "#F5EEDD",
+        "surface_3": "#EEE7D6",
+        "surface_4": "#E8E1D0",
+        "border_subtle_0": "#F2EBDA",
+        "border_subtle_1": "#EBE4D3",
+        "border_subtle_2": "#E5DDCD",
+        "border_subtle_3": "#DED7C6",
+        "border_subtle_4": "#D7D0C0",
+    },
+    "krem-ciemny": {
+        "surface_0": "#1C1812",
+        "surface_1": "#252019",
+        "surface_2": "#2E2820",
+        "surface_3": "#373027",
+        "surface_4": "#40392E",
+        "border_subtle_0": "#342D24",
+        "border_subtle_1": "#3D362B",
+        "border_subtle_2": "#473E32",
+        "border_subtle_3": "#50473A",
+        "border_subtle_4": "#5A5042",
+    },
+}
+
+# (tło, ramka, tekst) tagów 1..8
+TAGS: dict[str, list[tuple[str, str, str]]] = {
+    "zielen-jasny": [
+        ("#D8EFD9", "#B6D6B7", "#305F35"),
+        ("#D4F0DE", "#AFD8BF", "#206040"),
+        ("#DEEED4", "#BED5B0", "#3E5D2A"),
+        ("#D0F1E4", "#A9D8C7", "#06614B"),
+        ("#E3ECD1", "#C6D2AB", "#4B5A1F"),
+        ("#CDF1EA", "#A5D8CF", "#036056"),
+        ("#E9EBCE", "#CED0A7", "#565615"),
+        ("#CCF0EF", "#A3D8D7", "#015F5F"),
+    ],
+    "zielen-ciemny": [
+        ("#2C442E", "#446446", "#B7E1B9"),
+        ("#264533", "#3B664D", "#AEE3C3"),
+        ("#334329", "#4C633E", "#C2DFB0"),
+        ("#204539", "#336655", "#A6E4CD"),
+        ("#394124", "#556038", "#CCDCA9"),
+        ("#1C453F", "#2D665D", "#A0E4D8"),
+        ("#3F3F21", "#5D5E34", "#D6D9A4"),
+        ("#194544", "#296665", "#9DE3E2"),
+    ],
+    "krem-jasny": [
+        ("#F6E5CC", "#E0C8A4", "#6C4C0E"),
+        ("#F2E7CC", "#DACBA4", "#65500B"),
+        ("#FAE3CE", "#E6C6A7", "#724816"),
+        ("#ECE9CD", "#D3CEA5", "#5C540F"),
+        ("#FDE2D1", "#EAC3AB", "#764420"),
+        ("#E7EBCF", "#CBD1A8", "#525718"),
+        ("#FFE0D5", "#EDC1B1", "#79412B"),
+        ("#E1EDD2", "#C3D3AD", "#475B22"),
+    ],
+    "krem-ciemny": [
+        ("#4B3A1F", "#6E5631", "#EECFA1"),
+        ("#473C1E", "#685930", "#E6D3A0"),
+        ("#4E3821", "#735434", "#F5CCA4"),
+        ("#423E1F", "#625C31", "#DDD7A1"),
+        ("#513624", "#765139", "#FAC9A9"),
+        ("#3D4022", "#5A5F35", "#D3DAA5"),
+        ("#533529", "#794F3F", "#FDC6B1"),
+        ("#374225", "#52613A", "#C9DDAB"),
+    ],
 }

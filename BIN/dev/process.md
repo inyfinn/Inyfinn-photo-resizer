@@ -734,3 +734,21 @@
 4. Okno „Zapisz własny preset wymiarów”: przy stałych 820 px pola X/Y były ściśnięte (ramka 2 px z 2.6.1) — wysokość teraz do 1000 px wg ekranu.
 5. Testy: `tests/test_buttons_dk.py` (nowe), całość 200 passed + znany `test_segregate_checkbox` (czyta prawdziwą sesję z rejestru).
 6. Build bez kasowania (skrypt w scratchpadzie, stare katalogi → `BIN\devuild\_old-<data>`). Uwaga: `sign_file.ps1` podpisujący EXE bezpośrednio na D: zostawił w tym buildzie podpis z HashMismatch (D: to reparse/chmura) — plik z podpisem sprawdzonym na dysku C: kopiowany na D: zwykłym `Copy-Item` trzyma się poprawnie.
+
+---
+
+## 2026-09-30 — v2.6.3 jeden język wizualny Dobra Kaloria (drabina L0–L4, tagi)
+
+**Komenda/Akcja:** Zalecenia usera (`ds-dobra-kaloria/ZALECENIA-USERA.md`): „wewnętrzne rubryki były MINIMALNIE za jasne”, tagi = odcień stylu z lekkim przesunięciem Hue, zmierzyć zagnieżdżenia okien. Z przeglądu 2.6.2: w oknie „Nie wybrano folderu zapisu” żółty był „Nadpisz oryginały”; kafelek KOLORY miał pustą płytę nad suwakiem.
+
+**Log/Status:**
+1. `palettes.py` generowany z `tokens_qt.py` DS 1.4.0 (`scripts/sync_design_tokens.py`): ROLES, LADDER (surface_0..4, border_subtle_0..4), TAGS (8 × tło/ramka/tekst). Krem jasny = nowy wariant DS `krem-jasny` (bez bieli).
+2. `themes/__init__.py`: `_theme_tokens()` mapuje poziomy: okno L0, karta/pasek/dialog L1, rubryki L2 (`@BG_INPUT@` = `@BG_PANEL_ALT@`), `@BG_L3@`, `@BG_L4@`, `@TAG<n>_*@`; `format_tag()`.
+3. `app.qss`: menu/rozwinięte listy/podpowiedzi L4 (nowy `QToolTip`), co drugi wiersz drzewa i tabeli L3, najechanie w liście L3 / w drzewie L4, zaznaczenie w tabeli wyników L4 (wcześniej = tło tabeli), pola na zakładkach okna Ustawienia L3, chipy formatu i znaczniki rozszerzenia w oknie konwersji = tagi.
+4. `simple_save_dialog.py`: „Zapisz jako nowe (_conv)” żółty, pierwszy, domyślny (Enter); „Nadpisz oryginały” z ramką, bez autoDefault.
+5. `main_window._relayout_bento`: sam kafelek Kolory → lewa kolumna pod „Tło i warianty”, Wymiary → prawa; treść Kolory/Wymiary do góry.
+6. Testy: `test_surface_ladder.py`, `test_simple_save_dialog.py`, `test_bento_colors_tile.py` (nowe), `test_theme_dobra_kaloria.py` (tło okna L0).
+
+**Test/Ewaluacja:** zrzuty przed/po (4 style × 13 widoków): `BIN\dev\logs\design-dk\v2.6.3\p0\` i `final\`, arkusz `PREZENTACJE\— SZABLON AI - skrypt\WORK\logs\resizer-2.6.3.png`.
+
+**Źródła:** `ds-dobra-kaloria/tokens/tokens_qt.py` 1.4.0 (READY-1.4.0.txt 13:04), `tokens.json` sekcje `ladder`, `tags`; Qt Style Sheets Reference (pseudo-stan `:alternate` nie działa dla `QTreeView::branch` — sprawdzone zrzutem).

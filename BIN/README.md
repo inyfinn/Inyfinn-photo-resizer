@@ -43,13 +43,24 @@ Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz p
   (`startup/last_seconds`), pierwszy raz 6 s / 15 s z dysku sieciowego. Kod: `app/widgets/startup_splash.py`.
 - **Przyciski (od 2.6.2)** trzy rodziny w całym programie: główny żółty (`footerConvert`, `primaryBtn`, `saveChoicePrimary`,
   `updateDialogAction`, `updateToastInstall`, `updateStatusInstall`), drugorzędny z ramką w kolorze akcentu (`btnSecondary`, `toolBtn`,
-  `btnBrowse`, `btnUpdatePath`, `formatChip`, `saveChoiceOutline`) i link (`footerClose`, `btnLink` = Anuluj/Zamknij w oknach,
+  `btnBrowse`, `btnUpdatePath`, `saveChoiceOutline`; `formatChip` od 2.6.3 = tag) i link (`footerClose`, `btnLink` = Anuluj/Zamknij w oknach,
   `updateToastLater`). Napisy w Lato, nie wersalikami („Przeglądaj”). Ikony przycisków rysowane w kolorze tekstu przycisku
   (`tool_icons.py`, `section_icons.py`), po zmianie motywu odświeża je `layout_helpers.refresh_themed_icons`.
 - **Ikona programu (od 2.6.2)** z design systemu Dobra Kaloria (wariant A, zielony kafelek „RE”): `dev/assets/icon.ico`
   (poprzednia: `icon-old.ico`). `generate_icon.py` nie nadpisuje istniejącej ikony.
 - Aktywny motyw i czcionki trafiają do `logs/activity.log` przy każdym starcie („Motyw”).
-- Kolory: `app/themes/palettes.py` (kopia ról z `tokens_qt.py` design systemu). Znaczniki:
+- **Drabina powierzchni (od 2.6.3, design system 1.4.0):** L0 tło okna → L1 karta, pasek menu, okno dialogu →
+  L2 rubryka (pola, lista plików, strefa upuszczania, tabela wyników, podgląd, zakładka okna Ustawienia, karta pliku
+  w oknie konwersji) → L3 element w rubryce (co drugi wiersz, pole na zakładce, najechanie w liście) → L4 nakładka
+  (menu, rozwinięta lista, podpowiedź, najechanie w drzewie plików). Jasny: głębiej = ciemniej, ciemny: głębiej =
+  jaśniej, bez czystej bieli. Znaczniki `@BG_WINDOW@`, `@BG_PANEL@`, `@BG_INPUT@`/`@BG_PANEL_ALT@`, `@BG_L3@`, `@BG_L4@`.
+- **Tagi (od 2.6.3):** chipy formatu PNG/JPG/AVIF w trybie prostym i znaczniki rozszerzenia w oknie konwersji mają
+  kolory tagów design systemu (`@TAG<n>_BG@/_BORDER@/_FG@`, odcień stylu ±12°/±24°…); numer tagu formatu:
+  `themes.format_tag()` (PNG 1, JPG 2, AVIF 3, WebP 4, GIF 5, TIFF 6).
+- **Okno „Nie wybrano folderu zapisu” (od 2.6.3):** „Zapisz jako nowe (_conv)” = żółty `saveChoicePrimary` i Enter,
+  „Nadpisz oryginały” = `saveChoiceOutline`.
+- Kolory: `app/themes/palettes.py` — PLIK GENEROWANY z `tokens_qt.py` design systemu:
+  `python scripts/sync_design_tokens.py` (role, drabina L0–L4, tagi). Znaczniki:
   `app/themes/__init__.py`, arkusz: `app/themes/app.qss`, wersaliki: `app/themes/typography.py`.
   Zmiana dotyczy tylko wyglądu, nie funkcji.
 

@@ -287,8 +287,17 @@ QMenuBar::item:selected {
     color: @FG_ACCENT@;
 }
 
+/* L4 — nakładki: menu, rozwinięta lista, podpowiedź */
+QToolTip {
+    background-color: @BG_L4@;
+    color: @FG_TEXT@;
+    border: 1px solid @BORDER@;
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+
 QMenu {
-    background-color: @BG_PANEL@;
+    background-color: @BG_L4@;
     border: 1px solid @SEP@;
     padding: 4px;
     color: @FG_TEXT@;
@@ -456,10 +465,14 @@ QLabel#formatChipCaption {
     background: transparent;
 }
 
+/* Chipy formatu = tagi: odcień stylu z małym przesunięciem barwy na format (design system 1.4.0, „tags”).
+   Numer tagu nadaje kod (themes.format_tag): PNG 1, JPG 2, AVIF 3, WebP 4, GIF 5, TIFF 6.
+   To przyciski, więc ramka 2 px w kolorze tekstu tagu (ramka tagu z DS jest za słaba na element klikalny);
+   najechanie = tło w kolorze ramki tagu (odcień ciemniej w jasnym, jaśniej w ciemnym). */
 QPushButton#formatChip {
-    background: transparent;
-    border: 2px solid @ACCENT@;
-    color: @FG_ACCENT@;
+    background-color: @TAG1_BG@;
+    border: 2px solid @TAG1_FG@;
+    color: @TAG1_FG@;
     border-radius: @RADIUS_BTN@;
     min-width: 64px;
     max-width: 88px;
@@ -471,9 +484,25 @@ QPushButton#formatChip {
     font-weight: 700;
 }
 
-QPushButton#formatChip:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
+QPushButton#formatChip:hover, QPushButton#formatChip:pressed { background-color: @TAG1_BORDER@; }
+QPushButton#formatChip[tag="2"] { background-color: @TAG2_BG@; border-color: @TAG2_FG@; color: @TAG2_FG@; }
+QPushButton#formatChip[tag="2"]:hover, QPushButton#formatChip[tag="2"]:pressed { background-color: @TAG2_BORDER@; }
+QPushButton#formatChip[tag="3"] { background-color: @TAG3_BG@; border-color: @TAG3_FG@; color: @TAG3_FG@; }
+QPushButton#formatChip[tag="3"]:hover, QPushButton#formatChip[tag="3"]:pressed { background-color: @TAG3_BORDER@; }
+QPushButton#formatChip[tag="4"] { background-color: @TAG4_BG@; border-color: @TAG4_FG@; color: @TAG4_FG@; }
+QPushButton#formatChip[tag="4"]:hover, QPushButton#formatChip[tag="4"]:pressed { background-color: @TAG4_BORDER@; }
+QPushButton#formatChip[tag="5"] { background-color: @TAG5_BG@; border-color: @TAG5_FG@; color: @TAG5_FG@; }
+QPushButton#formatChip[tag="5"]:hover, QPushButton#formatChip[tag="5"]:pressed { background-color: @TAG5_BORDER@; }
+QPushButton#formatChip[tag="6"] { background-color: @TAG6_BG@; border-color: @TAG6_FG@; color: @TAG6_FG@; }
+QPushButton#formatChip[tag="6"]:hover, QPushButton#formatChip[tag="6"]:pressed { background-color: @TAG6_BORDER@; }
+QPushButton#formatChip[tag="7"] { background-color: @TAG7_BG@; border-color: @TAG7_FG@; color: @TAG7_FG@; }
+QPushButton#formatChip[tag="7"]:hover, QPushButton#formatChip[tag="7"]:pressed { background-color: @TAG7_BORDER@; }
+QPushButton#formatChip[tag="8"] { background-color: @TAG8_BG@; border-color: @TAG8_FG@; color: @TAG8_FG@; }
+QPushButton#formatChip[tag="8"]:hover, QPushButton#formatChip[tag="8"]:pressed { background-color: @TAG8_BORDER@; }
+
+/* Fokus z klawiatury: ramka w kolorze akcentu */
+QPushButton#formatChip:focus {
+    border-color: @BORDER_FOCUS@;
 }
 
 QPushButton#formatChip:disabled {
@@ -595,7 +624,8 @@ QWidget#themeToggleWidget {
 
 QTreeWidget#inputList {
     background-color: @BG_PANEL_ALT@;
-    alternate-background-color: @BG_PANEL@;
+    /* L2 rubryka, co drugi wiersz L3 */
+    alternate-background-color: @BG_L3@;
     border: 1px solid @SEP@;
     border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
@@ -637,8 +667,9 @@ QListWidget#simpleFileList::item:selected {
     color: @ON_ACCENT@;
 }
 
+/* Najechanie na wiersz w rubryce (L2) = poziom głębiej niż wiersze (L3 w liście, L4 w drzewie z L3 co drugi) */
 QListWidget#simpleFileList::item:hover:!selected {
-    background-color: @BG_HOVER@;
+    background-color: @BG_L3@;
 }
 
 QTreeWidget#inputList::item:selected {
@@ -647,7 +678,7 @@ QTreeWidget#inputList::item:selected {
 }
 
 QTreeWidget#inputList::item:hover:!selected {
-    background-color: @BG_HOVER@;
+    background-color: @BG_L4@;
 }
 
 QHeaderView::section {
@@ -719,7 +750,7 @@ QComboBox::drop-down {
 }
 
 QComboBox::drop-down:hover {
-    background: @BG_PANEL_ALT@;
+    background: @BG_L3@;
 }
 
 QComboBox::down-arrow {
@@ -729,7 +760,7 @@ QComboBox::down-arrow {
 }
 
 QComboBox QAbstractItemView {
-    background-color: @BG_PANEL@;
+    background-color: @BG_L4@;
     color: @FG_TEXT@;
     border: none;
     selection-background-color: @ACCENT@;
@@ -927,6 +958,22 @@ QTabWidget#dialogTabs::pane {
     padding: 8px;
 }
 
+/* Rubryki na zakładce (zakładka = L2) są o poziom głębiej: L3 */
+QTabWidget#dialogTabs QLineEdit,
+QTabWidget#dialogTabs QSpinBox,
+QTabWidget#dialogTabs QDoubleSpinBox,
+QTabWidget#dialogTabs QComboBox,
+QTabWidget#dialogTabs QCheckBox::indicator:unchecked {
+    background-color: @BG_L3@;
+}
+
+QTabWidget#dialogTabs QLineEdit:disabled,
+QTabWidget#dialogTabs QSpinBox:disabled,
+QTabWidget#dialogTabs QDoubleSpinBox:disabled,
+QTabWidget#dialogTabs QComboBox:disabled {
+    background-color: @DISABLED_BG@;
+}
+
 QTabWidget#dialogTabs QTabBar::tab {
     color: @FG_MUTED@;
     padding: 6px 14px;
@@ -996,7 +1043,7 @@ QTableWidget#resultsTable {
     color: @FG_TEXT@;
     border: none;
     gridline-color: @SEP@;
-    alternate-background-color: @BG_PANEL_ALT@;
+    alternate-background-color: @BG_L3@;
 }
 
 QTableWidget#resultsTable::item {
@@ -1006,7 +1053,7 @@ QTableWidget#resultsTable::item {
 }
 
 QTableWidget#resultsTable::item:selected {
-    background-color: @BG_HOVER@;
+    background-color: @BG_L4@;
     color: @FG_TEXT@;
 }
 
@@ -1196,13 +1243,22 @@ QFrame#fileProgressCard[status="error"] {
     background: @BG_PANEL_ALT@;
 }
 
+/* Znacznik rozszerzenia w oknie konwersji = tag (ten sam kolor formatu co chip w trybie prostym) */
 QLabel#fileProgressExt {
-    background: @BG_WINDOW@;
-    border: 1px solid @BORDER@;
+    background-color: @TAG8_BG@;
+    border: 1px solid @TAG8_BORDER@;
     border-radius: 6px;
-    color: @FG_ACCENT@;
+    color: @TAG8_FG@;
     padding: 0 8px;
 }
+
+QLabel#fileProgressExt[tag="1"] { background-color: @TAG1_BG@; border-color: @TAG1_BORDER@; color: @TAG1_FG@; }
+QLabel#fileProgressExt[tag="2"] { background-color: @TAG2_BG@; border-color: @TAG2_BORDER@; color: @TAG2_FG@; }
+QLabel#fileProgressExt[tag="3"] { background-color: @TAG3_BG@; border-color: @TAG3_BORDER@; color: @TAG3_FG@; }
+QLabel#fileProgressExt[tag="4"] { background-color: @TAG4_BG@; border-color: @TAG4_BORDER@; color: @TAG4_FG@; }
+QLabel#fileProgressExt[tag="5"] { background-color: @TAG5_BG@; border-color: @TAG5_BORDER@; color: @TAG5_FG@; }
+QLabel#fileProgressExt[tag="6"] { background-color: @TAG6_BG@; border-color: @TAG6_BORDER@; color: @TAG6_FG@; }
+QLabel#fileProgressExt[tag="7"] { background-color: @TAG7_BG@; border-color: @TAG7_BORDER@; color: @TAG7_FG@; }
 
 QLabel#fileProgressName {
     color: @FG_TEXT@;

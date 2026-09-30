@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.2
+**Ostatnia aktualizacja:** 2026-09-30 · **Wersja aplikacji:** 2.6.3
 
 ---
 
@@ -198,5 +198,7 @@ Z DAM bierzemy **kanały**, nie limit wagi:
 - **Ekran startowy 2.6.2** (`startup_splash.py`): rysowany ręcznie (bez QSS), wzór `WORK\src\launcher\launcher.cs` klasa Splash. Ciężki import okna + `QFontDatabase.families()` w wątku w tle (`main._boot_application`) — na stacji z ~3700 czcionkami samo wczytanie listy to ~1 s. Budowa okna (~4–5 s na tej stacji, tak samo z pustym QSS) musi być w wątku GUI → `pulse()` robi `repaint()` planszy między etapami (bez `processEvents`). Kąt kółka i pasek liczone z zegara. Zostaje jedna przerwa ~2 s w animacji. `finish()`: 100% przez 250 ms, potem plansza znika i okno się pokazuje (nigdy nad oknem). Czas startu → `startup/last_seconds` + wpis „Start programu” w activity.log.
 - Zrzuty ekranu dla dowodu: tylko z okna aplikacji (`widget.grab()` / PrintWindow), NIGDY zrzut całego ekranu — obok są okna usera (edytor z prywatną rozmową trafił raz do zrzutu, plik usunięty).
 - Separatory: token `@SEP@` w `app/themes`.
+- **2.6.3 drabina L0–L4 + tagi (DS 1.4.0):** `palettes.py` GENEROWANY (`scripts/sync_design_tokens.py` czyta `tokens_qt.py` DS: ROLES, LADDER surface_0..4 + border_subtle_0..4, TAGS 8×(bg,border,fg)); krem-jasny = wariant `krem-jasny` DS (nie `program`). Mapowanie: okno L0, karta/pasek/dialog L1, pola+listy+tabela+zakładka L2 (`@BG_INPUT@`=`@BG_PANEL_ALT@`), co drugi wiersz / pole na zakładce L3, menu/popup/tooltip/najechanie w drzewie L4. Najechanie w rubryce L2 musi być L3/L4 — `@BG_HOVER@` (= surface-hover = L2) zlałby się z tłem. Chipy formatu i `fileProgressExt` = tagi (`setProperty("tag", format_tag(fmt))`), chip ma ramkę w kolorze tekstu tagu (ramka tagu DS za słaba na przycisk). QSS `::branch:alternate` w QTreeView NIE działa (pasek wcięcia co drugi wiersz zostaje jaśniejszy/ciemniejszy — stan z 2.6.2).
+- **Kafelek Kolory (2.6.3):** sam Kolory (bez Kadru) stoi pod Tło i warianty w lewej kolumnie, Wymiary w prawej (`_relayout_bento`); treść kafelków Kolory/Wymiary do góry (addStretch). Kolory + Kadr i sam Kadr jak w 2.6.2.
 - Dark/light: tokeny QSS, bez hardcoded kolorów light w dark mode.
 - Dokumentacja operacyjna: **tylko** `BIN/dev/` — nigdy w korzeniu projektu.

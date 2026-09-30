@@ -40,27 +40,35 @@ class SimpleSaveChoiceDialog(AppDialog):
         folder_txt = _folder_summary(folders)
         body = QLabel(
             f"Masz {n} {plikow} w {folder_txt}.\n"
-            "Nadpisać oryginały, czy zapisać obok jako nowe pliki z dopiskiem _conv?"
+            "Zapisać obok jako nowe pliki z dopiskiem _conv, czy nadpisać oryginały?"
         )
         body.setObjectName("saveChoiceBody")
         body.setWordWrap(True)
         root.addWidget(body)
 
-        overwrite_btn = QPushButton("Nadpisz oryginały")
-        overwrite_btn.setObjectName("saveChoicePrimary")
-        overwrite_btn.setMinimumHeight(40)
-        overwrite_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        overwrite_btn.setToolTip("Zastąpi pliki w tym samym folderze, w tym samym formacie.")
-        overwrite_btn.clicked.connect(lambda: self._pick(OVERWRITE))
-        root.addWidget(overwrite_btn)
-
+        # Bezpieczna akcja = główna (żółta, Enter). Nadpisanie oryginałów = drugorzędna z ramką —
+        # nie może być najbardziej widocznym ani domyślnym przyciskiem, bo jest nieodwracalne.
         conv_btn = QPushButton("Zapisz jako nowe (_conv)")
-        conv_btn.setObjectName("saveChoiceOutline")
+        conv_btn.setObjectName("saveChoicePrimary")
         conv_btn.setMinimumHeight(40)
         conv_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         conv_btn.setToolTip("np. KULKI-KREATYNA1_conv.png — oryginał zostaje nietknięty.")
+        conv_btn.setAutoDefault(True)
+        conv_btn.setDefault(True)
         conv_btn.clicked.connect(lambda: self._pick(CONV))
         root.addWidget(conv_btn)
+
+        overwrite_btn = QPushButton("Nadpisz oryginały")
+        overwrite_btn.setObjectName("saveChoiceOutline")
+        overwrite_btn.setMinimumHeight(40)
+        overwrite_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        overwrite_btn.setToolTip("Zastąpi pliki w tym samym folderze, w tym samym formacie.")
+        overwrite_btn.setAutoDefault(False)
+        overwrite_btn.setDefault(False)
+        overwrite_btn.clicked.connect(lambda: self._pick(OVERWRITE))
+        root.addWidget(overwrite_btn)
+        self.conv_button = conv_btn
+        self.overwrite_button = overwrite_btn
 
         hint = QLabel("Jeśli nazwa z _conv jest zajęta, program doda kolejny numer: _conv2, _conv3…")
         hint.setObjectName("saveChoiceHint")
@@ -73,9 +81,11 @@ class SimpleSaveChoiceDialog(AppDialog):
         cancel.setObjectName("btnLink")
         cancel.setMinimumHeight(36)
         cancel.setMinimumWidth(88)
+        cancel.setAutoDefault(False)
         cancel.clicked.connect(self.reject)
         cancel_row.addWidget(cancel)
         root.addLayout(cancel_row)
+        conv_btn.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _pick(self, choice: str) -> None:
         self._choice = choice

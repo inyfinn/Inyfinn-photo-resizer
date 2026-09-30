@@ -71,6 +71,7 @@ from inyfinn_resizer.app.themes import (
     MODES,
     STYLE_LABELS,
     STYLES,
+    format_tag,
     is_dark_theme,
     split_theme,
     theme_id,
@@ -641,6 +642,7 @@ class MainWindow(QMainWindow):
         ):
             chip = QPushButton(label)
             chip.setObjectName("formatChip")
+            chip.setProperty("tag", str(format_tag(fmt)))  # kolor tagu formatu (app.qss)
             chip.setFixedHeight(ACTION_H)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             chip.setToolTip(tip)
@@ -1227,10 +1229,12 @@ class MainWindow(QMainWindow):
             tooltip=UI_TOOLTIPS["color_count"],
         )
         lay_colors.addWidget(self._colors_row)
+        # Treść tuż pod nagłówkiem — wolne miejsce (gdy kafelek wypełnia kolumnę) idzie pod spód.
+        lay_colors.addStretch(1)
 
         self._bento_left_col, self._bento_left_lay = make_bento_column()
-        self._bento_left_lay.addWidget(tile_bg, 0)
         self._bento_right_col, self._bento_right_lay = make_bento_column()
+        # Rozmieszczenie kafelków w kolumnach ustala _relayout_bento().
 
         # Wymiary (lewa kolumna, pod Tło)
         tile_dims, lay_dims = make_tile(
@@ -1333,6 +1337,7 @@ class MainWindow(QMainWindow):
         dims_opts_col.addWidget(min_control)
         dims_opts_col.addWidget(custom_control)
         lay_dims.addWidget(dims_opts_wrap)
+        lay_dims.addStretch(1)
 
         tile_crop, lay_crop = make_tile("Kadr", fill=True)
         self._bento_tile_crop = tile_crop
@@ -1348,8 +1353,6 @@ class MainWindow(QMainWindow):
         lay_crop.addStretch(1)
         lay_crop.addLayout(crop_row)
         lay_crop.addStretch(1)
-
-        self._bento_left_lay.addWidget(tile_dims, 1)
 
         # Wiersz 2: Zapis plików (span 2)
         tile_save, lay_save = make_tile(
@@ -1468,30 +1471,43 @@ class MainWindow(QMainWindow):
             cb.update()
 
     def _relayout_bento(self) -> None:
-        """Kolumny Bento tej samej wysokości — kafelki wypełniają dziury, nie tło okna."""
+        """Kolumny Bento tej samej wysokości — kafelki wypełniają dziury, nie tło okna.
+
+        Sam kafelek „Kolory” (jeden wiersz treści) obok kolumny Tło + Wymiary rozciągał się na ~400 px
+        i zostawiał pustą płytę nad suwakiem (2.6.2). Od 2.6.3 w tym układzie „Kolory” stoi pod
+        „Tło i warianty”, a „Wymiary” przechodzą do prawej kolumny — obie kolumny mają podobną
+        wysokość treści, więc żaden kafelek nie jest pusty.
+        """
         show_colors = self._show_colors_tile
         show_crop = self._show_crop_tile
+        colors_beside_bg = show_colors and not show_crop
         has_right = show_colors or show_crop
 
-        while self._bento_right_lay.count():
-            item = self._bento_right_lay.takeAt(0)
-            if item.widget() is None:
-                del item
+        for lay in (self._bento_left_lay, self._bento_right_lay):
+            while lay.count():
+                item = lay.takeAt(0)
+                if item.widget() is None:
+                    del item
 
         self._bento_tile_colors.setVisible(show_colors)
         self._bento_tile_crop.setVisible(show_crop)
+        set_tile_fill(self._bento_tile_dims, True)
+        self._bento_left_lay.addWidget(self._bento_tile_bg, 0)
 
-        if show_colors and show_crop:
-            set_tile_fill(self._bento_tile_colors, False)
-            set_tile_fill(self._bento_tile_crop, True)
-            self._bento_right_lay.addWidget(self._bento_tile_colors, 0)
-            self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
-        elif show_colors:
+        if colors_beside_bg:
             set_tile_fill(self._bento_tile_colors, True)
-            self._bento_right_lay.addWidget(self._bento_tile_colors, 1)
-        elif show_crop:
-            set_tile_fill(self._bento_tile_crop, True)
-            self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
+            self._bento_left_lay.addWidget(self._bento_tile_colors, 1)
+            self._bento_right_lay.addWidget(self._bento_tile_dims, 1)
+        else:
+            self._bento_left_lay.addWidget(self._bento_tile_dims, 1)
+            if show_colors and show_crop:
+                set_tile_fill(self._bento_tile_colors, False)
+                set_tile_fill(self._bento_tile_crop, True)
+                self._bento_right_lay.addWidget(self._bento_tile_colors, 0)
+                self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
+            elif show_crop:
+                set_tile_fill(self._bento_tile_crop, True)
+                self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
 
         self._bento_right_col.setVisible(has_right)
 
