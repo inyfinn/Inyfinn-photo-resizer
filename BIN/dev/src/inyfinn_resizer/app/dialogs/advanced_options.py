@@ -268,7 +268,7 @@ class AdvancedOptionsDialog(AppDialog):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(20, 16, 20, 16)
         layout.addWidget(self._panel, stretch=1)
 
         bottom = QHBoxLayout()

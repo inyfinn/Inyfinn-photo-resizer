@@ -135,9 +135,8 @@ def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field
         "@BORDER_FOCUS@": r["color_focus"],
         "@COMBO_BORDER@": r["color_border"],
         "@DISABLED_BG@": r["color_disabled_bg"],
-        # Skok jasności L0 → L1 w DS 1.4.0 jest mały (karta prawie jak tło okna) — ramka karty mocniejsza
-        # (rola border-strong), zgodnie z zasadą „ramka tam, gdzie sam skok jasności nie wystarcza”.
-        "@CARD_BORDER@": f"1px solid {r['color_border_strong']}",
+        # DS 1.5.0: karta jak w programie (.hints/.found) — kremowa L1 na białym L0, cienka ramka roli border.
+        "@CARD_BORDER@": f"1px solid {r['color_border']}",
         "@MENU_STRIP_BG@": menu_bg,
         "@MENU_STRIP_BORDER@": f"1px solid {r['color_border']}",
         "@DROP_BORDER@": f"2px dashed {r['color_label']}",
@@ -184,7 +183,7 @@ def _theme_tokens(key: str) -> dict[str, str]:
         ROLES[key],
         window=lad["surface_0"],
         panel=lad["surface_1"],
-        menu_bg=lad["surface_1"],
+        menu_bg=lad["surface_0"],
         panel_alt=lad["surface_2"],
         field=lad["surface_2"],
         hover=ROLES[key]["color_surface_hover"],
@@ -205,7 +204,7 @@ _CURRENT_THEME = DEFAULT_THEME
 FONT_TEXT = "Lato"
 FONT_DISPLAY = "Mindset"
 _FALLBACK_FONT_FAMILY = "Segoe UI"
-_FONT_POINT_SIZE = 9
+_FONT_PIXEL_SIZE = 15  # DS 1.5.0 qt.fs-body (program: 16 px)
 _FONT_FILES = ("Lato-Regular.ttf", "Lato-Bold.ttf", "Mindset.otf")
 _LOADED_FAMILIES: set[str] | None = None
 
@@ -303,6 +302,9 @@ def apply_theme(app: QApplication, theme: str = DEFAULT_THEME) -> None:
     install_typography(app)
     font = QFont(app.font())
     font.setFamily(theme_font_family())
-    font.setPointSize(_FONT_POINT_SIZE)
+    font.setPixelSize(_FONT_PIXEL_SIZE)
     app.setFont(font)
+    # styl Windows rysuje menu czcionką klasy, nie widżetu
+    app.setFont(font, "QMenuBar")
+    app.setFont(font, "QMenu")
     app.setStyleSheet(render_qss(_CURRENT_THEME))

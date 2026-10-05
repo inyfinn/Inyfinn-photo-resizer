@@ -1,4 +1,4 @@
-"""Drabina powierzchni L0…L4 i tagi z design systemu Dobra Kaloria 1.4.0 (2.6.3).
+"""Drabina powierzchni L0…L4 i tagi z design systemu Dobra Kaloria (1.4.0 w 2.6.3, 1.5.0 w 2.6.4).
 
 L0 tło okna → L1 karta → L2 rubryka (pola, listy, tabela, podgląd) → L3 element w rubryce → L4 nakładka.
 Jasny: głębiej = ciemniej, ciemny: głębiej = jaśniej. Rubryki minimalnie ciemniejsze niż w 2.6.2.
@@ -64,9 +64,23 @@ def test_ladder_has_one_direction(theme):
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_no_pure_white_surface(theme):
+def test_white_only_as_light_window(theme):
+    """DS 1.5.0: jasne style = biała kartka programu (L0), karty i głębiej kremowe; ciemne bez bieli."""
     lad = palettes.LADDER[_key(theme)]
-    assert all(lad[f"surface_{n}"].upper() != "#FFFFFF" for n in range(5))
+    levels = [lad[f"surface_{n}"].upper() for n in range(5)]
+    if themes.is_dark_theme(theme):
+        assert "#FFFFFF" not in levels
+    else:
+        assert levels[0] == "#FFFFFF"
+        assert "#FFFFFF" not in levels[1:]
+        assert levels[1] == "#FDF8ED"  # kremowa karta programu (.hints / .found)
+
+
+@pytest.mark.parametrize("theme", ALL)
+def test_card_border_is_subtle(theme):
+    """2.6.4: karta bez ciężkiego obrysu — 1 px w roli border (jak w programie), nie border-strong."""
+    t = themes._THEME_TOKENS[theme]
+    assert t["@CARD_BORDER@"] == f"1px solid {t['@SEP@']}"
 
 
 @pytest.mark.parametrize("theme", ALL)

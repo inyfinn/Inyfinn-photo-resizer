@@ -108,7 +108,7 @@ class FormatSettingsDialog(AppDialog):
         self._advanced_panel: AdvancedSettingsPanel | None = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(20, 16, 20, 16)
         tabs = QTabWidget()
         tabs.setObjectName("dialogTabs")
 

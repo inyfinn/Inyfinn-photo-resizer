@@ -181,9 +181,9 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 920
 MIN_WINDOW_WIDTH = 1180
-MIN_WINDOW_HEIGHT = 800
-RIGHT_PANEL_MIN_WIDTH = 620
-DEFAULT_SPLITTER_SIZES = (600, 680)
+MIN_WINDOW_HEIGHT = 700  # 2.6.4: mieści się na 1366×768 (pasek zadań ~40 px)
+RIGHT_PANEL_MIN_WIDTH = 700  # 2.6.4: większe kontrolki — dwa kafelki obok siebie bez ucinania
+DEFAULT_SPLITTER_SIZES = (560, 720)
 
 
 class MainWindow(QMainWindow):
@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         if not getattr(self, "_geometry_restored", False):
             self.resize(w, h)
         if splitter := self._main_splitter:
-            right_w = max(RIGHT_PANEL_MIN_WIDTH, int(self.width() * 0.46))
+            right_w = max(RIGHT_PANEL_MIN_WIDTH, int(self.width() * 0.56))
             left_w = max(400, self.width() - right_w)
             splitter.setSizes([left_w, self.width() - left_w])
 
@@ -441,7 +441,7 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(16, 8, 16, 8)
+        root.setContentsMargins(20, 12, 20, 12)
         root.setSpacing(0)
         self._view_stack = QStackedWidget()
         self._view_stack.setObjectName("viewStack")
@@ -660,7 +660,15 @@ class MainWindow(QMainWindow):
         h.addWidget(center, stretch=100)  # kolumna wypełnia szerokość aż do maxWidth, potem centruje
         h.addStretch(1)
         outer_lay.addLayout(h, stretch=1)
-        return outer
+        # 2.6.4: większe napisy i odstępy — na niskim ekranie (1366×768) widok się przewija zamiast ściskać listę
+        scroll = QScrollArea()
+        scroll.setObjectName("simpleScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        scroll.setWidget(outer)
+        return scroll
 
     def _apply_header_for_mode(self) -> None:
         """Widoczność elementów paska górnego zależnie od trybu."""

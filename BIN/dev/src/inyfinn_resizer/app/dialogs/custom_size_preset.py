@@ -37,7 +37,7 @@ class CustomSizePresetDialog(AppDialog):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(20, 16, 20, 16)
 
         intro = QLabel(
             "Podaj nazwę i ustaw skalowanie lub kadrowanie. "

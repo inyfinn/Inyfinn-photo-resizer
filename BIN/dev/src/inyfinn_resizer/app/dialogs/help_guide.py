@@ -126,7 +126,7 @@ def _make_help_section(section_key: str, title: str, bullets: list[str]) -> QFra
     box = QFrame()
     box.setObjectName("helpGuideSection")
     outer = QVBoxLayout(box)
-    outer.setContentsMargins(12, 10, 12, 10)
+    outer.setContentsMargins(20, 16, 20, 16)
     outer.setSpacing(8)
 
     header = QWidget()
@@ -173,7 +173,7 @@ class HelpGuideDialog(AppDialog):
 
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        root.setContentsMargins(14, 12, 14, 12)
+        root.setContentsMargins(20, 16, 20, 16)
 
         intro = QLabel(
             f"Wsadowa konwersja i kompresja zdjęć. "

@@ -29,7 +29,7 @@ class RenameDialog(AppDialog):
         self._queue = queue
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(ROW_GAP)
 
         layout.addWidget(QLabel("Szablon nazwy (np. {name}_{counter:04d}):"))

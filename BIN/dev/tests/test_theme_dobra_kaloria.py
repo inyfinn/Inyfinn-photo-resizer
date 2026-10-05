@@ -66,11 +66,11 @@ def test_rendered_qss_is_complete_and_never_indigo(app, theme):
 @pytest.mark.parametrize(
     "theme, window, accent, on_accent",
     [
-        # Tło okna = poziom L0 drabiny design systemu 1.4.0 (w jasnych bez czystej bieli).
-        (ZJ, "#F8FBF9", "#0F763E", "#FFFFFF"),
-        (ZC, "#0F1F15", "#6FC792", "#0F1F15"),
-        (KJ, "#FEFCF6", "#0F763E", "#FFFFFF"),
-        (KC, "#1C1812", "#4CC46A", "#1C1812"),
+        # Tło okna = poziom L0 drabiny design systemu 1.5.0 (jasne: biała kartka programu).
+        (ZJ, "#FFFFFF", "#0F763E", "#FFFFFF"),
+        (ZC, "#0F2315", "#A2D686", "#0F190C"),
+        (KJ, "#FFFFFF", "#0F763E", "#FFFFFF"),
+        (KC, "#120F0A", "#4CC46A", "#1C1812"),
     ],
 )
 def test_values_from_design_system(theme, window, accent, on_accent):

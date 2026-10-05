@@ -54,6 +54,12 @@ Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz p
   w oknie konwersji) → L3 element w rubryce (co drugi wiersz, pole na zakładce, najechanie w liście) → L4 nakładka
   (menu, rozwinięta lista, podpowiedź, najechanie w drzewie plików). Jasny: głębiej = ciemniej, ciemny: głębiej =
   jaśniej, bez czystej bieli. Znaczniki `@BG_WINDOW@`, `@BG_PANEL@`, `@BG_INPUT@`/`@BG_PANEL_ALT@`, `@BG_L3@`, `@BG_L4@`.
+- **Skala tekstu i odstępy programu (od 2.6.4, design system 1.5.0, tokeny `qt.*`):** jasne style = biała kartka L0
+  `#FFFFFF` i kremowe karty L1 `#FDF8ED` jak w programie „Stwórz prezentację”; ramka karty 1 px w roli `border`
+  (`@CARD_BORDER@`, nie `border-strong`). Tekst 15 px (`themes._FONT_PIXEL_SIZE`), etykiety/podpowiedzi 14 px,
+  nagłówki kart Mindset 22 px; pola 40 px z ramką 1 px (fokus 2 px), przyciski 40 px, „Konwertuj” i chipy 48 px.
+  Stałe w `widgets/layout_helpers.py` (CONTROL_H 40, ACTION_H 48, SECTION_GAP 12, TILE_PADDING 20). Okno min.
+  1180×700; tryb prosty w `QScrollArea#simpleScroll` (na 1366×768 przewija się zamiast ściskać listę).
 - **Tagi (od 2.6.3):** chipy formatu PNG/JPG/AVIF w trybie prostym i znaczniki rozszerzenia w oknie konwersji mają
   kolory tagów design systemu (`@TAG<n>_BG@/_BORDER@/_FG@`, odcień stylu ±12°/±24°…); numer tagu formatu:
   `themes.format_tag()` (PNG 1, JPG 2, AVIF 3, WebP 4, GIF 5, TIFF 6).

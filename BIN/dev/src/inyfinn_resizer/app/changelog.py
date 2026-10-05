@@ -19,6 +19,19 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.4",
+        "2026-10-05",
+        [
+            "Czytelniej, w stylu programu „Stwórz prezentację” (design system Dobra Kaloria 1.5.0): białe tło okna i kremowe karty, jak w programie do prezentacji. Karty nie mają już ciemnego obrysu — tylko cienką, jasną ramkę.",
+            "Większe napisy w całym programie: zwykły tekst 15 px (było 13), etykiety i podpowiedzi 14 px, nagłówki kart 22 px. Większe przyciski i pola (40 px, „Konwertuj” 48 px) i więcej odstępu między elementami.",
+            "Dobra Kaloria 1 · zieleń, jasny: zamiast zielonkawego tła — biel i krem, zieleń tylko w akcentach (przyciski, przełączniki, nagłówki sekcji).",
+            "Dobra Kaloria 1 · zieleń, ciemny: cieplejszy — kremowy tekst, miodowe etykiety, żółtawa zieleń akcentów, głębsze poziomy przechodzą w oliwkę.",
+            "Dobra Kaloria 2 · krem, ciemny: ciemniejsze brązy na wszystkich poziomach (tło, karty, pola, ramki, tagi).",
+            "Okno mieści się na ekranie 1366×768 (minimalna wysokość 700 px).",
+            "Funkcje programu się nie zmieniły.",
+        ],
+    ),
+    (
         "2.6.3",
         "2026-09-30",
         [

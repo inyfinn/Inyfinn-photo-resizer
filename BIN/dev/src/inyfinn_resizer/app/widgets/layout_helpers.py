@@ -19,24 +19,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-BTN_H = 26
-FOOTER_BTN_H = 32
+BTN_H = 36
+FOOTER_BTN_H = 40
 # Tryb prosty: dwie wysokości zamiast pięciu — kontrolki (pole, przeglądaj, dodaj) i akcje (Konwertuj, formaty).
-CONTROL_H = 32
-ACTION_H = 44  # design system Dobra Kaloria: przycisk akcji min. 44 px
-ROW_GAP = 6
-FIELD_GAP = 4
-SECTION_GAP = 6
-TILE_PADDING = 22
-TILE_PADDING_TOP = TILE_PADDING - 8  # nagłówki 8 px wyżej w kafelku
-TILE_HEADER_SPACING = 6
-TILE_INNER_SPACING = 6
-TILE_TITLE_HEIGHT = 18
+CONTROL_H = 40
+ACTION_H = 48  # design system Dobra Kaloria 1.5.0: qt.control-h-primary
+ROW_GAP = 10
+FIELD_GAP = 6
+SECTION_GAP = 12
+TILE_PADDING = 20
+TILE_PADDING_TOP = TILE_PADDING - 4  # nagłówki 8 px wyżej w kafelku
+TILE_HEADER_SPACING = 10
+TILE_INNER_SPACING = 10
+TILE_TITLE_HEIGHT = 26
 CROP_PICKER_HEIGHT = 90
-STEP_ICON_SIZE = 24
-COMPACT_LABEL_W = 78
-COMPACT_SLIDER_ROW_H = 28
-COMPACT_CONTROL_ROW_H = 28
+STEP_ICON_SIZE = 28
+COMPACT_LABEL_W = 100
+COMPACT_SLIDER_ROW_H = 36
+COMPACT_CONTROL_ROW_H = 40
 
 
 def hint_label(text: str) -> QLabel:
