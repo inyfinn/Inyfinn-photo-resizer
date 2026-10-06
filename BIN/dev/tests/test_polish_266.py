@@ -345,7 +345,7 @@ def test_results_name_columns_are_not_narrower_than_in_264(app, monkeypatch):
 
 
 def test_breakable_path_keeps_drive_prefix_together_and_text_recoverable():
-    path = r"C:\Users\krzysztof.wieczorek\AppData\Local\Temp\inyfinn-capture-samples"
+    path = r"C:\Users\uzytkownik.testowy\AppData\Local\Temp\inyfinn-capture-samples"
     out = breakable_path(path)
     assert out.replace("\u200b", "").replace("\u2060", "") == path  # sama zawartość się nie zmienia
     assert out.startswith("C:\u2060\\")  # zakaz łamania między „C:” a „\”
@@ -374,7 +374,7 @@ def _wrapped_lines(font: QFont, text: str, width: int) -> list[str]:
 @pytest.mark.parametrize("width", [70, 90, 120, 160, 220])
 def test_preview_path_never_wraps_inside_the_drive_prefix(app, width):
     font = app.font()
-    path = r"C:\Users\krzysztof.wieczorek\AppData\Local\Temp\inyfinn-capture-samples"
+    path = r"C:\Users\uzytkownik.testowy\AppData\Local\Temp\inyfinn-capture-samples"
     lines = _wrapped_lines(font, breakable_path(path), width)
     clean = [ln.replace("\u200b", "").replace("\u2060", "") for ln in lines]
     assert len(lines) > 1
