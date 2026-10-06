@@ -6,18 +6,18 @@ menu Narzędzia → Styl kolorów; suwak go nie zmienia. Kolory suwaka z bieżą
 
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 
-def _token(name: str, fallback: str) -> str:
-    try:
-        from inyfinn_resizer.app.themes import theme_token
+def _token(name: str) -> str:
+    """Kolor z roli motywu (themes.theme_token) — w tym pliku nie ma stałych kolorów."""
+    from inyfinn_resizer.app.themes import theme_token
 
-        return theme_token(name)
-    except Exception:
-        return fallback
+    return theme_token(name)
 
 
 TOGGLE_TOOLTIP = "Tryb jasny lub ciemny (styl kolorów: Narzędzia → Styl kolorów)"
@@ -55,50 +55,50 @@ class ThemeToggle(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
 
+        # DS 1.6.0 (G5): wyłączony = tor switch-off + obrys 1 px switch-off-border, włączony (ciemny motyw) = tor
+        # switch-on; gałka switch-knob. Słońce w kolorze switch-on, księżyc czytelny na gałce.
         w, h = self.width(), self.height()
         slot_h = h - 4
         slot = QRectF(2, 2, w - 4, slot_h)
-        slot_bg = QColor(_token("@BG_INPUT@", "#ffffff"))
-        p.setPen(QPen(QColor(_token("@FIELD_BORDER@", "#9C8B72")), 1))
-        p.setBrush(slot_bg)
+        if self._dark:
+            track = QColor(_token("@SWITCH_ON@"))
+            p.setPen(QPen(track, 1))
+        else:
+            track = QColor(_token("@SWITCH_OFF@"))
+            p.setPen(QPen(QColor(_token("@SWITCH_OFF_BORDER@")), 1))
+        p.setBrush(track)
         p.drawRoundedRect(slot, slot_h / 2, slot_h / 2)
 
         knob_d = slot_h - 6
         knob_x = slot.right() - knob_d - 3 if self._dark else slot.left() + 3
         knob = QRectF(knob_x, slot.top() + 3, knob_d, knob_d)
-        knob_fill = QColor(_token("@BG_HOVER@", "#2F4D39")) if self._dark else QColor("#ffeccf")
+        knob_fill = QColor(_token("@SWITCH_KNOB@"))
         p.setPen(Qt.NoPen)
         p.setBrush(knob_fill)
         p.drawEllipse(knob)
 
-        inner = knob_d * 0.42
-        inner_rect = QRectF(
-            knob.center().x() - inner / 2,
-            knob.center().y() - inner / 2,
-            inner,
-            inner,
-        )
-        p.setBrush(QColor(_token("@FG_TEXT@", "#F5F1E8")) if self._dark else QColor("#ffbb52"))
-        p.drawEllipse(inner_rect)
-
+        c = knob.center()
         if not self._dark:
-            p.setPen(QPen(QColor("#ffbb52"), 1.5))
+            sun = QColor(_token("@SWITCH_SUN@"))
+            inner = knob_d * 0.42
+            p.setBrush(sun)
+            p.drawEllipse(QRectF(c.x() - inner / 2, c.y() - inner / 2, inner, inner))
+            p.setPen(QPen(sun, 1.5))
             for i in range(8):
-                angle = i * 45
-                import math
-
-                rad = math.radians(angle)
-                cx, cy = knob.center().x(), knob.center().y()
+                rad = math.radians(i * 45)
                 r0 = knob_d / 2 + 2
                 r1 = r0 + 4
                 p.drawLine(
-                    QPointF(cx + r0 * math.cos(rad), cy + r0 * math.sin(rad)),
-                    QPointF(cx + r1 * math.cos(rad), cy + r1 * math.sin(rad)),
+                    QPointF(c.x() + r0 * math.cos(rad), c.y() + r0 * math.sin(rad)),
+                    QPointF(c.x() + r1 * math.cos(rad), c.y() + r1 * math.sin(rad)),
                 )
         else:
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(_token("@FG_MUTED@", "#C9BEA6")))
-            c = knob.center()
-            p.drawEllipse(QRectF(c.x() - knob_d * 0.22, c.y() - knob_d * 0.28, knob_d * 0.35, knob_d * 0.35))
+            # księżyc = tarcza w kolorze switch-moon z wycięciem w kolorze gałki (półksiężyc)
+            moon_d = knob_d * 0.62
+            p.setBrush(QColor(_token("@SWITCH_MOON@")))
+            p.drawEllipse(QRectF(c.x() - moon_d / 2, c.y() - moon_d / 2, moon_d, moon_d))
+            cut_d = moon_d * 0.8
+            p.setBrush(knob_fill)
+            p.drawEllipse(QRectF(c.x() - cut_d / 2 + moon_d * 0.28, c.y() - cut_d / 2 - moon_d * 0.18, cut_d, cut_d))
 
         p.end()

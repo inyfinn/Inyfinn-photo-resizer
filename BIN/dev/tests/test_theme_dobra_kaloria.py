@@ -47,7 +47,7 @@ def test_two_styles_times_two_modes():
 
 def test_every_theme_defines_every_token_used_by_qss():
     qss = (themes.Path(themes.__file__).parent / "app.qss").read_text(encoding="utf-8")
-    used = set(re.findall(r"@[A-Z_]+@", qss)) - {"@CHECK_ICON@", "@COMBO_ARROW@"}
+    used = set(re.findall(r"@[A-Z_0-9]+@", qss)) - {"@ICON_DIR@", "@THEME_KEY@", "@COMBO_ARROW@", "@QUIET_RULES@"}
     keys = [set(t) for t in themes._THEME_TOKENS.values()]
     assert all(k == keys[0] for k in keys)
     assert used <= keys[0], sorted(used - keys[0])
@@ -59,25 +59,23 @@ def test_rendered_qss_is_complete_and_never_indigo(app, theme):
     assert re.findall(r"@[A-Z_]+@", qss) == []
     assert not any(c in qss.upper() for c in INDIGO)
     style, mode = themes.split_theme(theme)
-    assert f"check-{style}-{mode}.png" in qss
+    assert f"cb-{style}-{mode}-on.png" in qss  # runda 3: pole wyboru = obrazy stanów, nie wypełniony kwadrat
     assert f"combo-down-{style}-{mode}.png" in qss
 
 
-@pytest.mark.parametrize(
-    "theme, window, accent, on_accent",
-    [
-        # Tło okna = poziom L0 drabiny design systemu 1.5.0 (jasne: biała kartka programu).
-        (ZJ, "#FFFFFF", "#0F763E", "#FFFFFF"),
-        (ZC, "#0F2315", "#A2D686", "#0F190C"),
-        (KJ, "#FFFFFF", "#0F763E", "#FFFFFF"),
-        (KC, "#120F0A", "#4CC46A", "#1C1812"),
-    ],
-)
-def test_values_from_design_system(theme, window, accent, on_accent):
+@pytest.mark.parametrize("theme", ALL)
+def test_values_from_design_system(theme):
+    """Znaczniki = role palettes.py (wartości zmienia sync design systemu, nie ten test)."""
+    from inyfinn_resizer.app.themes import palettes
+
+    key = "-".join(themes.split_theme(theme))
     t = themes._THEME_TOKENS[theme]
-    assert (t["@BG_WINDOW@"], t["@ACCENT@"], t["@ON_ACCENT@"]) == (window, accent, on_accent)
-    assert (t["@CTA_BG@"], t["@CTA_TEXT@"]) == ("#FFD42A", "#3B2A20")
-    assert (t["@RADIUS_BTN@"], t["@RADIUS_FIELD@"], t["@RADIUS_CARD@"]) == ("4px", "8px", "12px")
+    r = palettes.ROLES[key]
+    assert t["@BG_WINDOW@"] == palettes.LADDER[key]["surface_0"]
+    assert (t["@FG_ACCENT@"], t["@ON_ACCENT@"]) == (r["color_accent"], r["color_on_accent"])
+    assert (t["@CTA_BG@"], t["@CTA_TEXT@"]) == (r["color_cta"], r["color_on_cta"])
+    assert (t["@RADIUS_BTN@"], t["@RADIUS_FIELD@"], t["@RADIUS_CARD@"]) == (
+        palettes.SHAPE["radius_btn"], palettes.SHAPE["radius_field"], palettes.SHAPE["radius_card"])
 
 
 @pytest.mark.parametrize(
@@ -113,7 +111,10 @@ def test_headings_uppercase_mindset_and_eyebrows(app):
     assert title.font().capitalization() == QFont.Capitalization.AllUppercase
     assert title.text() == "Lista plików"  # napis bez zmian, tylko sposób rysowania
     assert eyebrow.font().capitalization() == QFont.Capitalization.AllUppercase
-    assert eyebrow.font().letterSpacing() == pytest.approx(typography.EYEBROW_LETTER_SPACING)
+    assert eyebrow.font().letterSpacingType() == QFont.SpacingType.AbsoluteSpacing
+    px = eyebrow.font().pixelSize()
+    assert px > 0
+    assert eyebrow.font().letterSpacing() == pytest.approx(typography.EYEBROW_LETTER_SPACING_EM * px, abs=0.1)  # ok. 0,09 em (15 px przy Polish, 14 px po stylu)
     assert plain.font().capitalization() != QFont.Capitalization.AllUppercase
     # Po zmianie motywu wersaliki i krój zostają.
     themes.apply_theme(app, KC)

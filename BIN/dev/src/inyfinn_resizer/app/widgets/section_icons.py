@@ -1,70 +1,38 @@
-"""Ikony kroków workflow — badge w stylu mobilnego konwertera (2x, biały glyph)."""
+"""Ikony kroków workflow i pomocy — odznaka (kwadrat z zaokrągleniem) pod ikoną.
+
+Odznaka ma tło roli ``icon-bg`` i znak w kolorze roli ``icon`` (jeden kolor dla wszystkich odznak).
+Wszystkie kolory z motywu (``theme_token``); w tym pliku nie ma stałych kolorów.
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
-# Odznaki w kolorach marki Dobra Kaloria (zieleń, brąz, beż); biały znak na odznace.
-BADGE_ACCENTS_DK = {
-    "start": "#0F763E",  # green-700
-    "list": "#7D5E44",  # brown-600
-    "compression": "#0B5F31",  # green-800
-    "advanced": "#AD8767",  # tan-400
-    "menu": "#9C8B72",  # sand-700
-    "update": "#0F763E",
-    "format": "#0F763E",
-    "dimensions": "#7D5E44",
-    "save": "#AD8767",
-}
 
-# Dobra Kaloria ciemny: te same role, przyciemnione beże, żeby biały znak był czytelny
-# na ciemnozielonym tle (#162B1E).
-BADGE_ACCENTS_DK_DARK = {
-    "start": "#0F763E",
-    "list": "#7D5E44",
-    "compression": "#0B5F31",
-    "advanced": "#8C6B4F",
-    "menu": "#5E7A66",
-    "update": "#0F763E",
-    "format": "#0F763E",
-    "dimensions": "#7D5E44",
-    "save": "#8C6B4F",
-}
+def _token(name: str) -> str:
+    from inyfinn_resizer.app.themes import theme_token
+
+    return theme_token(name)
 
 
-def _is_dark() -> bool:
-    try:
-        from inyfinn_resizer.app.themes import is_dark_theme
-
-        return is_dark_theme()
-    except Exception:
-        return False
+def _badge_accent(key: str = "") -> str:
+    """Tło odznaki = icon-bg motywu (jeden kolor dla wszystkich odznak)."""
+    return _token("@ICON_BG@")
 
 
-def _badge_accent(key: str) -> str:
-    palette = BADGE_ACCENTS_DK_DARK if _is_dark() else BADGE_ACCENTS_DK
-    return palette.get(key, palette["format"])
+def _glyph() -> QColor:
+    """Kolor znaku na odznace = icon motywu."""
+    return QColor(_token("@ICON@"))
 
 
 def _fg_accent() -> str:
-    """Kolor tekstu przycisków drugorzędnych bieżącego motywu (@FG_ACCENT@)."""
-    try:
-        from inyfinn_resizer.app.themes import theme_token
-
-        return theme_token("@FG_ACCENT@")
-    except Exception:
-        return BADGE_ACCENTS_DK["format"]
+    """Kolor ikon przy przyciskach = icon motywu."""
+    return _token("@ICON@")
 
 
 def _accent() -> str:
-    """Akcent ikon rysowanych w kodzie = @ACCENT@ bieżącego motywu."""
-    try:
-        from inyfinn_resizer.app.themes import theme_token
-
-        return theme_token("@ACCENT@")
-    except Exception:
-        return BADGE_ACCENTS_DK["format"]
+    return _token("@ICON@")
 
 BADGE_SIZE = 40
 RENDER_SCALE = 2
@@ -91,7 +59,7 @@ def _finish_icon(px: QPixmap, painter: QPainter, logical_size: int) -> QPixmap:
 
 
 def _draw_format_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.2)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -105,7 +73,7 @@ def _draw_format_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_dimensions_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.2)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -120,7 +88,7 @@ def _draw_dimensions_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_save_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -145,13 +113,10 @@ def step_pixmap(step_key: str, *, size: int | None = None) -> QPixmap:
     accent = _badge_accent(step_key)
     logical = size or BADGE_SIZE
     px, painter, side = _badge_canvas(logical)
-    radius = 10.0
+    radius = 4.0  # S7: kwadratowa ikona-przycisk, promień 4
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor(accent))
     painter.drawRoundedRect(0.5, 0.5, side - 1, side - 1, radius, radius)
-    painter.setPen(QPen(QColor(255, 255, 255, 55), 1.0))
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRoundedRect(1.5, 1.5, side - 3, side - 3, radius - 1, radius - 1)
     if step_key == "format":
         _draw_format_white(painter, side)
     elif step_key == "dimensions":
@@ -166,7 +131,7 @@ def step_icon(step_key: str) -> QIcon:
 
 
 def _draw_start_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.2)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -182,7 +147,7 @@ def _draw_start_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_list_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -192,7 +157,7 @@ def _draw_list_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_compression_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -202,7 +167,7 @@ def _draw_compression_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_advanced_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -213,7 +178,7 @@ def _draw_advanced_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_menu_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.2)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -222,7 +187,7 @@ def _draw_menu_white(painter: QPainter, size: float) -> None:
 
 
 def _draw_update_white(painter: QPainter, size: float) -> None:
-    white = QColor("#ffffff")
+    white = _glyph()
     pen = QPen(white, 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
@@ -249,7 +214,7 @@ def help_section_pixmap(section_key: str, *, size: int | None = None) -> QPixmap
     accent = _badge_accent(section_key)
     logical = size or 32
     px, painter, side = _badge_canvas(logical)
-    radius = 8.0
+    radius = 4.0
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor(accent))
     painter.drawRoundedRect(0.5, 0.5, side - 1, side - 1, radius, radius)
@@ -263,7 +228,7 @@ def action_icon_refresh_path() -> QIcon:
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor(_fg_accent()), 2.4)
+    pen = QPen(QColor(_fg_accent()), 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -279,7 +244,7 @@ def action_icon_restore() -> QIcon:
     px.fill(Qt.GlobalColor.transparent)
     painter = QPainter(px)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor(_accent()), 2.4)
+    pen = QPen(QColor(_accent()), 2.0)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
@@ -308,3 +273,32 @@ def action_icon_folder_orange() -> QIcon:
     painter.drawRoundedRect(2, 5, 12, 8, 1.5, 1.5)
     painter.drawRoundedRect(2, 3, 5, 3, 1, 1)
     return QIcon(_finish_icon(px, painter, 16))
+
+
+_MESSAGE_ICONS = {
+    # rodzaj: (znak, tło, kolor znaku) — znaczniki motywu; ostrzeżenie = żółty kwadrat z ciemnym znakiem (DS 2.0.4)
+    "warning": ("!", "@CTA_BG@", "@CTA_TEXT@"),
+    "critical": ("!", "@OVERLAY_ABORT_HOVER_BG@", "@OVERLAY_ABORT_COLOR@"),
+    "question": ("?", "@ICON_BG@", "@ICON@"),
+    "information": ("i", "@ICON_BG@", "@ICON@"),
+}
+
+
+def message_box_pixmap(kind: str, *, size: int = 32) -> QPixmap:
+    """Ikona okna komunikatu w stylu DS: kwadrat z promieniem 4 i znakiem (zamiast systemowego trójkąta / koła).
+
+    ``kind``: warning (żółty kwadrat, ciemny znak), critical, question, information. Podłącza się przez
+    ``QMessageBox.setIconPixmap`` (okna komunikatów robi message_boxes.py).
+    """
+    glyph, bg, fg = _MESSAGE_ICONS.get(kind, _MESSAGE_ICONS["information"])
+    px, painter, side = _badge_canvas(size)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(_token(bg)))
+    painter.drawRoundedRect(0.5, 0.5, side - 1, side - 1, 4.0, 4.0)
+    font = painter.font()
+    font.setBold(True)
+    font.setPixelSize(int(side * 0.62))
+    painter.setFont(font)
+    painter.setPen(QColor(_token(fg)))
+    painter.drawText(QRectF(0, 0, side, side), int(Qt.AlignmentFlag.AlignCenter), glyph)
+    return _finish_icon(px, painter, size)

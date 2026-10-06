@@ -1,6 +1,6 @@
 """Generuje strzałki rozwijanej listy dla QComboBox — po jednej na motyw Dobra Kaloria.
 
-Kolor = color_text_muted (palettes.py). Plik: combo-down-<styl>-<tryb>.png.
+Kolor = color_text_muted (palettes.py, DS 1.6.0: brąz w beżowych zestawach). Plik: combo-down-<styl>-<tryb>.png.
 """
 
 from __future__ import annotations

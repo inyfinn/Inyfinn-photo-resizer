@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QModelIndex, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QKeySequence, QPen, QShortcut
+from PySide6.QtGui import QColor, QFont, QKeySequence, QPen, QShortcut
 from PySide6.QtWidgets import QAbstractItemView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 _ZONE_W = 26  # szerokość strefy ✕ po prawej stronie komórki
@@ -15,19 +15,24 @@ def remove_zone(cell: QRect) -> QRect:
     return QRect(cell.right() - _ZONE_W + 1, cell.top(), _ZONE_W, cell.height())
 
 
-def _on_accent() -> str:
-    try:
-        from inyfinn_resizer.app.themes import theme_token
+def _token(name: str) -> str:
+    from inyfinn_resizer.app.themes import theme_token
 
-        return theme_token("@ON_ACCENT@")
-    except Exception:
-        return "#ffffff"
+    return theme_token(name)
 
 
 class RemoveButtonDelegate(QStyledItemDelegate):
     """Rysuje ✕ po prawej stronie komórki; klik w ✕ = remove_clicked(index)."""
 
     remove_clicked = Signal(QModelIndex)
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:  # noqa: N802
+        """Zaznaczony wiersz: pogrubiony napis (QSS nie ustawia czcionki elementu listy)."""
+        super().initStyleOption(option, index)
+        if option.state & QStyle.StateFlag.State_Selected:
+            font = QFont(option.font)
+            font.setBold(True)
+            option.font = font
 
     def paint(self, painter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
         super().paint(painter, option, index)
@@ -37,10 +42,10 @@ class RemoveButtonDelegate(QStyledItemDelegate):
         if not (hovered or selected):
             color = QColor(option.palette.text().color())
             color.setAlphaF(0.35)
-        elif selected and not hovered:
-            color = QColor(_on_accent())  # zaznaczony wiersz ma tło @ACCENT@
+        elif selected:
+            color = QColor(_token("@ROW_SELECTED_FG@"))  # zaznaczony wiersz ma jasne tło (brand-soft), ✕ w kolorze text
         else:
-            color = QColor("#e5484d")  # czerwień „usuń” — jak ikona minus przy przycisku Usuń
+            color = QColor(_token("@OVERLAY_ABORT_COLOR@"))  # „usuń” = rola danger
         painter.save()
         painter.setRenderHint(painter.RenderHint.Antialiasing, True)
         pen = QPen(color)

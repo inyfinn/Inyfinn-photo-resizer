@@ -28,7 +28,7 @@ QLabel {
 QLabel#appTitle {
     font-size: 20px;
     font-weight: 700;
-    color: @FG_TITLE@;
+    color: @FG_HEADING_ACCENT@;
 }
 
 QLabel#versionBadge {
@@ -52,7 +52,7 @@ QLabel#sectionTitle {
     font-family: @FONT_FAMILY@;
     font-size: 14px;
     font-weight: 700;
-    color: @FG_LABEL@;
+    color: @FG_HEADING_ACCENT@;
     background: transparent;
 }
 
@@ -104,9 +104,10 @@ QWidget#helpGuideBody {
     background: transparent;
 }
 
+/* Sekcja pomocy = sam tekst z ikoną: biała karta wprost na białym oknie → bez wypełnienia, linia 1 px (S13/S14) */
 QFrame#helpGuideSection {
-    background-color: @BG_PANEL@;
-    border: @CARD_BORDER@;
+    background-color: transparent;
+    border: @LINE@;
     border-radius: @RADIUS_CARD@;
 }
 
@@ -145,7 +146,7 @@ QWidget#fieldGroup {
 }
 
 QLabel#formLabel, QLabel#formLabelInline {
-    color: @FG_MUTED@;
+    color: @FG_LABEL@;
     font-weight: 700;
     background: transparent;
 }
@@ -171,11 +172,71 @@ QLabel#previewMeta {
     font-size: 14px;
 }
 
-/* —— Kafelki Bento —— */
-QFrame#bentoTile {
+/* —— Kafelki Bento (wzorzec „Stwórz prezentację”: treść na BIELI, szary panel L1 tylko dla jednego bloku) ——
+   Właściwość variant (ustawia kod): panel = szary box L1 (bez właściwości też), plain = bez tła, promienia i obrysu
+   (treść na białym oknie), drop = strefa upuszczania: L1 + cienka przerywana ramka field-border. */
+QFrame#bentoTile, QFrame#bentoTile[variant="panel"] {
     background-color: @BG_PANEL@;
     border: @CARD_BORDER@;
     border-radius: @RADIUS_CARD@;
+}
+
+QFrame#bentoTile[variant="plain"] {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+QFrame#bentoTile[variant="drop"] {
+    background-color: @BG_PANEL@;
+    border: @DROP_BORDER@;
+    border-radius: @RADIUS_DROP@;
+}
+
+/* Linia między grupami ustawień na białym (1 px border) */
+QFrame#groupSep {
+    background-color: @SEP@;
+    border: none;
+    min-height: 1px;
+    max-height: 1px;
+    margin: 0;
+}
+
+/* Nagłówek kroku w trybie prostym: numer zielony + tytuł, oba Mindset; pusta strefa upuszczania: biała płytka
+   z ikoną, tytuł Mindset, podpowiedź */
+QLabel#stepNumber {
+    font-family: @FONT_DISPLAY@;
+    font-size: 26px;
+    font-weight: 400;
+    color: @FG_HEADING_ACCENT@;
+    background: transparent;
+    padding: 0;
+}
+
+QLabel#dropEmptyIcon {
+    background-color: @BG_PANEL_ALT@;
+    border: none;
+    border-radius: @RADIUS_BTN@;
+    min-width: 44px;
+    max-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+}
+
+QLabel#dropEmptyTitle {
+    font-family: @FONT_DISPLAY@;
+    font-size: 26px;
+    font-weight: 400;
+    color: @FG_TITLE@;
+    background: transparent;
+    qproperty-alignment: AlignCenter;
+}
+
+QLabel#dropEmptyHint {
+    font-size: 15px;
+    color: @FG_MUTED@;
+    background: transparent;
+    qproperty-alignment: AlignCenter;
 }
 
 QFrame#panel, QFrame#dropPanel, QFrame#sectionBox, QFrame#previewPanel {
@@ -186,7 +247,7 @@ QFrame#panel, QFrame#dropPanel, QFrame#sectionBox, QFrame#previewPanel {
 
 QLabel#sectionStepTitle {
     font-family: @FONT_DISPLAY@;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 400;
     color: @FG_TITLE@;
     background: transparent;
@@ -199,13 +260,6 @@ QLabel#sectionStepHint {
     background: transparent;
     padding: 0;
     line-height: 1.35;
-}
-
-QLabel#workflowHint {
-    font-size: 14px;
-    color: @FG_MUTED@;
-    background: transparent;
-    padding: 0 2px 4px 2px;
 }
 
 QSlider {
@@ -241,7 +295,7 @@ QScrollArea#simpleScroll QScrollBar::handle:vertical {
 
 QScrollArea#settingsScroll QScrollBar::handle:vertical:hover ,
 QScrollArea#simpleScroll QScrollBar::handle:vertical:hover {
-    background: @FG_MUTED@;
+    background: @FIELD_BORDER@;
 }
 
 QScrollArea#settingsScroll QScrollBar::add-line:vertical,
@@ -305,21 +359,21 @@ QMenuBar::item {
 
 QMenuBar::item:selected {
     background-color: @BG_HOVER@;
-    color: @FG_ACCENT@;
+    color: @FG_TEXT@;
 }
 
-/* L4 — nakładki: menu, rozwinięta lista, podpowiedź */
+/* Nakładki (menu, rozwinięta lista, podpowiedź, toast): rola overlay + ramka 1 px border, nie poziom L4 */
 QToolTip {
-    background-color: @BG_L4@;
+    background-color: @BG_OVERLAY@;
     color: @FG_TEXT@;
-    border: 1px solid @BORDER@;
-    border-radius: 4px;
+    border: @LINE@;
+    border-radius: @RADIUS_BTN@;
     padding: 6px 10px;
 }
 
 QMenu {
-    background-color: @BG_L4@;
-    border: 1px solid @SEP@;
+    background-color: @BG_OVERLAY@;
+    border: @LINE@;
     padding: 6px;
     color: @FG_TEXT@;
 }
@@ -329,75 +383,71 @@ QMenu::item {
 }
 
 QMenu::item:selected {
-    background-color: @BG_HOVER@;
-    color: @FG_ACCENT@;
+    background-color: @POPUP_SELECTED_BG@;
+    color: @ROW_SELECTED_FG@;
 }
 
+/* Przyciski (DS 2.0, S6). Drugorzędny (każdy QPushButton bez własnej reguły): tło btn2-bg, tekst btn2-text
+   pogrubiony WERSALIKAMI (typography.py; QSS nie ma text-transform), obrys btn2-border, promień 4.
+   Grubość obrysu = @BTN2_BORDER_W@, dopełnienie pionowe @BTN2_PAD_V@ = (2 px dawnego obrysu − obrys), więc
+   wysokość całkowita bez zmian (QSS min/max-height nie liczy ramki ani dopełnienia); stałe w themes/__init__.py.
+   Główny = zielony pełny (primaryBtn, footerPrimary, saveChoicePrimary, updateDialogAction, updateToastInstall,
+   updateStatusInstall); żółty CTA wyłącznie footerConvert. Fokus z klawiatury: kolor obrysu (bez zmiany wymiarów). */
 QPushButton {
-    background-color: transparent;
-    border: 2px solid @ACCENT@;
+    background-color: @BTN2_BG@;
+    border: @BTN2_BORDER_W@ solid @BTN2_BORDER@;
     border-radius: @RADIUS_BTN@;
-    padding: 0 16px;
-    /* 24 + ramka 2×2 = 28 px, tyle co przed zmianą stylu */
+    padding: @BTN2_PAD_V@ 16px;
     min-height: 32px;
     max-height: 32px;
-    color: @FG_ACCENT@;
+    color: @BTN2_TEXT@;
     font-weight: 700;
-    font-size: 15px;
+    font-size: @FS_BTN@;
 }
 
 QPushButton:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
+    background-color: @BTN2_HOVER@;
+    color: @BTN2_TEXT@;
 }
 
+QPushButton:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+/* Wersaliki poszerzają napis (+10…30 px), więc poziome dopełnienie małego toolBtn 10 → 6 px: cztery przyciski
+   listy plików nadal mieszczą się w jednym rzędzie lewej kolumny */
+/* toolBtn i btnUpdatePath to przyciski CICHE (S13, bez obrysu — reguły generowane niżej), więc dopełnienie
+   pionowe = @QUIET_PAD_V@ (2 px dawnego obrysu), nie @BTN2_PAD_V@ */
 QPushButton#toolBtn {
-    background-color: transparent;
-    border: 2px solid @ACCENT@;
-    padding: 0 10px;
+    padding: @QUIET_PAD_V@ 6px;
     font-size: 14px;
     min-width: 0;
-    border-radius: @RADIUS_BTN@;
 }
 
 /* Tryb prosty: jedna wysokość kontrolek (CONTROL_H = 32 px) */
 QPushButton#toolBtn[large="true"] {
-    /* CONTROL_H = 32: 28 + ramka 2×2 */
     min-height: 36px;
     max-height: 36px;
-    padding: 0 16px;
+    padding: @QUIET_PAD_V@ 16px;
     font-size: 15px;
 }
 
 QPushButton#btnBrowse[large="true"] {
     min-height: 36px;
     max-height: 36px;
-    padding: 0 16px;
+    padding: @BTN2_PAD_V@ 16px;
     font-size: 15px;
-    border-radius: @RADIUS_BTN@;
-}
-
-QPushButton#toolBtn:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
 }
 
 QPushButton#btnSecondary {
-    background-color: transparent;
-    border: 2px solid @ACCENT@;
     min-width: 72px;
-    border-radius: @RADIUS_BTN@;
 }
 
-QPushButton#btnSecondary:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
-}
-
+/* Link (S12): tekst text, pogrubiony, podkreślony; najechanie = akcent (zielony) */
 QPushButton#btnLink {
     background-color: transparent;
     border: none;
-    color: @FG_ACCENT@;
+    color: @FG_TEXT@;
     font-weight: 700;
     text-decoration: underline;
     min-width: 72px;
@@ -409,7 +459,7 @@ QPushButton#btnLink {
 
 QPushButton#btnLink:hover {
     background-color: transparent;
-    color: @ACCENT_HOVER@;
+    color: @FG_ACCENT@;
 }
 
 QPushButton#btnLink:pressed {
@@ -426,39 +476,32 @@ QPushButton#footerSecondary {
     min-height: 36px;
     max-height: 36px;
     min-width: 108px;
-    padding: 0 20px;
+    padding: @BTN2_PAD_V@ 20px;
     font-size: 15px;
     border-radius: @RADIUS_BTN@;
 }
 
 QPushButton#footerPrimary {
-    background-color: @CTA_BG@;
-    color: @CTA_TEXT@;
+    background-color: @PRIMARY_BG@;
+    color: @PRIMARY_TEXT@;
     border: none;
+    padding: 0 20px;
     font-weight: 700;
 }
 
 QPushButton#footerPrimary:hover {
-    background-color: @CTA_HOVER@;
+    background-color: @PRIMARY_HOVER@;
 }
 
 QPushButton#footerPrimary:disabled {
-    background-color: @BG_HOVER@;
+    background-color: @DISABLED_BG@;
     color: @FG_MUTED@;
 }
 
 QPushButton#footerSecondary {
-    background-color: transparent;
-    color: @FG_ACCENT@;
-    border: 2px solid @ACCENT@;
     font-weight: 700;
     min-height: 28px;
     max-height: 28px;
-}
-
-QPushButton#footerSecondary:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
 }
 
 QPushButton#footerConvert {
@@ -466,7 +509,7 @@ QPushButton#footerConvert {
     max-height: 48px;
     min-width: 160px;
     padding: 0 28px;
-    font-size: 17px;
+    font-size: @FS_BTN_PRIMARY@;
     border-radius: @RADIUS_BTN@;
     background-color: @CTA_BG@;
     color: @CTA_TEXT@;
@@ -479,12 +522,12 @@ QPushButton#footerConvert:hover {
 }
 
 QPushButton#footerConvert:disabled {
-    background-color: @BG_HOVER@;
+    background-color: @DISABLED_BG@;
     color: @FG_MUTED@;
 }
 
 QLabel#formatChipCaption {
-    color: @FG_LABEL@;
+    color: @FG_HEADING_ACCENT@;
     font-size: 14px;
     font-weight: 700;
     background: transparent;
@@ -492,46 +535,51 @@ QLabel#formatChipCaption {
 
 /* Chipy formatu = tagi: odcień stylu z małym przesunięciem barwy na format (design system 1.4.0, „tags”).
    Numer tagu nadaje kod (themes.format_tag): PNG 1, JPG 2, AVIF 3, WebP 4, GIF 5, TIFF 6.
-   To przyciski, więc ramka 2 px w kolorze tekstu tagu (ramka tagu z DS jest za słaba na element klikalny);
-   najechanie = tło w kolorze ramki tagu (odcień ciemniej w jasnym, jaśniej w ciemnym). */
+   S13: tag = samo wypełnienie, BEZ obrysu; najechanie / wciśnięcie = mocniejszy odcień (kolor ramki tagu jako
+   wypełnienie). Jedyny obrys to fokus z klawiatury (2 px, kolor focus) — wymiary bez zmian: wysokość 48 px bez
+   obrysu, przy fokusie 44 + 2×2 px obrysu, dopełnienie poziome −2 px. */
 QPushButton#formatChip {
     background-color: @TAG1_BG@;
-    border: 1px solid @TAG1_FG@;
+    border: none;
     color: @TAG1_FG@;
     border-radius: @RADIUS_BTN@;
     min-width: 72px;
     max-width: 96px;
-    /* 46 + ramka 1×2 = 48 px, tyle co Konwertuj (bez ramki) */
-    min-height: 46px;
-    max-height: 46px;
-    padding: 0 12px;
+    min-height: @CHIP_H@;
+    max-height: @CHIP_H@;
+    padding: 0 @CHIP_PAD@;
     font-size: 15px;
     font-weight: 700;
 }
 
 QPushButton#formatChip:hover, QPushButton#formatChip:pressed { background-color: @TAG1_BORDER@; }
-QPushButton#formatChip[tag="2"] { background-color: @TAG2_BG@; border-color: @TAG2_FG@; color: @TAG2_FG@; }
+QPushButton#formatChip[tag="2"] { background-color: @TAG2_BG@; color: @TAG2_FG@; }
 QPushButton#formatChip[tag="2"]:hover, QPushButton#formatChip[tag="2"]:pressed { background-color: @TAG2_BORDER@; }
-QPushButton#formatChip[tag="3"] { background-color: @TAG3_BG@; border-color: @TAG3_FG@; color: @TAG3_FG@; }
+QPushButton#formatChip[tag="3"] { background-color: @TAG3_BG@; color: @TAG3_FG@; }
 QPushButton#formatChip[tag="3"]:hover, QPushButton#formatChip[tag="3"]:pressed { background-color: @TAG3_BORDER@; }
-QPushButton#formatChip[tag="4"] { background-color: @TAG4_BG@; border-color: @TAG4_FG@; color: @TAG4_FG@; }
+QPushButton#formatChip[tag="4"] { background-color: @TAG4_BG@; color: @TAG4_FG@; }
 QPushButton#formatChip[tag="4"]:hover, QPushButton#formatChip[tag="4"]:pressed { background-color: @TAG4_BORDER@; }
-QPushButton#formatChip[tag="5"] { background-color: @TAG5_BG@; border-color: @TAG5_FG@; color: @TAG5_FG@; }
+QPushButton#formatChip[tag="5"] { background-color: @TAG5_BG@; color: @TAG5_FG@; }
 QPushButton#formatChip[tag="5"]:hover, QPushButton#formatChip[tag="5"]:pressed { background-color: @TAG5_BORDER@; }
-QPushButton#formatChip[tag="6"] { background-color: @TAG6_BG@; border-color: @TAG6_FG@; color: @TAG6_FG@; }
+QPushButton#formatChip[tag="6"] { background-color: @TAG6_BG@; color: @TAG6_FG@; }
 QPushButton#formatChip[tag="6"]:hover, QPushButton#formatChip[tag="6"]:pressed { background-color: @TAG6_BORDER@; }
-QPushButton#formatChip[tag="7"] { background-color: @TAG7_BG@; border-color: @TAG7_FG@; color: @TAG7_FG@; }
+QPushButton#formatChip[tag="7"] { background-color: @TAG7_BG@; color: @TAG7_FG@; }
 QPushButton#formatChip[tag="7"]:hover, QPushButton#formatChip[tag="7"]:pressed { background-color: @TAG7_BORDER@; }
-QPushButton#formatChip[tag="8"] { background-color: @TAG8_BG@; border-color: @TAG8_FG@; color: @TAG8_FG@; }
+QPushButton#formatChip[tag="8"] { background-color: @TAG8_BG@; color: @TAG8_FG@; }
 QPushButton#formatChip[tag="8"]:hover, QPushButton#formatChip[tag="8"]:pressed { background-color: @TAG8_BORDER@; }
 
-/* Fokus z klawiatury: ramka w kolorze akcentu */
-QPushButton#formatChip:focus {
-    border-color: @BORDER_FOCUS@;
+/* Fokus z klawiatury: obrys @FOCUS_W@ w kolorze focus (jedyny obrys chipa); wymiary bez zmian — wysokość i
+   dopełnienie pomniejszone o obrys (markery z themes/__init__.py) */
+QPushButton#formatChip:focus,
+QPushButton#formatChip[tag]:focus {
+    border: @FOCUS_W@ solid @BORDER_FOCUS@;
+    min-height: @CHIP_FOCUS_H@;
+    max-height: @CHIP_FOCUS_H@;
+    padding: 0 @CHIP_FOCUS_PAD@;
 }
 
 QPushButton#formatChip:disabled {
-    border-color: @SEP@;
+    background-color: @DISABLED_BG@;
     color: @FG_MUTED@;
 }
 
@@ -553,37 +601,30 @@ QLabel#saveChoiceHint {
 }
 
 QPushButton#saveChoicePrimary {
-    background-color: @CTA_BG@;
-    color: @CTA_TEXT@;
+    background-color: @PRIMARY_BG@;
+    color: @PRIMARY_TEXT@;
     border: none;
+    padding: 0 16px;
     border-radius: @RADIUS_BTN@;
     font-weight: 700;
     font-size: 15px;
 }
 
 QPushButton#saveChoicePrimary:hover {
-    background-color: @CTA_HOVER@;
+    background-color: @PRIMARY_HOVER@;
 }
 
 QPushButton#saveChoiceOutline {
-    background: transparent;
-    color: @FG_ACCENT@;
-    border: 2px solid @ACCENT@;
     border-radius: @RADIUS_BTN@;
     font-weight: 700;
     font-size: 15px;
-}
-
-QPushButton#saveChoiceOutline:hover {
-    background-color: @BRAND_SOFT@;
-    color: @FG_ACCENT@;
 }
 
 QLabel#changelogVersion {
     font-family: @FONT_DISPLAY@;
     font-size: 22px;
     font-weight: 400;
-    color: @FG_ACCENT@;
+    color: @FG_HEADING_ACCENT@;
 }
 
 QPushButton#footerClose {
@@ -594,7 +635,7 @@ QPushButton#footerClose {
     font-size: 15px;
     border-radius: @RADIUS_BTN@;
     background-color: transparent;
-    color: @FG_ACCENT@;
+    color: @FG_TEXT@;
     border: none;
     font-weight: 700;
     text-decoration: underline;
@@ -602,14 +643,15 @@ QPushButton#footerClose {
 
 QPushButton#footerClose:hover {
     background-color: transparent;
-    color: @ACCENT_HOVER@;
+    color: @FG_ACCENT@;
 }
 
 QPushButton#primaryBtn,
 QPushButton#updateDialogAction {
-    background-color: @CTA_BG@;
-    color: @CTA_TEXT@;
+    background-color: @PRIMARY_BG@;
+    color: @PRIMARY_TEXT@;
     border: none;
+    padding: 0 16px;
     font-weight: 700;
     font-size: 15px;
     min-height: 40px;
@@ -620,12 +662,12 @@ QPushButton#updateDialogAction {
 
 QPushButton#primaryBtn:hover,
 QPushButton#updateDialogAction:hover {
-    background-color: @CTA_HOVER@;
+    background-color: @PRIMARY_HOVER@;
 }
 
 QPushButton#primaryBtn:disabled,
 QPushButton#updateDialogAction:disabled {
-    background-color: @BG_HOVER@;
+    background-color: @DISABLED_BG@;
     color: @FG_MUTED@;
 }
 
@@ -647,11 +689,12 @@ QWidget#themeToggleWidget {
     margin: 4px 12px 0 0;
 }
 
+/* Lista plików (S10): biała rubryka L2 na szarym panelu, bez obrysu (granicę robi sam kontrast), pasy zebra, bez
+   linii pionowych ani poziomych między wierszami */
 QTreeWidget#inputList {
     background-color: @BG_PANEL_ALT@;
-    /* L2 rubryka, co drugi wiersz L3 */
-    alternate-background-color: @BG_L3@;
-    border: 1px solid @SEP@;
+    alternate-background-color: @BG_ZEBRA@;
+    border: none;
     border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
     outline: none;
@@ -659,13 +702,13 @@ QTreeWidget#inputList {
 }
 
 QTreeWidget#inputList QHeaderView::section {
-    border-right: 1px solid @SEP@;
+    border-right: none;
 }
 
 QTreeWidget#inputList::item {
     padding: 6px 10px;
     min-height: 28px;
-    border-bottom: 1px solid @SEP@;
+    border-bottom: none;
 }
 
 /* Kolumna „Rozmiar” ma ✕ po prawej (removable_items.py, strefa 26 px) */
@@ -673,71 +716,76 @@ QTreeWidget#inputList::item {
     padding-right: 30px;
 }
 
+/* Lista w strefie upuszczania: sama bez tła i obrysu (ramkę i tło robi kafelek variant="drop"); wiersze to białe
+   płytki L2 z odstępem 6 px */
 QListWidget#simpleFileList {
+    background-color: transparent;
     outline: none;
     padding: 4px;
-    /* Dobra Kaloria: strefa upuszczania z przerywaną ramką, jak w programie do prezentacji */
-    border: @DROP_BORDER@;
-    border-radius: @RADIUS_DROP@;
+    border: none;
 }
 
 QListWidget#simpleFileList::item {
+    background-color: @BG_PANEL_ALT@;
     padding: 7px 30px 7px 10px;
     min-height: 26px;
-    border-radius: 6px;
+    margin: 3px 0;
+    border-radius: @RADIUS_BTN@;
 }
 
+/* Wiersze (S3 + „biel ma dominować”): zaznaczony = jasne tło brand-soft + tekst text (pogrubienie robi delegat),
+   ikona wiersza zostaje zielona; najechanie = surface-hover (inne niż zaznaczenie) */
 QListWidget#simpleFileList::item:selected {
-    background-color: @ACCENT@;
-    color: @ON_ACCENT@;
+    background-color: @ROW_SELECTED_BG@;
+    color: @ROW_SELECTED_FG@;
 }
 
-/* Najechanie na wiersz w rubryce (L2) = poziom głębiej niż wiersze (L3 w liście, L4 w drzewie z L3 co drugi) */
 QListWidget#simpleFileList::item:hover:!selected {
-    background-color: @BG_L3@;
+    background-color: @ROW_HOVER@;
 }
 
 QTreeWidget#inputList::item:selected {
-    background-color: @ACCENT@;
-    color: @ON_ACCENT@;
+    background-color: @ROW_SELECTED_BG@;
+    color: @ROW_SELECTED_FG@;
 }
 
 QTreeWidget#inputList::item:hover:!selected {
-    background-color: @BG_L4@;
+    background-color: @ROW_HOVER@;
 }
 
+/* Nagłówek tabeli (S10): białe tło rubryki, pogrubiony tekst label, tylko dolna linia 1 px */
 QHeaderView::section {
     background-color: @BG_PANEL_ALT@;
-    color: @FG_MUTED@;
+    color: @FG_LABEL@;
     padding: 10px 12px;
     border: none;
-    border-bottom: 1px solid @SEP@;
+    border-bottom: @LINE@;
     font-weight: 700;
 }
 
 QComboBox {
     background-color: @BG_INPUT@;
-    border: 1px solid @FIELD_BORDER@;
+    border: @FIELD_BORDER_W@ solid @FIELD_BORDER@;
     border-radius: @RADIUS_FIELD@;
     padding: 4px 30px 4px 12px;
     min-height: 30px;
     max-height: 30px;
     color: @FG_TEXT@;
-    selection-background-color: @ACCENT@;
-    selection-color: @ON_ACCENT@;
+    selection-background-color: @ROW_SELECTED_BG@;
+    selection-color: @ROW_SELECTED_FG@;
 }
 
 QLineEdit, QSpinBox {
     background-color: @BG_INPUT@;
-    border: 1px solid @FIELD_BORDER@;
+    border: @FIELD_BORDER_W@ solid @FIELD_BORDER@;
     border-radius: @RADIUS_FIELD@;
     padding: 4px 12px;
     /* 26 + padding 1×2 + ramka 2×2 = 32 px, tyle co przed zmianą stylu */
     min-height: 30px;
     max-height: 30px;
     color: @FG_TEXT@;
-    selection-background-color: @ACCENT@;
-    selection-color: @ON_ACCENT@;
+    selection-background-color: @ROW_SELECTED_BG@;
+    selection-color: @ROW_SELECTED_FG@;
     qproperty-alignment: 'AlignLeft|AlignVCenter';
 }
 
@@ -759,8 +807,9 @@ QComboBox:hover, QLineEdit:hover, QSpinBox:hover {
     border-color: @FG_MUTED@;
 }
 
+/* Fokus (S9): obrys @FOCUS_W@ w kolorze focus; dopełnienie mniejsze o różnicę obrysów (reguły na końcu pliku) */
 QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
-    border: 2px solid @BORDER_FOCUS@;
+    border: @FOCUS_W@ solid @BORDER_FOCUS@;
     background-color: @BG_INPUT@;
 }
 
@@ -775,7 +824,7 @@ QComboBox::drop-down {
 }
 
 QComboBox::drop-down:hover {
-    background: @BG_L3@;
+    background: @BG_HOVER@;
 }
 
 QComboBox::down-arrow {
@@ -784,12 +833,13 @@ QComboBox::down-arrow {
     height: 12px;
 }
 
+/* Rozwinięta lista = nakładka: overlay + ramka 1 px, zaznaczony wiersz brand-soft + tekst */
 QComboBox QAbstractItemView {
-    background-color: @BG_L4@;
+    background-color: @BG_OVERLAY@;
     color: @FG_TEXT@;
-    border: none;
-    selection-background-color: @ACCENT@;
-    selection-color: @ON_ACCENT@;
+    border: @LINE@;
+    selection-background-color: @POPUP_SELECTED_BG@;
+    selection-color: @ROW_SELECTED_FG@;
     outline: none;
 }
 
@@ -799,8 +849,8 @@ QComboBox QAbstractItemView::item {
 }
 
 QComboBox QAbstractItemView::item:selected {
-    background-color: @ACCENT@;
-    color: @ON_ACCENT@;
+    background-color: @POPUP_SELECTED_BG@;
+    color: @ROW_SELECTED_FG@;
 }
 
 QListWidget {
@@ -810,39 +860,37 @@ QListWidget {
     color: @FG_TEXT@;
 }
 
+/* Suwak (G5): tor slider-track, wypełnienie slider-fill, uchwyt jasny z obrysem 2 px slider-thumb-border */
+/* Wzorzec: tor 8 px (pełny promień), uchwyt 24 px łącznie (20 + obrys 2×2), margines −8 px centruje go na torze */
 QSlider::groove:horizontal {
-    height: 6px;
-    background: @BORDER@;
-    border-radius: 3px;
+    height: @SLIDER_TRACK_H@;
+    background: @SLIDER_TRACK@;
+    border-radius: 4px;
 }
 
 QSlider::handle:horizontal {
-    width: 18px;
-    height: 18px;
-    margin: -8px 0;
-    background: @ACCENT@;
-    border: 2px solid @BG_PANEL@;
-    border-radius: 11px;
+    width: @SLIDER_THUMB_INNER@;
+    height: @SLIDER_THUMB_INNER@;
+    margin: @SLIDER_THUMB_MARGIN@ 0;
+    background: @SLIDER_THUMB@;
+    border: @SLIDER_THUMB_BORDER_W@ solid @SLIDER_THUMB_BORDER@;
+    border-radius: 12px;
 }
 
 QSlider::sub-page:horizontal {
-    background: @ACCENT@;
-    border-radius: 3px;
+    background: @SLIDER_FILL@;
+    border-radius: 4px;
 }
 
+/* Pasek postępu (S8): wypełnienie progress na torze slider-track */
 QProgressBar {
     border: none;
     border-radius: 10px;
-    background: @BG_PANEL_ALT@;
+    background: @SLIDER_TRACK@;
     min-height: 12px;
     max-height: 20px;
-    color: @FG_MUTED@;
+    color: @FG_TEXT@;
     text-align: center;
-}
-
-QProgressBar#mainProgress,
-QProgressBar#resultsProgress {
-    background: @BG_INPUT@;
 }
 
 QLabel#progressStatus {
@@ -868,7 +916,7 @@ QFrame#vSeparator {
 }
 
 QProgressBar::chunk {
-    background-color: @ACCENT@;
+    background-color: @PROGRESS@;
     border-radius: 3px;
 }
 
@@ -877,49 +925,72 @@ QTabWidget::pane {
     background: transparent;
 }
 
+/* Zakładki (S5, S10): nieaktywna tekst text, aktywna zielony tytuł heading-accent z podkreśleniem */
 QTabBar::tab {
     background: transparent;
     border-bottom: 3px solid transparent;
     padding: 8px 16px;
-    color: @FG_MUTED@;
+    color: @FG_TEXT@;
     font-weight: 700;
 }
 
 QTabBar::tab:selected {
-    color: @FG_ACCENT@;
-    border-bottom: 3px solid @ACCENT@;
+    color: @FG_HEADING_ACCENT@;
+    border-bottom: 3px solid @FG_HEADING_ACCENT@;
 }
 
-QCheckBox {
+QCheckBox, QRadioButton {
     spacing: 10px;
     color: @FG_TEXT@;
     min-height: 28px;
     background: transparent;
 }
 
-QCheckBox::indicator {
-    /* 16 + ramka 2×2 = 20 px */
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 2px solid @FIELD_BORDER@;
-    background: @BG_INPUT@;
+/* Pole wyboru (G1, S8, DS check-*): wnętrze jasne także po zaznaczeniu, obrys 1,5 px, znak zielony (zaznaczone:
+   obrys też w kolorze znaku).
+   QSS nie rysuje obrysu 1,5 px (wychodzi 1 albo 2 px), więc cały wskaźnik 20 px to obraz 80×80 na stan
+   (icons/generate_check_icons.py), zmniejszany przez Qt; w QSS border: none. */
+QCheckBox::indicator, QRadioButton::indicator {
+    width: @CHECK_SIZE@;
+    height: @CHECK_SIZE@;
+    border: none;
+    background: transparent;
 }
 
-QCheckBox::indicator:checked {
-    background: @ACCENT@;
-    border: 2px solid @ACCENT@;
-    image: url(@CHECK_ICON@);
-}
+QCheckBox::indicator:unchecked { image: url(@ICON_DIR@/cb-@THEME_KEY@-off.png); }
+QCheckBox::indicator:unchecked:hover { image: url(@ICON_DIR@/cb-@THEME_KEY@-off-hover.png); }
+QCheckBox::indicator:unchecked:focus { image: url(@ICON_DIR@/cb-@THEME_KEY@-off-focus.png); }
+QCheckBox::indicator:checked { image: url(@ICON_DIR@/cb-@THEME_KEY@-on.png); }
+QCheckBox::indicator:checked:hover { image: url(@ICON_DIR@/cb-@THEME_KEY@-on-hover.png); }
+QCheckBox::indicator:checked:focus { image: url(@ICON_DIR@/cb-@THEME_KEY@-on-focus.png); }
+QCheckBox::indicator:unchecked:disabled { image: url(@ICON_DIR@/cb-@THEME_KEY@-off-dis.png); }
+QCheckBox::indicator:checked:disabled { image: url(@ICON_DIR@/cb-@THEME_KEY@-on-dis.png); }
 
-QCheckBox::indicator:disabled {
-    background: @BG_PANEL_ALT@;
-}
+QRadioButton::indicator:unchecked { image: url(@ICON_DIR@/rb-@THEME_KEY@-off.png); }
+QRadioButton::indicator:unchecked:hover { image: url(@ICON_DIR@/rb-@THEME_KEY@-off-hover.png); }
+QRadioButton::indicator:unchecked:focus { image: url(@ICON_DIR@/rb-@THEME_KEY@-off-focus.png); }
+QRadioButton::indicator:checked { image: url(@ICON_DIR@/rb-@THEME_KEY@-on.png); }
+QRadioButton::indicator:checked:hover { image: url(@ICON_DIR@/rb-@THEME_KEY@-on-hover.png); }
+QRadioButton::indicator:checked:focus { image: url(@ICON_DIR@/rb-@THEME_KEY@-on-focus.png); }
+QRadioButton::indicator:unchecked:disabled { image: url(@ICON_DIR@/rb-@THEME_KEY@-off-dis.png); }
+QRadioButton::indicator:checked:disabled { image: url(@ICON_DIR@/rb-@THEME_KEY@-on-dis.png); }
 
-QCheckBox:disabled {
+QCheckBox:disabled, QRadioButton:disabled {
     color: @FG_MUTED@;
     background: transparent;
 }
+
+/* Znacznik w menu (Narzędzia → Styl kolorów / Tryb): te same obrazy */
+QMenu::indicator {
+    width: @CHECK_SIZE@;
+    height: @CHECK_SIZE@;
+    left: 4px;
+}
+
+QMenu::indicator:non-exclusive:unchecked { image: url(@ICON_DIR@/cb-@THEME_KEY@-off.png); }
+QMenu::indicator:non-exclusive:checked { image: url(@ICON_DIR@/cb-@THEME_KEY@-on.png); }
+QMenu::indicator:exclusive:unchecked { image: url(@ICON_DIR@/rb-@THEME_KEY@-off.png); }
+QMenu::indicator:exclusive:checked { image: url(@ICON_DIR@/rb-@THEME_KEY@-on.png); }
 
 QFrame#moreOptions, QGroupBox#moreOptions {
     background-color: @BG_PANEL_ALT@;
@@ -941,7 +1012,7 @@ QCheckBox#moreToggle {
 }
 
 QLabel#previewBox {
-    border: none;
+    border: @LINE@;
     border-radius: @RADIUS_FIELD@;
     background-color: @BG_PANEL_ALT@;
     min-width: 112px;
@@ -956,40 +1027,33 @@ QStatusBar {
     color: @FG_MUTED@;
 }
 
+/* Uchwyt podziału: bez widocznej linii; przy najechaniu cienka linia 2 px pośrodku (margines, bez width —
+   szerokość uchwytu ustawia kod okna) */
 QSplitter::handle {
-    background: @SEP@;
-    width: 1px;
-    margin: 6px 3px;
+    background: transparent;
+    margin: 6px 0;
 }
 
 QSplitter::handle:hover {
-    background: @BORDER@;
+    background: @SEP@;
+    margin: 6px 7px;
 }
 
+/* Okno dialogowe: tło L0 (biel), zawartość zakładki = panel L1 bez obrysu, pola na nim = L2 (biel) */
 QDialog#appDialog {
-    background-color: @BG_PANEL@;
+    background-color: @BG_WINDOW@;
     color: @FG_TEXT@;
 }
 
 QDialog#appDialog QLabel {
-    color: @FG_TEXT@;
     background: transparent;
 }
 
 QTabWidget#dialogTabs::pane {
     border: none;
-    border-radius: @RADIUS_FIELD@;
-    background: @BG_PANEL_ALT@;
+    border-radius: @RADIUS_CARD@;
+    background: @BG_PANEL@;
     padding: 14px;
-}
-
-/* Rubryki na zakładce (zakładka = L2) są o poziom głębiej: L3 */
-QTabWidget#dialogTabs QLineEdit,
-QTabWidget#dialogTabs QSpinBox,
-QTabWidget#dialogTabs QDoubleSpinBox,
-QTabWidget#dialogTabs QComboBox,
-QTabWidget#dialogTabs QCheckBox::indicator:unchecked {
-    background-color: @BG_L3@;
 }
 
 QTabWidget#dialogTabs QLineEdit:disabled,
@@ -1000,13 +1064,13 @@ QTabWidget#dialogTabs QComboBox:disabled {
 }
 
 QTabWidget#dialogTabs QTabBar::tab {
-    color: @FG_MUTED@;
+    color: @FG_TEXT@;
     padding: 8px 16px;
 }
 
 QTabWidget#dialogTabs QTabBar::tab:selected {
-    color: @FG_ACCENT@;
-    border-bottom: 2px solid @ACCENT@;
+    color: @FG_HEADING_ACCENT@;
+    border-bottom: 2px solid @FG_HEADING_ACCENT@;
 }
 
 QTabWidget#dialogTabs QTabBar::tab:last {
@@ -1019,8 +1083,8 @@ QAbstractItemView {
     background-color: @BG_INPUT@;
     color: @FG_TEXT@;
     border: none;
-    selection-background-color: @ACCENT@;
-    selection-color: @ON_ACCENT@;
+    selection-background-color: @ROW_SELECTED_BG@;
+    selection-color: @ROW_SELECTED_FG@;
     outline: none;
 }
 
@@ -1036,7 +1100,7 @@ QListView#formatMultiList::item:hover:!selected {
 QComboBox#formatMultiCombo {
     min-height: 30px;
     max-height: 30px;
-    border: 1px solid @FIELD_BORDER@;
+    border: @FIELD_BORDER_W@ solid @FIELD_BORDER@;
 }
 
 QComboBox#formatMultiCombo::drop-down {
@@ -1060,35 +1124,34 @@ QComboBox#formatMultiCombo QLineEdit {
 }
 
 QComboBox#formatMultiCombo:focus {
-    border: 2px solid @BORDER_FOCUS@;
+    border: @FOCUS_W@ solid @BORDER_FOCUS@;
 }
 
+/* Tabela wyników (S10): pasy zebra / biel, bez linii pionowych i poziomych między wierszami */
 QTableWidget#resultsTable {
     background-color: @BG_INPUT@;
     color: @FG_TEXT@;
-    border: none;
-    gridline-color: @SEP@;
-    alternate-background-color: @BG_L3@;
+    border: @LINE@;
+    gridline-color: transparent;
+    alternate-background-color: @BG_ZEBRA@;
 }
 
 QTableWidget#resultsTable::item {
     padding: 7px 10px;
-    border-bottom: 1px solid @SEP@;
-    border-right: 1px solid @SEP@;
+    border: none;
 }
 
 QTableWidget#resultsTable::item:selected {
-    background-color: @BG_L4@;
-    color: @FG_TEXT@;
+    background-color: @ROW_SELECTED_BG@;
+    color: @ROW_SELECTED_FG@;
 }
 
 QTableWidget#resultsTable QHeaderView::section {
     background-color: @BG_PANEL_ALT@;
-    color: @FG_TEXT@;
+    color: @FG_LABEL@;
     padding: 8px 10px;
     border: none;
-    border-bottom: 1px solid @SEP@;
-    border-right: 1px solid @SEP@;
+    border-bottom: @LINE@;
     font-weight: 700;
 }
 
@@ -1100,32 +1163,31 @@ QLabel#mattePreview {
 
 QPushButton#btnBrowse {
     min-width: 100px;
-    padding: 0 12px;
+    padding: @BTN2_PAD_V@ 12px;
 }
 
 QPushButton#btnUpdatePath {
-    background-color: transparent;
-    color: @FG_ACCENT@;
-    border: 2px solid @ACCENT@;
     font-weight: 700;
     font-size: 15px;
     min-height: 36px;
     max-height: 36px;
     min-width: 100px;
-    padding: 0 12px;
+    padding: @QUIET_PAD_V@ 12px;
     border-radius: @RADIUS_BTN@;
 }
 
-QPushButton#btnUpdatePath:hover {
-    background-color: @BRAND_SOFT@;
-}
+/* Przycisk cichy (S13): bez obrysu, wypełnienie icon-bg na białym oknie, białe (L2) na panelu / pasku menu,
+   najechanie / fokus brand-soft, wciśnięty mocniejszy odcień, wyłączony disabled-bg. Reguły dla panelu mają
+   większą specyficzność, więc stany (hover, pressed…) powtarzamy dla każdego przodka — generuje je
+   themes.render_qss (znacznik w następnej linii; przyciski toolBtn, btnUpdatePath i właściwość quiet="true"). */
+@QUIET_RULES@
 
-QPushButton#btnUpdatePath:disabled {
-    background-color: @DISABLED_BG@;
-    border-color: @DISABLED_BG@;
-    color: @FG_MUTED@;
-    font-weight: 700;
-}
+/* wyrównanie dopełnienia przycisków z właściwością quiet (reguły id mają wyższą specyficzność niż [quiet]) */
+QPushButton[quiet="true"] { padding: @QUIET_PAD_V@ 16px; }
+QPushButton#btnBrowse[quiet="true"] { padding: @QUIET_PAD_V@ 12px; }
+QPushButton#btnBrowse[large="true"][quiet="true"] { padding: @QUIET_PAD_V@ 16px; }
+QPushButton#footerSecondary[quiet="true"] { padding: @QUIET_PAD_V@ 20px; }
+QPushButton#btnSecondary[quiet="true"] { padding: @QUIET_PAD_V@ 16px; }
 
 QPushButton#cropAnchorBtn {
     background-color: @BG_INPUT@;
@@ -1141,14 +1203,24 @@ QPushButton#cropAnchorBtn:hover {
 }
 
 QPushButton#cropAnchorBtn:checked {
-    background-color: @ACCENT@;
-    color: @ON_ACCENT@;
+    background-color: @SELECT_BG@;
+    color: @SELECT_FG@;
 }
 
-QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled {
+/* Pole wyłączone (np. ścieżka, gdy zapis do folderu jest odznaczony): disabled-bg bez obrysu; dopełnienie +1 px
+   zastępuje zdjęty obrys, żeby napis się nie ruszył (wysokość jest ustalona) */
+QComboBox:disabled {
     color: @FG_MUTED@;
     background-color: @DISABLED_BG@;
-    border-color: @SEP@;
+    border: none;
+    padding: 5px 31px 5px 13px;
+}
+
+QLineEdit:disabled, QSpinBox:disabled {
+    color: @FG_MUTED@;
+    background-color: @DISABLED_BG@;
+    border: none;
+    padding: 5px 13px;
 }
 
 QPushButton:disabled {
@@ -1158,7 +1230,7 @@ QPushButton:disabled {
 }
 
 QMessageBox {
-    background-color: @BG_PANEL@;
+    background-color: @BG_WINDOW@;
     color: @FG_TEXT@;
     border: none;
     border-radius: @RADIUS_CARD@;
@@ -1173,26 +1245,23 @@ QMessageBox QLabel {
 
 QMessageBox QPushButton {
     min-width: 88px;
-    /* 32 + ramka 2×2 = 36 px */
     min-height: 36px;
     max-height: 36px;
-    padding: 0 18px;
+    padding: @BTN2_PAD_V@ 18px;
     margin-left: 8px;
     border-radius: @RADIUS_BTN@;
 }
 
 QMessageBox QPushButton#primaryBtn {
-    background-color: @CTA_BG@;
-    color: @CTA_TEXT@;
+    background-color: @PRIMARY_BG@;
+    color: @PRIMARY_TEXT@;
     border: none;
+    padding: 0 18px;
     min-height: 40px;
     max-height: 40px;
 }
 
 QMessageBox QPushButton#btnSecondary {
-    background-color: transparent;
-    color: @FG_ACCENT@;
-    border: 2px solid @ACCENT@;
     min-height: 36px;
     max-height: 36px;
 }
@@ -1203,8 +1272,8 @@ QWidget#conversionOverlay {
 }
 
 QFrame#conversionOverlayPanel {
-    background-color: @BG_PANEL@;
-    border: @CARD_BORDER@;
+    background-color: @BG_OVERLAY@;
+    border: @LINE@;
     border-radius: @RADIUS_CARD@;
 }
 
@@ -1213,9 +1282,9 @@ QLabel#conversionOverlayTime {
 }
 
 QPushButton#overlayAbortBtn {
-    background: transparent;
+    background: @ICON_BG@;
     color: @OVERLAY_ABORT_COLOR@;
-    border: 1px solid @OVERLAY_ABORT_BORDER@;
+    border: none;
     border-radius: @RADIUS_BTN@;
     font-size: 15px;
     font-weight: 700;
@@ -1224,7 +1293,6 @@ QPushButton#overlayAbortBtn {
 
 QPushButton#overlayAbortBtn:hover {
     background: @OVERLAY_ABORT_HOVER_BG@;
-    border-color: @OVERLAY_ABORT_COLOR@;
     color: @OVERLAY_ABORT_COLOR@;
 }
 
@@ -1250,14 +1318,84 @@ QScrollArea#conversionOverlayScroll {
     background: transparent;
 }
 
+/* Cienki pasek przewijania list plików (tryb prosty, zaawansowany) — jak w panelu ustawień */
+QListWidget#simpleFileList QScrollBar:vertical,
+QTreeWidget#inputList QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 4px 2px 4px 2px;
+    border: none;
+}
+
+QListWidget#simpleFileList QScrollBar::handle:vertical,
+QTreeWidget#inputList QScrollBar::handle:vertical {
+    background: @BORDER@;
+    border-radius: 5px;
+    min-height: 40px;
+}
+
+QListWidget#simpleFileList QScrollBar::handle:vertical:hover,
+QTreeWidget#inputList QScrollBar::handle:vertical:hover {
+    background: @FIELD_BORDER@;
+}
+
+QListWidget#simpleFileList QScrollBar::add-line:vertical,
+QListWidget#simpleFileList QScrollBar::sub-line:vertical,
+QTreeWidget#inputList QScrollBar::add-line:vertical,
+QTreeWidget#inputList QScrollBar::sub-line:vertical {
+    height: 0;
+    width: 0;
+    background: none;
+    border: none;
+}
+
+QListWidget#simpleFileList QScrollBar::add-page:vertical,
+QListWidget#simpleFileList QScrollBar::sub-page:vertical,
+QTreeWidget#inputList QScrollBar::add-page:vertical,
+QTreeWidget#inputList QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Cienki pasek przewijania listy plików — jak w panelu ustawień (settingsScroll) */
+QScrollArea#conversionOverlayScroll QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 4px 0 4px 2px;
+    border: none;
+}
+
+QScrollArea#conversionOverlayScroll QScrollBar::handle:vertical {
+    background: @BORDER@;
+    border-radius: 5px;
+    min-height: 40px;
+}
+
+QScrollArea#conversionOverlayScroll QScrollBar::handle:vertical:hover {
+    background: @FIELD_BORDER@;
+}
+
+QScrollArea#conversionOverlayScroll QScrollBar::add-line:vertical,
+QScrollArea#conversionOverlayScroll QScrollBar::sub-line:vertical {
+    height: 0;
+    width: 0;
+    background: none;
+    border: none;
+}
+
+QScrollArea#conversionOverlayScroll QScrollBar::add-page:vertical,
+QScrollArea#conversionOverlayScroll QScrollBar::sub-page:vertical {
+    background: none;
+}
+
 /* Viewport i kontener listy — bez tego przezroczyste tło malowało czarne pasy między kartami */
 QScrollArea#conversionOverlayScroll > QWidget,
 QScrollArea#conversionOverlayScroll > QWidget > QWidget {
-    background: @BG_PANEL@;
+    background: @BG_OVERLAY@;
 }
 
+/* Karta pliku w oknie konwersji leży na overlay (biel) → poziom L1 (panel) */
 QFrame#fileProgressCard {
-    background: @BG_PANEL_ALT@;
+    background: @BG_PANEL@;
     border: none;
     border-radius: @RADIUS_FIELD@;
 }
@@ -1265,25 +1403,25 @@ QFrame#fileProgressCard {
 QFrame#fileProgressCard[status="active"],
 QFrame#fileProgressCard[status="done"],
 QFrame#fileProgressCard[status="error"] {
-    background: @BG_PANEL_ALT@;
+    background: @BG_PANEL@;
 }
 
 /* Znacznik rozszerzenia w oknie konwersji = tag (ten sam kolor formatu co chip w trybie prostym) */
 QLabel#fileProgressExt {
     background-color: @TAG8_BG@;
-    border: 1px solid @TAG8_BORDER@;
+    border: none;
     border-radius: 6px;
     color: @TAG8_FG@;
-    padding: 0 8px;
+    padding: 1px 9px;
 }
 
-QLabel#fileProgressExt[tag="1"] { background-color: @TAG1_BG@; border-color: @TAG1_BORDER@; color: @TAG1_FG@; }
-QLabel#fileProgressExt[tag="2"] { background-color: @TAG2_BG@; border-color: @TAG2_BORDER@; color: @TAG2_FG@; }
-QLabel#fileProgressExt[tag="3"] { background-color: @TAG3_BG@; border-color: @TAG3_BORDER@; color: @TAG3_FG@; }
-QLabel#fileProgressExt[tag="4"] { background-color: @TAG4_BG@; border-color: @TAG4_BORDER@; color: @TAG4_FG@; }
-QLabel#fileProgressExt[tag="5"] { background-color: @TAG5_BG@; border-color: @TAG5_BORDER@; color: @TAG5_FG@; }
-QLabel#fileProgressExt[tag="6"] { background-color: @TAG6_BG@; border-color: @TAG6_BORDER@; color: @TAG6_FG@; }
-QLabel#fileProgressExt[tag="7"] { background-color: @TAG7_BG@; border-color: @TAG7_BORDER@; color: @TAG7_FG@; }
+QLabel#fileProgressExt[tag="1"] { background-color: @TAG1_BG@; color: @TAG1_FG@; }
+QLabel#fileProgressExt[tag="2"] { background-color: @TAG2_BG@; color: @TAG2_FG@; }
+QLabel#fileProgressExt[tag="3"] { background-color: @TAG3_BG@; color: @TAG3_FG@; }
+QLabel#fileProgressExt[tag="4"] { background-color: @TAG4_BG@; color: @TAG4_FG@; }
+QLabel#fileProgressExt[tag="5"] { background-color: @TAG5_BG@; color: @TAG5_FG@; }
+QLabel#fileProgressExt[tag="6"] { background-color: @TAG6_BG@; color: @TAG6_FG@; }
+QLabel#fileProgressExt[tag="7"] { background-color: @TAG7_BG@; color: @TAG7_FG@; }
 
 QLabel#fileProgressName {
     color: @FG_TEXT@;
@@ -1299,14 +1437,14 @@ QLabel#fileProgressPct {
 
 QProgressBar#fileProgressBar,
 QProgressBar#conversionOverlayOverall {
-    background: @BORDER@;
+    background: @SLIDER_TRACK@;
     border: none;
     border-radius: 4px;
 }
 
 QProgressBar#fileProgressBar::chunk,
 QProgressBar#conversionOverlayOverall::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @ACCENT@, stop:1 @ACCENT_GRAD_END@);
+    background: @PROGRESS@;
     border-radius: 10px;
 }
 
@@ -1319,9 +1457,10 @@ QFrame#updateToast {
 }
 
 QLabel#updateToastTitle {
+    font-family: @FONT_DISPLAY@;
     color: @UPDATE_TOAST_TITLE@;
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 400;
 }
 
 QLabel#updateToastMessage {
@@ -1355,7 +1494,7 @@ QPushButton#updateToastInstall:disabled {
 /* „Później” = link (design system: anulowanie i powrót to link-przycisk) */
 QPushButton#updateToastLater {
     background-color: transparent;
-    color: @FG_ACCENT@;
+    color: @FG_TEXT@;
     border: none;
     border-radius: @RADIUS_BTN@;
     padding: 8px 18px;
@@ -1365,7 +1504,7 @@ QPushButton#updateToastLater {
 
 QPushButton#updateToastLater:hover {
     background-color: transparent;
-    color: @ACCENT_HOVER@;
+    color: @FG_ACCENT@;
 }
 
 QLabel#updateDialogStatus {
@@ -1379,14 +1518,14 @@ QLabel#updateDialogHint {
 }
 
 QProgressBar#updateDialogProgress {
-    background: @BG_INPUT@;
+    background: @SLIDER_TRACK@;
     border: none;
     border-radius: 10px;
     min-height: 10px;
 }
 
 QProgressBar#updateDialogProgress::chunk {
-    background: @UPDATE_TOAST_INSTALL_BG@;
+    background: @PROGRESS@;
     border-radius: 10px;
 }
 
@@ -1446,20 +1585,71 @@ QLabel#appTitleLabel {
     font-family: @FONT_DISPLAY@;
     font-size: 20px;
     font-weight: 400;
-    color: @FG_TITLE@;
+    color: @FG_HEADING_ACCENT@;
     padding-left: 8px;
 }
 
 QPushButton:pressed {
-    background-color: @BG_HOVER@;
+    background-color: @BTN2_PRESSED@;
 }
 
-QPushButton#footerConvert:pressed,
+QPushButton#footerConvert:pressed {
+    background-color: @CTA_HOVER@;
+}
+
 QPushButton#footerPrimary:pressed,
 QPushButton#primaryBtn:pressed,
 QPushButton#updateDialogAction:pressed,
-QPushButton#saveChoicePrimary:pressed {
-    background-color: @CTA_HOVER@;
+QPushButton#saveChoicePrimary:pressed,
+QPushButton#updateToastInstall:pressed,
+QPushButton#updateStatusInstall:pressed {
+    background-color: @PRIMARY_HOVER@;
+}
+
+/* Przycisk-ikona (S7): kwadrat ustawia kod (setFixedSize), tu tylko wygląd: tło icon-bg, bez obrysu, promień 4 */
+QPushButton#iconBtn {
+    background-color: @ICON_BG@;
+    border: none;
+    border-radius: @RADIUS_BTN@;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    max-height: 16777215px;
+}
+
+QPushButton#iconBtn:hover {
+    background-color: @BG_HOVER@;
+}
+
+QPushButton#iconBtn:pressed {
+    background-color: @BTN2_PRESSED@;
+}
+
+QPushButton#iconBtn:disabled {
+    background-color: @DISABLED_BG@;
+    border: none;
+}
+
+/* Panel w oknie dialogowym (L1, bez obrysu, promień 8), karta w panelu (L2 biała); karta wprost na białym
+   tle dostaje linię 1 px przez właściwość onWhite=true. Pola w panelu = L2 + 1 px field-border (reguły ogólne). */
+QFrame#dialogPanel {
+    background-color: @BG_PANEL@;
+    border: none;
+    border-radius: @RADIUS_CARD@;
+}
+
+QFrame#dialogCard {
+    background-color: @BG_PANEL_ALT@;
+    border: none;
+    border-radius: @RADIUS_CARD@;
+}
+
+QFrame#dialogCard[onWhite="true"] {
+    border: @LINE@;
+}
+
+QFrame#dialogPanel QLabel, QFrame#dialogCard QLabel {
+    background: transparent;
 }
 
 QPushButton#footerClose:disabled {
@@ -1469,27 +1659,10 @@ QPushButton#footerClose:disabled {
 
 QPushButton#formatChip:disabled {
     background-color: @DISABLED_BG@;
-    border-color: @DISABLED_BG@;
     color: @FG_MUTED@;
 }
 
-/* Fokus 3 px bez przesuwania tekstu: ramka +1, wypełnienie −1 */
-QComboBox:focus {
-    padding: 3px 29px 3px 11px;
-}
+/* Fokus pola (S15): obrys @FOCUS_W@ w kolorze focus = ta sama grubość co obrys pola (@FIELD_BORDER_W@), więc ramka
+   i wypełnienie się nie zmieniają — żadnego kompensowania dopełnienia (test_theme_roles pilnuje, że obie grubości
+   z DS są równe i że reguły fokusu pola nie ruszają dopełnienia). */
 
-QLineEdit:focus, QSpinBox:focus {
-    padding: 3px 11px;
-}
-
-QLineEdit#outputDirEdit[large="true"]:focus {
-    padding: 3px 11px;
-}
-
-QCheckBox::indicator:hover {
-    border-color: @ACCENT@;
-}
-
-QCheckBox::indicator:checked:disabled, QCheckBox::indicator:disabled {
-    border-color: @SEP@;
-}

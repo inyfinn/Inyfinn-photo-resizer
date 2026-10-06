@@ -22,9 +22,6 @@ KJ = "dobra-kaloria-krem-jasny"
 KC = "dobra-kaloria-krem-ciemny"
 ALL = (ZJ, ZC, KJ, KC)
 
-# Tło pól (@BG_INPUT@) w 2.6.2 — punkt odniesienia dla „minimalnie ciemniej”.
-FIELD_262 = {ZJ: "#FFFFFF", ZC: "#1D3526", KJ: "#FBF3E0", KC: "#302A21"}
-
 
 def _lum(hex_color: str) -> float:
     c = QColor(hex_color)
@@ -54,33 +51,35 @@ def _key(theme: str) -> str:
 
 @pytest.mark.parametrize("theme", ALL)
 def test_ladder_has_one_direction(theme):
+    """Ciemne: głębiej = jaśniej. Jasne (DS 2.0): L2 (karta w panelu) jaśniejszy od panelu L1, od L2 w głąb ciemniej."""
     lad = palettes.LADDER[_key(theme)]
     lums = [_lum(lad[f"surface_{n}"]) for n in range(5)]
     steps = [b - a for a, b in zip(lums, lums[1:])]
     if themes.is_dark_theme(theme):
-        assert all(s > 0 for s in steps), lums  # ciemny: głębiej = jaśniej
+        assert all(s > 0 for s in steps), lums
     else:
-        assert all(s < 0 for s in steps), lums  # jasny: głębiej = ciemniej
+        assert lums[0] >= lums[2] > lums[3] > lums[4], lums  # biel ≥ karta > kafel > kafel w kaflu
+        assert lums[0] > lums[1], lums  # panel L1 ciemniejszy od okna
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_white_only_as_light_window(theme):
-    """DS 1.5.0: jasne style = biała kartka programu (L0), karty i głębiej kremowe; ciemne bez bieli."""
+def test_white_only_in_light_themes(theme):
+    """Jasne style: okno L0 jest białe (bieli najwięcej), panel L1 nie; ciemne bez bieli."""
     lad = palettes.LADDER[_key(theme)]
     levels = [lad[f"surface_{n}"].upper() for n in range(5)]
     if themes.is_dark_theme(theme):
         assert "#FFFFFF" not in levels
     else:
         assert levels[0] == "#FFFFFF"
-        assert "#FFFFFF" not in levels[1:]
-        assert levels[1] == "#FDF8ED"  # kremowa karta programu (.hints / .found)
+        assert levels[1] != "#FFFFFF"
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_card_border_is_subtle(theme):
-    """2.6.4: karta bez ciężkiego obrysu — 1 px w roli border (jak w programie), nie border-strong."""
+def test_section_tile_has_no_border(theme):
+    """DS 2.0 (S2): sekcja = panel bez obrysu i bez cienia; linie 1 px roli border tylko jawnie (@LINE@)."""
     t = themes._THEME_TOKENS[theme]
-    assert t["@CARD_BORDER@"] == f"1px solid {t['@SEP@']}"
+    assert t["@CARD_BORDER@"] == "none"
+    assert t["@LINE@"] == f"1px solid {t['@SEP@']}"
 
 
 @pytest.mark.parametrize("theme", ALL)
@@ -95,12 +94,14 @@ def test_containers_use_ladder_levels(theme):
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_fields_minimally_darker_than_262(theme):
-    now = themes._THEME_TOKENS[theme]["@BG_INPUT@"]
-    before = FIELD_262[theme]
-    assert _lum(now) < _lum(before), (now, before)
-    # „minimalnie”: nie więcej niż ~15% luminancji względnej różnicy
-    assert _lum(before) - _lum(now) < 0.15 * max(_lum(before), 0.02) + 0.02, (now, before)
+def test_field_is_a_card_inside_the_panel(theme):
+    """Pole/lista w panelu = L2: w jasnych jaśniejsze od panelu (biała karta), w ciemnych odwrotnie."""
+    t = themes._THEME_TOKENS[theme]
+    if themes.is_dark_theme(theme):
+        assert _lum(t["@BG_INPUT@"]) > _lum(t["@BG_PANEL@"])
+    else:
+        assert _lum(t["@BG_INPUT@"]) > _lum(t["@BG_PANEL@"])
+        assert t["@BG_INPUT@"] == t["@BG_WINDOW@"]  # biała karta w panelu = to samo co tło okna
 
 
 @pytest.mark.parametrize("theme", ALL)
@@ -129,29 +130,42 @@ def _oklch(hex_color: str) -> tuple[float, float, float]:
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_tags_are_tints_of_the_style(theme):
+def test_tags_are_readable(theme):
+    """Tekst każdego z 8 tagów ≥ 4,5:1 na jego tle (DS 2.0.5: tagi to wypełnienie, bez obrysu)."""
     t = themes._THEME_TOKENS[theme]
-    hues = []
     for n in range(1, themes.TAG_COUNT + 1):
         bg, fg = t[f"@TAG{n}_BG@"], t[f"@TAG{n}_FG@"]
         assert _contrast(fg, bg) >= 4.5, (n, fg, bg)
-        _L, chroma, hue = _oklch(bg)
-        assert chroma < 0.08, (n, bg, chroma)  # delikatny odcień, nie jaskrawa stała barwa
-        hues.append(hue)
-    # Przesunięcia barwy tagów to małe kroki (±12°, ±24°…, najwyżej 48°) wokół barwy stylu.
-    ref = hues[0]
-    for h in hues:
-        d = min(abs(h - ref), 360 - abs(h - ref))
-        assert d <= 55, (hues, theme)
+        assert _oklch(bg)[1] < 0.2  # wypełnienie pastelowe, nie jaskrawe
+
+
+@pytest.mark.parametrize("theme", (ZJ, KJ))
+def test_eight_distinct_tag_hues_in_light_themes(theme):
+    """Jasne motywy: 8 tagów w 8 wyraźnie różnych barwach; PNG, JPG i AVIF to trzy różne barwy."""
+    t = themes._THEME_TOKENS[theme]
+    hues = [_oklch(t[f"@TAG{n}_BG@"])[2] for n in range(1, themes.TAG_COUNT + 1)]
+    for i in range(len(hues)):
+        for j in range(i + 1, len(hues)):
+            d = min(abs(hues[i] - hues[j]), 360 - abs(hues[i] - hues[j]))
+            assert d >= 20, (i + 1, j + 1, hues)
+    tag = {f: themes.format_tag(f) for f in ("png", "jpg", "avif")}
+    assert len(set(tag.values())) == 3
+    for a, b in (("png", "jpg"), ("png", "avif"), ("jpg", "avif")):
+        ha, hb = hues[tag[a] - 1], hues[tag[b] - 1]
+        assert min(abs(ha - hb), 360 - abs(ha - hb)) >= 60, (a, b, ha, hb)
 
 
 def test_format_tag_mapping():
     assert themes.format_tag("png") == 1
-    assert themes.format_tag("JPEG") == themes.format_tag(".jpg") == 2
-    assert themes.format_tag("avif") == 3
-    assert themes.format_tag("webp") == 4
-    assert themes.format_tag("xyz") == themes.TAG_COUNT
-    assert themes.format_tag(None) == themes.TAG_COUNT
+    assert themes.format_tag("JPEG") == themes.format_tag(".jpg") == 4
+    assert themes.format_tag("avif") == 8
+    assert themes.format_tag("webp") == 3
+    assert themes.format_tag("gif") == 5
+    assert themes.format_tag("tiff") == themes.format_tag("tif") == 6
+    assert themes.format_tag("heic") == themes.format_tag("jp2") == 7
+    mapped = {themes.format_tag(f) for f in ("png", "jpg", "avif", "webp", "gif", "tiff", "jp2")}
+    assert len(mapped) == 7  # każdy format ma własną barwę
+    assert themes.format_tag("xyz") == themes.format_tag(None) == themes.DEFAULT_TAG
 
 
 @pytest.mark.parametrize("theme", ALL)

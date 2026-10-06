@@ -30,9 +30,39 @@ ROLE_KEYS = (
     "color_on_cta", "color_disabled_bg", "color_switch_off", "color_danger", "color_danger_soft",
     "color_warning_text", "color_warning_border", "color_warning_bg", "color_inverse_bg",
     "color_on_inverse", "color_focus",
+    # DS 1.6.0: akcent, ikony, pole wyboru, suwak, przełącznik, przycisk drugorzędny, krokomierz
+    # DS 2.0.0 „sklep”: nagłówki, nakładka (menu, popup, toast), pasek menu, pasy tabeli, pasek postępu
+    "color_heading", "color_heading_accent", "color_overlay", "color_strip", "color_zebra", "color_progress",
+    "color_accent", "color_accent_hover", "color_on_accent", "color_accent_beige", "color_icon", "color_icon_bg",
+    "color_check_bg", "color_check_border", "color_check_border_hover", "color_check_mark",
+    "color_check_disabled_border", "color_check_disabled_mark",
+    "color_slider_track", "color_slider_fill", "color_slider_thumb", "color_slider_thumb_border",
+    "color_switch_off_border", "color_switch_on", "color_switch_knob",
+    "color_btn2_bg", "color_btn2_text", "color_btn2_border", "color_btn2_hover_bg",
+    "color_step_active_bg", "color_step_active_text", "color_step_idle_border", "color_step_idle_text",
+    "color_step_done",
 )
 LEVELS = 5
 TAGS = 8
+# token T[...] (tokens_qt.py) → klucz SHAPE w palettes.py: promienie, obrysy, fokus, pole wyboru, rozmiary czcionek przycisków
+SHAPE_KEYS = {
+    "radius_card": "qt_radius_card",
+    "radius_field": "qt_radius_field",
+    "radius_btn": "qt_radius_btn",
+    "radius_drop": "qt_radius_drop",
+    "card_border": "qt_card_border",
+    "field_border": "qt_field_border",
+    "focus_border": "qt_focus_border",
+    "check_size": "control_check_size",
+    "check_radius": "control_check_radius",
+    "check_border_width": "control_check_border_width",
+    "btn2_border_width": "control_btn2_border_width",
+    "slider_thumb_border_width": "control_slider_thumb_border_width",
+    "fs_btn": "qt_fs_btn",
+    "fs_btn_primary": "qt_fs_btn_primary",
+    "fs_body": "qt_fs_body",
+    "scrim": "shadow_scrim",  # zasłona okien modalnych (jasne motywy)
+}
 
 
 def _load(src: Path):
@@ -93,6 +123,9 @@ def render(src: Path) -> str:
             bg, border, fg = (t[f"color_tag_{n}_{part}"].upper() for part in ("bg", "border", "fg"))
             lines.append(f'        ("{bg}", "{border}", "{fg}"),')
         lines.append("    ],")
+    lines += ["}", "", "# kształt (wspólny dla wszystkich motywów): promienie, obrysy, fokus, pole wyboru", "SHAPE: dict[str, str] = {"]
+    for key, src_key in SHAPE_KEYS.items():
+        lines.append(f'    "{key}": "{mod.T[src_key]}",')
     lines += ["}", ""]
     return "\n".join(lines)
 

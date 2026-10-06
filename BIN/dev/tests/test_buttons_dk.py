@@ -40,9 +40,10 @@ def test_browse_button_is_not_uppercase(app):
 
 
 @pytest.mark.parametrize("theme", (ZJ, KC))
-def test_button_icons_follow_button_text_color(app, theme):
+def test_button_icons_follow_icon_color(app, theme):
+    """Runda 3: ikony przy przyciskach mają kolor roli icon (brąz #85654A / #CBBFA8), nie zieleń."""
     themes.apply_theme(app, theme)
-    want = QColor(themes.theme_token("@FG_ACCENT@"))
+    want = QColor(themes.theme_token("@ICON@"))
     for factory in (
         tool_icons.icon_plus_green,
         tool_icons.icon_minus_red,
