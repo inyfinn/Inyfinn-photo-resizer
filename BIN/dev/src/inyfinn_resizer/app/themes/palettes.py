@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Kolory design systemu Dobra Kaloria 2.0.5 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
+"""Kolory design systemu Dobra Kaloria 2.0.7 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
 
 PLIK GENEROWANY: python scripts/sync_design_tokens.py — nie edytuj ręcznie. Zmiana koloru = zmiana
 w tokens.json design systemu, build_tokens.py, potem ponowne uruchomienie skryptu.
@@ -330,14 +330,14 @@ TAGS: dict[str, list[tuple[str, str, str]]] = {
         ("#D3ECFF", "#A4D8FE", "#014D73"),
     ],
     "zielen-ciemny": [
-        ("#2C442E", "#446446", "#B7E1B9"),
-        ("#284531", "#3E654B", "#B1E2C0"),
-        ("#31432A", "#496341", "#BEE0B3"),
-        ("#244535", "#386650", "#ABE3C6"),
-        ("#354227", "#4F623C", "#C5DEAE"),
-        ("#204539", "#336655", "#A6E4CD"),
-        ("#394124", "#556038", "#CCDCA9"),
-        ("#1D453D", "#2F665B", "#A2E4D4"),
+        ("#184829", "#316843", "#ABE9BB"),
+        ("#344412", "#50632A", "#CAE2A1"),
+        ("#493C00", "#6A5A18", "#EAD793"),
+        ("#59320C", "#7D4E24", "#FFCCA4"),
+        ("#5F2C29", "#844642", "#FFC8C3"),
+        ("#5B2B3F", "#80455D", "#FFC5DA"),
+        ("#004744", "#016965", "#8DEBE5"),
+        ("#0C4160", "#266186", "#B1DEFF"),
     ],
     "krem-jasny": [
         ("#CBF4D5", "#ADE0B9", "#005729"),
@@ -350,14 +350,14 @@ TAGS: dict[str, list[tuple[str, str, str]]] = {
         ("#D3ECFF", "#A4D8FE", "#014D73"),
     ],
     "krem-ciemny": [
-        ("#3A2F11", "#5A4B22", "#E6D3A0"),
-        ("#373011", "#564D23", "#E0D5A0"),
-        ("#3C2E11", "#5E4A22", "#EBD0A0"),
-        ("#3E2D12", "#604923", "#EECFA1"),
-        ("#3F2C12", "#614824", "#F0CEA1"),
-        ("#402C13", "#634725", "#F3CDA3"),
-        ("#412B14", "#644626", "#F5CCA4"),
-        ("#422A15", "#654528", "#F6CBA5"),
+        ("#3A2F01", "#5C4C02", "#EAD793"),
+        ("#4A2600", "#6E4015", "#FFCCA4"),
+        ("#501E1C", "#753935", "#FFC8C3"),
+        ("#4C1E32", "#70384F", "#FFC5DA"),
+        ("#003450", "#155276", "#B1DEFF"),
+        ("#013741", "#015766", "#8FE7FD"),
+        ("#432B00", "#684507", "#FBD094"),
+        ("#4E220B", "#723C23", "#FFCAB3"),
     ],
 }
 

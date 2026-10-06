@@ -171,11 +171,22 @@ def test_buttons_are_uppercase_except_links_and_chips(app):
     upper.ensurePolished()
     assert upper.font().capitalization() == QFont.Capitalization.AllUppercase
     assert upper.text() == "Dodaj"  # tekst w kodzie bez zmian
-    for name in ("btnLink", "formatChip", "footerClose"):
+    # 2.6.6 (S18): wersaliki tylko na zielonym głównym i jednym obrysie w grupie; linki, chipy, ciche, ikony i żółty CTA nie
+    for name in ("btnLink", "formatChip", "footerClose", "footerConvert", "toolBtn", "btnUpdatePath", "iconBtn"):
         b = QPushButton("Zamknij")
         b.setObjectName(name)
         b.ensurePolished()
         assert b.font().capitalization() != QFont.Capitalization.AllUppercase, name
+    quiet = QPushButton("Resetuj")
+    quiet.setObjectName("btnSecondary")
+    quiet.setProperty("quiet", True)
+    quiet.ensurePolished()
+    assert quiet.font().capitalization() != QFont.Capitalization.AllUppercase
+    for name in ("primaryBtn", "btnSecondary"):
+        b = QPushButton("Zamknij")
+        b.setObjectName(name)
+        b.ensurePolished()
+        assert b.font().capitalization() == QFont.Capitalization.AllUppercase, name
 
 
 @pytest.mark.parametrize("theme", ALL)
@@ -289,7 +300,7 @@ def test_s13_no_outline_on_tags_chips_panels_icon_buttons(app, theme):
     qss = themes.render_qss(theme)
     rules = re.findall(r"([^{}]+)\{([^}]*)\}", qss)
     names = ("#formatChip", "#fileProgressExt", "#iconBtn", "#toolBtn", '[quiet="true"]', "#bentoTile",
-             "#dialogPanel", "#btnUpdatePath", "#overlayAbortBtn")
+             "#dialogPanel", "#btnUpdatePath", "#overlayAbortBtn", "#helpGuideSection", "#previewBox")
     seen = set()
     for sel, body in rules:
         for name in names:

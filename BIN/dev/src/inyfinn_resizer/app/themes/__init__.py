@@ -323,9 +323,15 @@ def _theme_tokens(key: str) -> dict[str, str]:
     # TRYB (znana luka DS 2.0: brak roli „zaznaczony wiersz”). W motywach ciemnych brand_soft jest prawie tym samym
     # kolorem co tło listy i najechanie, więc zaznaczenie dostaje poziom L4 drabiny, a najechanie L3 (głębiej =
     # jaśniej). W jasnych zostaje brand_soft / surface_hover z roli.
-    if key.endswith("-ciemny"):
+    dark = key.endswith("-ciemny")
+    if dark:
         tokens["@ROW_SELECTED_BG@"] = lad["surface_4"]
         tokens["@ROW_HOVER@"] = lad["surface_3"]
+    # LISTA PLIKÓW (2.6.6, S14 „jeden poziom tła w panelu”): w jasnych motywach wiersze są BIAŁE (= tło listy, bez
+    # pasów zebra) i rozdziela je cienka linia 1 px (S10); w ciemnych zostają pasy zebra jak dotąd, bez linii.
+    # Tabela wyników (na białym oknie dialogu) ma swoje pasy z @BG_ZEBRA@ w obu trybach.
+    tokens["@LIST_ALT_BG@"] = tokens["@BG_ZEBRA@"] if dark else tokens["@BG_PANEL_ALT@"]
+    tokens["@LIST_ROW_LINE@"] = "none" if dark else tokens["@LINE@"]
     return tokens
 
 

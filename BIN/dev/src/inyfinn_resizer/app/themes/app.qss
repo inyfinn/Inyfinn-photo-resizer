@@ -104,11 +104,11 @@ QWidget#helpGuideBody {
     background: transparent;
 }
 
-/* Sekcja pomocy = sam tekst z ikoną: biała karta wprost na białym oknie → bez wypełnienia, linia 1 px (S13/S14) */
+/* Sekcja pomocy = sam tekst z ikoną na białym oknie: bez wypełnienia i BEZ obrysu (S13, 2.6.6); sekcje rozdziela
+   linia 1 px groupSep (S10) wstawiana w help_guide.py */
 QFrame#helpGuideSection {
     background-color: transparent;
-    border: @LINE@;
-    border-radius: @RADIUS_CARD@;
+    border: none;
 }
 
 QLabel#helpGuideBullet {
@@ -689,11 +689,12 @@ QWidget#themeToggleWidget {
     margin: 4px 12px 0 0;
 }
 
-/* Lista plików (S10): biała rubryka L2 na szarym panelu, bez obrysu (granicę robi sam kontrast), pasy zebra, bez
-   linii pionowych ani poziomych między wierszami */
+/* Lista plików (S10, S14): biała rubryka L2 na szarym panelu, bez obrysu (granicę robi sam kontrast). Jasne motywy:
+   białe wiersze rozdzielone linią 1 px (@LIST_ROW_LINE@), bez pasów; ciemne: pasy zebra bez linii (tokeny w
+   themes/__init__.py). Bez linii pionowych. */
 QTreeWidget#inputList {
     background-color: @BG_PANEL_ALT@;
-    alternate-background-color: @BG_ZEBRA@;
+    alternate-background-color: @LIST_ALT_BG@;
     border: none;
     border-radius: @RADIUS_FIELD@;
     color: @FG_TEXT@;
@@ -708,7 +709,7 @@ QTreeWidget#inputList QHeaderView::section {
 QTreeWidget#inputList::item {
     padding: 6px 10px;
     min-height: 28px;
-    border-bottom: none;
+    border-bottom: @LIST_ROW_LINE@;
 }
 
 /* Kolumna „Rozmiar” ma ✕ po prawej (removable_items.py, strefa 26 px) */
@@ -1012,7 +1013,7 @@ QCheckBox#moreToggle {
 }
 
 QLabel#previewBox {
-    border: @LINE@;
+    border: none;
     border-radius: @RADIUS_FIELD@;
     background-color: @BG_PANEL_ALT@;
     min-width: 112px;
@@ -1149,7 +1150,7 @@ QTableWidget#resultsTable::item:selected {
 QTableWidget#resultsTable QHeaderView::section {
     background-color: @BG_PANEL_ALT@;
     color: @FG_LABEL@;
-    padding: 8px 10px;
+    padding: 8px 8px;
     border: none;
     border-bottom: @LINE@;
     font-weight: 700;
@@ -1642,10 +1643,6 @@ QFrame#dialogCard {
     background-color: @BG_PANEL_ALT@;
     border: none;
     border-radius: @RADIUS_CARD@;
-}
-
-QFrame#dialogCard[onWhite="true"] {
-    border: @LINE@;
 }
 
 QFrame#dialogPanel QLabel, QFrame#dialogCard QLabel {
