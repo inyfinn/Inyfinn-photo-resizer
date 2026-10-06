@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from inyfinn_resizer import __version__
 from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
-from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
+from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP, group_separator
 from inyfinn_resizer.app.widgets.section_icons import help_section_pixmap
 
 
@@ -126,7 +126,7 @@ def _make_help_section(section_key: str, title: str, bullets: list[str]) -> QFra
     box = QFrame()
     box.setObjectName("helpGuideSection")
     outer = QVBoxLayout(box)
-    outer.setContentsMargins(20, 16, 20, 16)
+    outer.setContentsMargins(0, 4, 0, 4)  # 2.6.6: bez obrysu karty, więc bez wcięcia na obrys (okno ma własny margines 20 px)
     outer.setSpacing(8)
 
     header = QWidget()
@@ -194,7 +194,9 @@ class HelpGuideDialog(AppDialog):
         body_lay.setContentsMargins(0, 0, 4, 0)
         body_lay.setSpacing(SECTION_GAP)
 
-        for section_key, title, bullets in _help_sections():
+        for i, (section_key, title, bullets) in enumerate(_help_sections()):
+            if i:
+                body_lay.addWidget(group_separator())  # linia 1 px zamiast obrysu karty (S13, S10)
             body_lay.addWidget(_make_help_section(section_key, title, bullets))
 
         body_lay.addStretch()

@@ -71,11 +71,15 @@ _DEFAULT_WIDTHS = {
 
 
 _STRETCH_COLUMNS: set[int] = set()
+_MIN_SECTION = _DEFAULT_WIDTHS[_COL_LP]  # najwęższa kolumna to „Lp.”
 
 
 def _apply_responsive_column_modes(table: QTableWidget) -> None:
     hdr = table.horizontalHeader()
     hdr.setStretchLastSection(False)
+    # 2.6.6: „Lp.” ma 44 px (_DEFAULT_WIDTHS), nie 56 — minimum 56 zabierało nazwom plików 12 px. Tu, nie tylko w
+    # _configure_results_table: zapisany stan nagłówka (restoreState) przywraca stare minimum 56 z 2.6.4/2.6.5.
+    hdr.setMinimumSectionSize(_MIN_SECTION)
     hdr.setSectionResizeMode(_COL_LP, QHeaderView.ResizeMode.Fixed)
     table.setColumnWidth(_COL_LP, _DEFAULT_WIDTHS[_COL_LP])
     hdr.setSectionResizeMode(_COL_IN, QHeaderView.ResizeMode.Stretch)
@@ -105,7 +109,7 @@ def _configure_results_table(table: QTableWidget) -> QHeaderView:
     hdr.setSectionsMovable(True)
     hdr.setSectionsClickable(True)
     hdr.setHighlightSections(True)
-    hdr.setMinimumSectionSize(56)
+    hdr.setMinimumSectionSize(_MIN_SECTION)
     hdr.setDefaultSectionSize(120)
     _apply_responsive_column_modes(table)
     hdr.setSortIndicatorShown(False)

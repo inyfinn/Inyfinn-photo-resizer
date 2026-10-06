@@ -325,6 +325,24 @@ def apply_tile_density(box: QFrame, density) -> None:
         content.layout().setSpacing(density.tile_inner_gap)
 
 
+def breakable_path(path) -> str:
+    """Ścieżka do etykiety z zawijaniem słów (2.6.6): łamanie tylko PO separatorze, dysk ``C:\\`` w jednym kawałku.
+
+    Qt łamał ``C:\\Users\\…`` po „C:” (separator ``\\`` nie daje okazji do łamania po sobie, a przed sobą daje).
+    Znak niewidoczny U+200B po każdym ``\\`` lub ``/`` = okazja do łamania, U+2060 między ``C:`` a ``\\`` = zakaz.
+    Etykieta nie jest zaznaczalna, więc dodatkowe znaki nie trafiają do schowka.
+    """
+    text = str(path)
+    head = ""
+    if len(text) > 2 and text[1] == ":" and text[2] in "\\/":
+        head, text = text[:2] + "\u2060", text[2:]
+    if text.startswith(("\\\\", "//")):  # UNC: dwa pierwsze znaki to prefiks, nie separator
+        head, text = head + text[:2], text[2:]
+    for sep in ("\\", "/"):
+        text = text.replace(sep, sep + "\u200b")
+    return head + text
+
+
 def group_separator() -> QFrame:
     """Linia 1 px między grupami (``QFrame#groupSep``, kolor z QSS) — wzorzec: ustawienia na białym rozdzielone linią."""
     line = QFrame()

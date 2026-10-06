@@ -129,9 +129,11 @@ def test_inside_helper():
 
 def test_density_levels_keep_gaps_and_paddings_readable():
     assert [d.card_gap for d in DENSITIES] == [CARD_GAP, 12, 8]
+    assert [d.col_gap for d in DENSITIES] == [CARD_GAP, 12, 12]  # 2.6.6: odstęp między kolumnami ≥ 12 px
     assert DENSITIES[0].tile_pad == 20
     for d in DENSITIES:
         assert d.card_gap >= 8 and d.tile_pad >= 10 and d.tile_pad_top >= 10 - 0
+        assert d.col_gap >= 12 and d.col_gap >= d.card_gap
     assert FALLBACK_FRAME.top() >= 20
 
 
@@ -341,16 +343,16 @@ def test_tool_buttons_keep_labels_until_even_two_per_row_does_not_fit(make_windo
 
 # ——— DS 2.0: napisy przycisków wersalikami są szersze — nic nie może zostać ucięte ———
 
-_NO_CAPS = {"btnLink", "footerClose", "formatChip"}
-
-
 def _uppercase_all_buttons(root) -> None:
-    """Symulacja skóry 2.0 w teście: wersaliki + pogrubienie na każdym przycisku (poza link/chip)."""
+    """Symulacja skóry 2.0.6 w teście: wersaliki + pogrubienie na każdym przycisku, który wg reguły (S18,
+    ``typography.wants_uppercase``) ma wersaliki — główne zielone i jedyny obrys w grupie; ciche, CTA i linki nie."""
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QPushButton
 
+    from inyfinn_resizer.app.themes.typography import wants_uppercase
+
     for b in root.findChildren(QPushButton):
-        if b.objectName() in _NO_CAPS:
+        if not wants_uppercase(b):
             continue
         f = QFont(b.font())
         f.setCapitalization(QFont.Capitalization.AllUppercase)
@@ -914,7 +916,7 @@ def test_theme_toggle_keeps_uppercase_labels_and_icon_button_sizes(make_window, 
                 continue
             name = w.objectName()
             if isinstance(w, QPushButton):
-                wants_upper = name not in typography.BUTTON_NO_UPPERCASE
+                wants_upper = typography.wants_uppercase(w)  # 2.6.6 (S18): z bieżącego stanu przycisku
             else:
                 wants_upper = name in typography.DISPLAY_OBJECTS or name in typography.EYEBROW_OBJECTS
             if wants_upper:

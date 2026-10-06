@@ -34,13 +34,16 @@ class Density:
     tile_header_gap: int  # nagłówek → treść oraz ikona → tytuł
     tile_inner_gap: int  # między wierszami wewnątrz karty
     view_margin_v: int  # górny i dolny margines widoku pod paskiem menu
+    col_gap: int  # poziomo między kolumnami (uchwyt podziału, siatka kart); nie mniej niż 12 px, wysokość bez zmian
 
 
 # Poziom 0 = wygląd domyślny (design system: odstęp między kartami 16 px). Poziomy 1–2 tylko gdy ekran jest niski.
+# 2.6.6: odstęp między KOLUMNAMI nie schodzi poniżej 12 px (na poziomie 2 karty w pionie zostają 8 px, więc wysokość
+# się nie zmienia; kolumny dostają +4 px szerokości).
 DENSITIES: tuple[Density, ...] = (
-    Density(0, 16, 20, 16, 10, 10, 12),
-    Density(1, 12, 14, 12, 8, 8, 8),
-    Density(2, 8, 10, 10, 6, 6, 4),
+    Density(0, 16, 20, 16, 10, 10, 12, 16),
+    Density(1, 12, 14, 12, 8, 8, 8, 12),
+    Density(2, 8, 10, 10, 6, 6, 4, 12),
 )
 
 

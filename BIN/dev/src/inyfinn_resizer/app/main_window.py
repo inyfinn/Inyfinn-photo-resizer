@@ -109,6 +109,7 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     stacked_field,
     style_dropdown,
     arrange_tool_grid,
+    breakable_path,
     fit_title_heights,
     group_separator,
     pin_button_min_widths,
@@ -381,10 +382,10 @@ class MainWindow(QMainWindow):
         for lay in self._gap_layouts:
             lay.setSpacing(d.card_gap)
         for grid in self._gap_grids:
-            grid.setHorizontalSpacing(d.card_gap)
+            grid.setHorizontalSpacing(d.col_gap)  # kolumny: nie mniej niż 12 px (2.6.6), pion = odstęp kart
             grid.setVerticalSpacing(d.card_gap)
         if self._main_splitter is not None:
-            self._main_splitter.setHandleWidth(d.card_gap)  # jawna szerokość wygrywa z metryką stylu
+            self._main_splitter.setHandleWidth(d.col_gap)  # jawna szerokość wygrywa z metryką stylu
         self._central_layout.setContentsMargins(20, d.view_margin_v, 20, d.view_margin_v)
         # Kafelki Kolory i Kadr bywają poza układem (nie mają wtedy rodzica) — dołączamy je jawnie.
         tiles = set(self.findChildren(QFrame, "bentoTile"))
@@ -2967,7 +2968,7 @@ class MainWindow(QMainWindow):
         if self._item_kind(current) == "folder":
             path = Path(current.data(0, Qt.UserRole))
             self.preview_label.clear()
-            self.size_info.setText(f"Folder wizek:\n{path}")
+            self.size_info.setText(f"Folder wizek:\n{breakable_path(path)}")
             return
         data = current.data(0, Qt.UserRole)
         if not data:
@@ -2978,7 +2979,7 @@ class MainWindow(QMainWindow):
             self.preview_label.setPixmap(
                 pix.scaled(112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             )
-        self.size_info.setText(f"{path.name}\n{self._format_size(path)}\n{path.parent}")
+        self.size_info.setText(f"{path.name}\n{self._format_size(path)}\n{breakable_path(path.parent)}")
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
