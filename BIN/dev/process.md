@@ -752,3 +752,29 @@
 **Test/Ewaluacja:** zrzuty przed/po (4 style × 13 widoków): `BIN\dev\logs\design-dk\v2.6.3\p0\` i `final\`, arkusz `PREZENTACJE\— SZABLON AI - skrypt\WORK\logs\resizer-2.6.3.png`.
 
 **Źródła:** `ds-dobra-kaloria/tokens/tokens_qt.py` 1.4.0 (READY-1.4.0.txt 13:04), `tokens.json` sekcje `ladder`, `tags`; Qt Style Sheets Reference (pseudo-stan `:alternate` nie działa dla `QTreeView::branch` — sprawdzone zrzutem).
+
+---
+
+## 2026-10-06 — v2.6.5 wygląd „sklep” (design system 2.0.5), okno dopasowane do ekranu
+
+**Komenda/Akcja:** User po obejrzeniu 2.6.4: „checkboxy nie mogą być takie ciemne… wnętrze musi być jasne. Daj odstęp pomiędzy »Lista plików« a elementami po prawej. Wywal informację »Krok po kroku«… Spraw, żeby nowo otwarte okno nie było większe niż aktualna wysokość rozdzielczości… ale niech wszystko nie będzie przycięte.” W trakcie dnia kierunek kolorów zmieniał się trzy razy (runda 3 „zero zieleni” → uchylona; runda 4 „sklep dobrakaloria.pl”: biel, zieleń wraca; na końcu wzorzec = program „Stwórz prezentację”: „wygląda obłędnie dobrze, tak mają wyglądać Resizer i DAM”). Pełny dziennik: `BIN\dev\logs\v2.6.5\POSTEP.md`.
+
+**Log/Status:**
+1. Kolory tylko przez sync: `scripts/sync_design_tokens.py` czyta z `tokens_qt.py` DS 2.0.5 role (w tym nowe: accent, icon, check-*, slider-*, switch-*, btn2-*, step-*, heading, heading-accent, overlay, strip, zebra, progress), drabinę, tagi i kształty (`SHAPE`: promienie, szerokości ramek i fokusu, zasłona). `themes/__init__.py` mapuje role na znaczniki QSS; w QSS, widżetach i generatorach nie ma wartości na sztywno (wyjątki: zasłona modalna ciemnych stylów, zaznaczony wiersz w ciemnych = L4).
+2. Układ jak we wzorcu: okno białe; jeden szary blok na ekran (`bentoTile[variant="panel"]` — „Lista plików” z podglądem w środku; tryb prosty: `variant="drop"` — strefa upuszczania z ramką przerywaną 1 px i stanem pustym); pozostałe grupy `variant="plain"` na bieli pod nadtytułami `sectionTitle`, rozdzielone `groupSep`. Usunięta linijka „Krok po kroku…”. Odstęp między kartami `CARD_GAP = 16`, uchwyt splittera tej samej szerokości.
+3. Kontrolki: pola wyboru jako obrazy stanów (jasne wnętrze, obrys 1,5 px, ptaszek); suwak 24 px / tor 8 px; przyciski — żółty tylko „Konwertuj”, zielony główny w oknach dialogowych, jeden obrysowany w grupie, reszta cicha, napisy wersalikami (filtr typografii); tagi formatów w ośmiu barwach bez ramki; zaznaczony wiersz jasnozielony; fokus pola 1 px.
+4. Okno (`app/window_fit.py`): rozmiar z potrzeb bieżącego widoku, nigdy większy niż dostępny obszar ekranu; gęstość 0/1/2 (odstępy 16/12/8), potem przewijanie prawego panelu; dopasowanie przy starcie, po pokazaniu i przy zmianie trybu; rozmiar ręczny `ui/window_size_<tryb>`.
+5. Usterki znalezione po drodze i ich przyczyny:
+   - Okno konwersji pokazywało 1 kartę pliku z paskiem przewijania: nowy `_flush_layouts` aktywował układy ukrytej, pustej nakładki → `QScrollArea.sizeHint()` zapamiętał (0, 0). Poprawka: flush tylko w zakresie bieżącego widoku + `conversion_overlay._fit_scroll_height()`.
+   - Po kliknięciu przełącznika „Motyw” trzy napisy traciły wersaliki, a przycisk „−” kurczył się do 20×16: ponowne nałożenie arkusza przywraca czcionkę bez zdarzeń Polish/Show i wpisuje min/max z QSS. Poprawka: filtr typografii reaguje na `FontChange`; `_square_icon_buttons()` po `apply_theme`. Niewidoczne na zrzutach ze skryptu — wykryte kliknięciem prawdziwego przełącznika (`QTest.mouseClick`).
+   - Ucięty tekst komunikatu: minimum szerokości liczone przed nałożeniem motywu → `AppMessageBox` liczy tuż przed pokazaniem.
+   - Akcenty tytułów Mindset („JAKOŚĆ”) obcięte: wysokość etykiety z `fontMetrics().height()` jest o 2 px za mała dla wersalików z akcentem → `fit_title_height` z żywych metryk.
+   - Testy zapisywały do PRAWDZIWEGO rejestru usera: test zmieniający rozmiar okna i tryb zostawił `ui/window_size_advanced = 1280×920`, przez co zbudowany program otworzył się w rozmiarze z testu (1296×959 zamiast dopasowanych 1296×941). Poprawka: `tests/conftest.py` — każdy test ma własny plik INI; zbłąkana wartość usunięta z rejestru (kopia całego klucza: scratchpad `rz265\rejestr-PhotoResizer-przed-czyszczeniem.reg`).
+6. Build bez kasowania (skrypt w scratchpadzie `rz265\safe_build_265.ps1`, stare katalogi przeniesione do `BIN\dev\build\_old-20261006-132457`), podpis na kopii na C:, potem kopia na D:.
+
+**Test/Ewaluacja:**
+- Zrzuty własnych okien: przed `BIN\dev\logs\v2.6.5\p0\` (44), po `final\` (44), okno `B3\` + `B3\okno-tabela.md` (16 ekranów × 2 tryby: wszystkie mieszczą się; 2.6.4 wystawało w 12 z 16), czysty start `czysty-start-2\portable-main.png`.
+- Plansze: `PREZENTACJE\— SZABLON AI - skrypt\WORK\logs\resizer-2.6.5-tryb-prosty.png`, `-tryb-zaawansowany.png`, `-okna-dialogowe.png`, `-wzorzec.png`, `-okno.png`.
+- Test czystego uruchomienia: paczka zip rozpakowana do pustego katalogu w %TEMP%, `PATH=C:\Windows\System32;C:\Windows`, okno główne po 6–7 s, tytuł „Inyfinn Photo Resizer 2.6.5”, rozmiar 1296×941 na ekranie 3440×1440.
+
+**Źródła:** `ds-dobra-kaloria/tokens/READY-2.0.0.txt` (reguły S1–S15), `RUNDA-3-2026-10-06.md`, `RUNDA-4-SKLEP-2026-10-06.md`, `assets/wzorzec-program-2026-10-06/program-1.1.5-*.png`; Qt: `QStyleSheetStyle` wpisuje `min-/max-width/height` z arkusza w widżet przy każdym polish (nadpisuje `setFixedSize`), po ponownym nałożeniu arkusza widżet dostaje `FontChange` i `StyleChange`, nie `Polish` — sprawdzone podsłuchem zdarzeń (`rz265\toggle_debug.py`).

@@ -63,8 +63,27 @@ Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz p
 - **Tagi (od 2.6.3):** chipy formatu PNG/JPG/AVIF w trybie prostym i znaczniki rozszerzenia w oknie konwersji mają
   kolory tagów design systemu (`@TAG<n>_BG@/_BORDER@/_FG@`, odcień stylu ±12°/±24°…); numer tagu formatu:
   `themes.format_tag()` (PNG 1, JPG 2, AVIF 3, WebP 4, GIF 5, TIFF 6).
-- **Okno „Nie wybrano folderu zapisu” (od 2.6.3):** „Zapisz jako nowe (_conv)” = żółty `saveChoicePrimary` i Enter,
-  „Nadpisz oryginały” = `saveChoiceOutline`.
+- **Okno „Nie wybrano folderu zapisu” (od 2.6.3):** „Zapisz jako nowe (_conv)” = `saveChoicePrimary` i Enter
+  (od 2.6.5 zielony, nie żółty), „Nadpisz oryginały” = `saveChoiceOutline`.
+- **Wygląd „sklep” (od 2.6.5, design system 2.0.5; zastępuje opisy drabiny i skali z 2.6.3–2.6.4 powyżej tam, gdzie
+  się różnią):** wzorzec to sklep dobrakaloria.pl i program „Stwórz prezentację”. Okno białe (L0), tekst `#222222`,
+  ciemna zieleń `#00642E` w tytule programu i nadtytułach. Szary panel L1 `#F8F7F5` (krem: ecru `#FDF8EC`) to jeden
+  blok na ekranie: „Lista plików” (tryb zaawansowany, z podglądem w środku) albo strefa upuszczania (tryb prosty,
+  ramka przerywana 1 px). Pozostałe grupy leżą na bieli pod nadtytułami `QLabel#sectionTitle`, rozdzielone liniami
+  `QFrame#groupSep`. Kafel: `make_tile(..., variant="panel" | "plain" | "drop")` → QSS `QFrame#bentoTile[variant=…]`.
+  Pola białe z ramką 1 px `#868E96`, promień 4; panel/karta promień 8. L2 jest jaśniejsze od L1; menu, listy
+  rozwijane i podpowiedzi = rola `overlay`. Poziomy L3/L4 nie są używane.
+- **Przyciski (od 2.6.5):** żółty tylko „Konwertuj” (`footerConvert`); zielony główny w oknach dialogowych; obrysowany
+  drugorzędny najwyżej jeden w grupie; pozostałe „ciche” (bez ramki): `toolBtn`, `btnUpdatePath`, właściwość
+  `quiet=true`; przycisk z samą ikoną `iconBtn`. Napisy wersalikami ustawia `themes/typography.py`.
+- **Tagi (od 2.6.5):** osiem różnych barw, samo wypełnienie bez ramki; `themes.format_tag()`: PNG 1, JPG 4, AVIF 8,
+  WebP 3, GIF 5, TIFF 6, JP2/HEIC 7, inne 2.
+- **Pola wyboru (od 2.6.5):** obrazy stanów `themes/icons/cb-*.png`, `rb-*.png` (jasne wnętrze, obrys 1,5 px, ptaszek);
+  po `scripts/sync_design_tokens.py` uruchom `generate_check_icons.py` i `generate_combo_icons.py`.
+- **Okno a ekran (od 2.6.5):** `app/window_fit.py` — przy starcie i zmianie trybu okno ma rozmiar potrzebny bieżącemu
+  widokowi, nigdy większy niż dostępny obszar ekranu; gdy treść się nie mieści: odstępy 16 → 12 → 8, potem przewijanie
+  prawego panelu (stopka z „Konwertuj” zostaje). Rozmiar ustawiony ręcznie pamiętany osobno dla trybu
+  (`ui/window_size_simple`, `ui/window_size_advanced`). Odstęp między kartami: `CARD_GAP = 16`.
 - Kolory: `app/themes/palettes.py` — PLIK GENEROWANY z `tokens_qt.py` design systemu:
   `python scripts/sync_design_tokens.py` (role, drabina L0–L4, tagi). Znaczniki:
   `app/themes/__init__.py`, arkusz: `app/themes/app.qss`, wersaliki: `app/themes/typography.py`.

@@ -13,11 +13,28 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
+    (
+        "2.6.5",
+        "2026-10-06",
+        [
+            "Nowy wygląd — jak sklep dobrakaloria.pl i program „Stwórz prezentację” (design system Dobra Kaloria 2.0): białe okno, tekst prawie czarny, ciemna zieleń w tytule, nadtytułach, ikonach i suwakach. Szary jest tylko jeden blok na ekranie (lista plików albo strefa upuszczania), reszta ustawień leży na bieli pod zielonymi nadtytułami.",
+            "Mniej ramek: przyciski w rzędach („Dodaj pliki”, „Dodaj folder”, „Usuń”, „Wyczyść”, „Aktualizuj ścieżkę”, „Przeglądaj”) nie mają obrysu, znaczniki formatów też nie. W oknach dialogowych główny przycisk jest zielony, żółty został tylko „Konwertuj”.",
+            "Kolorowe znaczniki formatów: PNG, JPG, AVIF i pozostałe mają każdy swój kolor — ten sam w trybie prostym i w oknie konwersji.",
+            "Pola wyboru są jasne w środku: po zaznaczeniu zielony ptaszek w białym polu, nie ciemny kwadrat. Zaznaczony plik na liście ma jasnozielone tło, ikona pliku i znak ✕ są cały czas widoczne.",
+            "Okno po uruchomieniu i po zmianie trybu dopasowuje się do ekranu: nigdy nie jest większe niż ekran i pokazuje wszystko bez ręcznego rozciągania. Na niskim ekranie program zmniejsza odstępy, a gdy to nie wystarcza, przewija prawy panel — „Konwertuj” zawsze widać.",
+            "Rozmiar okna ustawiony ręcznie jest pamiętany (osobno dla trybu prostego i zaawansowanego), jeśli mieści się na ekranie.",
+            "Odstęp między listą plików a ustawieniami po prawej. Usunięta linijka „Krok po kroku…”, która zsuwała sekcje w dół.",
+            "Okno konwersji: lista kart plików dopasowuje wysokość do liczby plików — trzy karty widać bez przewijania, dłuższa lista przewija się wewnątrz.",
+            "Ostrzejsze ikony liniowe; ikony plików na liście mają 20 px i zmieniają kolor razem z motywem.",
+            "Ciemne style: kolory bez zmian, ten sam układ i te same kształty co w jasnych.",
+            "Funkcje programu się nie zmieniły.",
+        ],
+    ),
     (
         "2.6.4",
         "2026-10-05",
@@ -249,8 +266,7 @@ class ChangelogDialog(AppDialog):
         self.resize(600, 620)
 
         root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.setContentsMargins(14, 12, 14, 12)
+        apply_dialog_layout(root)
 
         intro = QLabel(
             f"Co nowego w kolejnych wydaniach. Teraz masz wersję {__version__}."
