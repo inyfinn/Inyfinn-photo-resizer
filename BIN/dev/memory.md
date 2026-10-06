@@ -2,7 +2,7 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-10-06 · **Wersja aplikacji:** 2.6.5
+**Ostatnia aktualizacja:** 2026-10-06 · **Wersja aplikacji:** 2.6.6
 
 ---
 
@@ -207,5 +207,8 @@ Z DAM bierzemy **kanały**, nie limit wagi:
 - **Okno 2.6.5 (`app/window_fit.py`):** przy starcie i zmianie trybu rozmiar = potrzeba bieżącego widoku, przycięta do dostępnego obszaru ekranu (z ramką 8/31/8/8); nie mieści się → gęstość 1, 2 (odstępy 16 → 12 → 8), potem przewijanie prawego panelu ze stopką na wierzchu. Rozmiar ustawiony ręcznie: `ui/window_size_<tryb>`, honorowany tylko gdy się mieści. Zapisany podział kolumn nie wyłącza dopasowania (błąd do 2.6.4). Dowody i tabela 16 ekranów: `BIN\dev\logs\v2.6.5\B3\okno-tabela.md`.
 - **Pola wyboru 2.6.5:** cały wskaźnik to obraz stanu (`icons/cb-<styl>-<tryb>-<stan>.png`, radio `rb-…`, 80×80, generator `generate_check_icons.py` z ról `check_*`), bo QSS nie narysuje obrysu 1,5 px. Po każdym `sync_design_tokens.py` uruchom oba generatory ikon. Stare `check-<styl>-<tryb>.png` i `check-light/dark.png` są nieużywane.
 - **Kolory tylko przez sync:** `python scripts/sync_design_tokens.py` → `palettes.py` (ROLES, LADDER, TAGS, SHAPE). W QSS, widżetach i generatorach nie ma wartości na sztywno (wyjątki: zasłona modalna ciemnych stylów `_SCRIM`, zaznaczony wiersz w ciemnych = L4 — DS nie ma roli „zaznaczony wiersz”).
+- **2.6.6 (DS 2.0.7):** wielkość liter przycisków wg S18 — WERSALIKI tylko zielony główny i jeden obrysowany; ciche, żółty „Konwertuj”, linki, ikony zwykłą wielkością. Reguła w jednym miejscu: `typography.wants_uppercase(btn)` (nazwa obiektu + właściwość `quiet` w chwili zdarzenia; filtr słucha też `DynamicPropertyChange`, przycisk, który przestał się kwalifikować, traci wersaliki). Lista plików w jasnych stylach: białe wiersze z linią 1 px zamiast pasów (`@LIST_ALT_BG@`, `@LIST_ROW_LINE@` w `_theme_tokens`). Odstęp między kolumnami: `Density.col_gap` ≥ 12 px (pion osobno). Tytuł programu w pasku trybu zaawansowanego NIE mieści się przy szerokości 1077 px — decyzja kierownika głównego: nie dodawać.
+- **Testy tylko na izolowanych ustawieniach:** `tests/conftest.py` daje każdemu testowi własny plik INI (od 2.6.5). Wcześniej testy pisały do prawdziwego rejestru usera (`ui/window_size_advanced = 1280×920` z testu sprawiło, że zbudowany program otworzył się w rozmiarze z testu). Skrypty zrzutów: `capture_ui._isolate_settings()`. Stary „znany” błąd `test_segregate_checkbox` zniknął razem z izolacją.
+- **Dowód po prawdziwej akcji:** zrzuty ze skryptu (`apply_theme` + repolish) ukryły usterkę zmiany motywu w 2.6.5. Stan, do którego user dochodzi kliknięciem (motyw, tryb), sprawdzaj zdarzeniem na widżecie (`QTest.mouseClick`), nie wywołaniem funkcji wewnętrznej.
 - Dark/light: tokeny QSS, bez hardcoded kolorów light w dark mode.
 - Dokumentacja operacyjna: **tylko** `BIN/dev/` — nigdy w korzeniu projektu.

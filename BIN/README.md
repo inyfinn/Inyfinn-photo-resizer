@@ -75,7 +75,14 @@ Zmieniamy design na ten, który ma program do tworzenia prezentacji „Stwórz p
   rozwijane i podpowiedzi = rola `overlay`. Poziomy L3/L4 nie są używane.
 - **Przyciski (od 2.6.5):** żółty tylko „Konwertuj” (`footerConvert`); zielony główny w oknach dialogowych; obrysowany
   drugorzędny najwyżej jeden w grupie; pozostałe „ciche” (bez ramki): `toolBtn`, `btnUpdatePath`, właściwość
-  `quiet=true`; przycisk z samą ikoną `iconBtn`. Napisy wersalikami ustawia `themes/typography.py`.
+  `quiet=true`; przycisk z samą ikoną `iconBtn`. Wielkość liter ustawia `themes/typography.py`: od 2.6.6 (DS 2.0.6,
+  S18) WERSALIKI tylko na zielonym głównym i na jednym obrysowanym; ciche, żółty „Konwertuj”, linki i przyciski-ikony
+  zwykłą wielkością liter — jedna reguła `typography.wants_uppercase(btn)`, liczona z bieżącego stanu przycisku.
+- **Od 2.6.6:** lista plików w jasnych stylach bez pasów — białe wiersze z linią 1 px (`@LIST_ALT_BG@`,
+  `@LIST_ROW_LINE@`; ciemne style zostają przy pasach, tabela wyników też); sekcje przewodnika bez ramek, rozdzielone
+  `groupSep`; odstęp między kolumnami `Density.col_gap` ≥ 12 px na każdym poziomie gęstości (pion bez zmian);
+  kolumna „Lp.” w wynikach 44 px; ścieżka w podglądzie łamie się po separatorze (`layout_helpers.breakable_path`);
+  tagi ciemnych stylów z DS 2.0.7.
 - **Tagi (od 2.6.5):** osiem różnych barw, samo wypełnienie bez ramki; `themes.format_tag()`: PNG 1, JPG 4, AVIF 8,
   WebP 3, GIF 5, TIFF 6, JP2/HEIC 7, inne 2.
 - **Pola wyboru (od 2.6.5):** obrazy stanów `themes/icons/cb-*.png`, `rb-*.png` (jasne wnętrze, obrys 1,5 px, ptaszek);

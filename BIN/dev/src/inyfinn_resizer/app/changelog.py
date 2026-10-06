@@ -19,6 +19,20 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.6",
+        "2026-10-06",
+        [
+            "Spokojniejsze przyciski: wielkie litery zostały tylko na zielonym przycisku głównym i na jednym przycisku z ramką. „Dodaj pliki”, „Dodaj folder”, „Usuń”, „Wyczyść”, „Przywróć preset”, „Aktualizuj ścieżkę”, „Przeglądaj” i żółty „Konwertuj” są pisane zwykłymi literami.",
+            "Lista plików w jasnych stylach: białe wiersze oddzielone cienką linią zamiast szarych pasów.",
+            "Przewodnik w menu Pomoc: sekcje bez ramek, rozdzielone cienką linią.",
+            "Odstęp między listą plików a ustawieniami ma co najmniej 12 px także na niskim ekranie.",
+            "Okno wyników: nazwy plików mieszczą się jak w 2.6.4 (węższa kolumna „Lp.”).",
+            "Podgląd pliku: ścieżka folderu łamie się po ukośniku, a nie po „C:”.",
+            "Ciemne style: znaczniki formatów PNG, JPG i AVIF mają wyraźnie różne kolory (design system Dobra Kaloria 2.0.7).",
+            "Funkcje programu się nie zmieniły.",
+        ],
+    ),
+    (
         "2.6.5",
         "2026-10-06",
         [

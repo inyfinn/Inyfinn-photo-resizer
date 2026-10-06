@@ -1,5 +1,5 @@
 ﻿Inyfinn Photo Resizer
-Wersja: 2.6.5
+Wersja: 2.6.6
 Typ: one-dir (BIN/)
 Uruchom: InyfinnPhotoResizer.exe w korzeniu projektu
-Zbudowano: 2026-10-06 13:26:57
+Zbudowano: 2026-10-06 16:23:15

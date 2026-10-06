@@ -778,3 +778,26 @@
 - Test czystego uruchomienia: paczka zip rozpakowana do pustego katalogu w %TEMP%, `PATH=C:\Windows\System32;C:\Windows`, okno główne po 6–7 s, tytuł „Inyfinn Photo Resizer 2.6.5”, rozmiar 1296×941 na ekranie 3440×1440.
 
 **Źródła:** `ds-dobra-kaloria/tokens/READY-2.0.0.txt` (reguły S1–S15), `RUNDA-3-2026-10-06.md`, `RUNDA-4-SKLEP-2026-10-06.md`, `assets/wzorzec-program-2026-10-06/program-1.1.5-*.png`; Qt: `QStyleSheetStyle` wpisuje `min-/max-width/height` z arkusza w widżet przy każdym polish (nadpisuje `setFixedSize`), po ponownym nałożeniu arkusza widżet dostaje `FontChange` i `StyleChange`, nie `Polish` — sprawdzone podsłuchem zdarzeń (`rz265\toggle_debug.py`).
+
+---
+
+## 2026-10-06 — v2.6.6 poprawki po przeglądzie 2.6.5 (wielkość liter przycisków, lista bez pasów, design system 2.0.7)
+
+**Komenda/Akcja:** Krytyk końcowych zrzutów 2.6.5 dał werdykt „drobne poprawki, bez blokerów”; kierownik główny wydał 2.6.5 bez zmian i zlecił listę (a)–(g) jako 2.6.6 (jeden worker, mały diff, bez zmian układu). Dziennik: `BIN\dev\logs\v2.6.6\POSTEP.md`.
+
+**Log/Status:**
+1. (a) Wielkość liter wg S18 (DS 2.0.6): `themes/typography.py` — jedna reguła `wants_uppercase(btn)` z bieżącego stanu przycisku (nazwa obiektu + właściwość `quiet`); WERSALIKI tylko zielony główny i jeden obrysowany, reszta zwykłą wielkością. Filtr słucha też `DynamicPropertyChange` (właściwość `quiet` ustawiana po zbudowaniu) i zdejmuje wersaliki, gdy przycisk przestaje się kwalifikować (rząd nad listą przełącza `toolBtn` ↔ `iconBtn`).
+2. (b) Lista plików w jasnych stylach: `@LIST_ALT_BG@` = tło listy, `@LIST_ROW_LINE@` = linia 1 px; ciemne style i tabela wyników zostają przy pasach.
+3. (c) Przewodnik: sekcje bez obrysu, między nimi `group_separator()`; dół okna to przewijanie, nie ucięcie. Usunięte też obrysy `previewBox` i `dialogCard[onWhite]`.
+4. (d) `window_fit.Density.col_gap` — odstęp poziomy między kolumnami ≥ 12 px na każdym poziomie (pion na poziomie 2 zostaje 8 px, więc wysokości okien się nie zmieniły).
+5. (e) Tytuł programu w pasku trybu zaawansowanego: NIE wdrożone — przy szerokości 1077 px tytuł jest ucięty i wypycha menu „Pomoc” (zrzut `po\po-w1077-z-tytulem.png`); decyzja kierownika głównego: zostawić.
+6. (f) Tabela wyników: kolumna „Lp.” 44 px (minimum sekcji 56 zabierało nazwom 12 px; ustawiane także po `restoreState`, bo zapisany stan nagłówka przywracał stare minimum), dopełnienie nagłówka 8 px; ścieżka w podglądzie: `layout_helpers.breakable_path()` (U+200B po separatorze, U+2060 między „C:” a „\”).
+7. (g) Tagi ciemnych stylów: poprawione u źródła w DS 2.0.7 (osiem rozróżnialnych barw), u nas tylko ponowny `sync_design_tokens.py`.
+8. Testy: nowy `tests/test_polish_266.py` (15 testów), poprawione `test_window_fit.py`, `test_theme_roles.py`.
+
+**Test/Ewaluacja:**
+- Pełny zestaw na izolowanych ustawieniach, 3 przebiegi: 448 passed, 0 failed w każdym; `compileall` kod 0; w rejestrze brak `window_size_*` po testach.
+- Macierz 16 ekranów: rozmiary i poziomy identyczne z 2.6.5; odstęp kolumn 8 → 12 px na poziomach zwartych (`BIN\dev\logs\v2.6.6\okno\okno-tabela.md`).
+- Zrzuty własnych okien: `BIN\dev\logs\v2.6.6\p0\`, `po\` (w tym po kliknięciu prawdziwego przełącznika motywu), `final\` (40 plików po synchronizacji 2.0.7). Plansze: `PREZENTACJE\— SZABLON AI - skrypt\WORK\logs\resizer-2.6.6-tryb-zaawansowany.png`, `-tryb-prosty.png`, `-okna-dialogowe.png`, `-okno.png`.
+
+**Źródła:** `ds-dobra-kaloria/tokens/READY-2.0.0.txt` (S13, S14, S18), `tokens_qt.py` 2.0.7, wzorzec `assets/wzorzec-program-2026-10-06/program-1.1.5-05-opcje-gora.png`, `-11-wynik.png`.
