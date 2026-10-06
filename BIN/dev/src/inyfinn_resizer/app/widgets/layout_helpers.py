@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFontMetrics, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -26,7 +26,10 @@ CONTROL_H = 40
 ACTION_H = 48  # design system Dobra Kaloria 1.5.0: qt.control-h-primary
 ROW_GAP = 10
 FIELD_GAP = 6
-SECTION_GAP = 12
+SECTION_GAP = 12  # odstępy sekcji w oknach dialogowych (changelog, przewodnik) — bez zmian od 2.6.4
+# 2.6.5: jeden odstęp między kartami okna głównego (lewa↔prawa kolumna, karty w kolumnie, tryb prosty).
+# To poziom 0 gęstości z window_fit.DENSITIES; przy niskim ekranie program zmniejsza go do 12, potem 8.
+CARD_GAP = 16
 TILE_PADDING = 20
 TILE_PADDING_TOP = TILE_PADDING - 4  # nagłówki 8 px wyżej w kafelku
 TILE_HEADER_SPACING = 10
@@ -37,6 +40,9 @@ STEP_ICON_SIZE = 28
 COMPACT_LABEL_W = 100
 COMPACT_SLIDER_ROW_H = 36
 COMPACT_CONTROL_ROW_H = 40
+# Lista plików w trybie zaawansowanym: nagłówek + ok. 5 wierszy, żeby przy niskim ekranie nie zniknęła.
+LIST_MIN_H = 170
+LIST_MIN_H_TIGHT = 90  # ostateczność: ekran niższy niż układ potrzebuje nawet przy najmniejszych odstępach
 
 
 def hint_label(text: str) -> QLabel:
@@ -180,12 +186,24 @@ def make_tile(
     compact: bool = False,
     compact_content_h: int = 0,
     fill: bool = False,
+    variant: str = "panel",
+    eyebrow: bool = False,
+    number: str = "",
 ) -> tuple[QFrame, QVBoxLayout]:
-    """Płaski kafelek Bento — jednolite tło, bez ramek."""
+    """Kafelek Bento. ``variant`` (właściwość QSS ``variant``, każdy kafelek ją ma):
+
+    - ``panel`` — szare tło (domyślnie), jedyny blok na ekranie wg wzorca „Stwórz prezentację”;
+    - ``plain`` — bez tła, treść prosto na białym; wypełnienie poziome 0 (treść równa z krawędzią kolumny);
+    - ``drop`` — szare tło z przerywanym obrysem 1 px = strefa upuszczania plików.
+
+    ``eyebrow`` — tytuł jako nadtytuł sekcji (``sectionTitle``: Lato, wersaliki, zielony) zamiast Mindset;
+    ``number`` — numer kroku (``stepNumber``, np. „1.”) w osobnej etykiecie przed tytułem.
+    """
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
     box = QFrame()
     box.setObjectName("bentoTile")
+    box.setProperty("variant", variant if variant in ("panel", "plain", "drop") else "panel")
     if fill:
         v_policy = QSizePolicy.Policy.Expanding
     elif compact:
@@ -194,7 +212,10 @@ def make_tile(
         v_policy = QSizePolicy.Policy.Preferred
     box.setSizePolicy(QSizePolicy.Policy.Expanding, v_policy)
     outer = QVBoxLayout(box)
-    outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
+    if box.property("variant") == "plain":
+        outer.setContentsMargins(0, 0, 0, 0)
+    else:
+        outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
     outer.setSpacing(TILE_HEADER_SPACING)
 
     header = QWidget()
@@ -218,8 +239,21 @@ def make_tile(
     text_col.setContentsMargins(0, 0, 0, 0)
     text_col.setSpacing(1)
     title_lbl = QLabel(title)
-    title_lbl.setObjectName("sectionStepTitle")
-    text_col.addWidget(title_lbl)
+    title_lbl.setObjectName("sectionTitle" if eyebrow else "sectionStepTitle")
+    if number:
+        # Numer kroku to osobna etykieta (inny kolor w QSS); pełny napis zostaje dostępny dla czytników i testów.
+        title_lbl.setAccessibleName(f"{number} {title}")
+        number_lbl = QLabel(number)
+        number_lbl.setObjectName("stepNumber")
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+        title_row.addWidget(number_lbl, 0, Qt.AlignmentFlag.AlignBottom)
+        title_row.addWidget(title_lbl, 0, Qt.AlignmentFlag.AlignBottom)
+        title_row.addStretch(1)
+        text_col.addLayout(title_row)
+    else:
+        text_col.addWidget(title_lbl)
     if subtitle:
         sub_lbl = QLabel(subtitle)
         sub_lbl.setObjectName("sectionStepHint")
@@ -254,13 +288,60 @@ def make_tile(
     return box, inner
 
 
+def apply_tile_density(box: QFrame, density) -> None:
+    """Wypełnienia i odstępy jednej karty wg ``window_fit.Density`` (wysokości kontrolek bez zmian).
+
+    Trzy warianty (``variant``): ``panel`` i ``drop`` mają wypełnienie z gęstości, ``plain`` (treść na białym,
+    bez tła) nie ma wypełnienia — rytm pionowy daje odstęp między kartami i linie ``groupSep`` w kontenerze.
+    Tytuł karty dostaje miejsce na akcenty wersalików (``fit_title_height`` — kilka px wyżej niż sama czcionka);
+    w kartach z wypełnieniem o tyle samo zmniejszamy górne wypełnienie, więc linia pisma zostaje tam, gdzie była.
+    """
+    outer = box.layout()
+    if outer is None:
+        return
+    header = outer.itemAt(0).widget() if outer.count() else None
+    has_header = header is not None and header.objectName() == "sectionStepHeader"
+    plain = box.property("variant") == "plain"
+    extra = 0
+    if has_header:
+        for name in ("sectionStepTitle", "stepNumber"):
+            for title in header.findChildren(QLabel, name):
+                if title.text():
+                    fit_title_height(title)
+                    if name == "sectionStepTitle":
+                        extra = max(0, title.minimumHeight() - QFontMetrics(title.font()).height())
+    if plain:
+        outer.setContentsMargins(0, 0, 0, 0)
+    else:
+        top = max(4, density.tile_pad_top - extra)
+        outer.setContentsMargins(density.tile_pad, top, density.tile_pad, density.tile_pad)
+    if not has_header:
+        return  # karta bez nagłówka: zostają jej własne odstępy
+    outer.setSpacing(density.tile_header_gap)
+    if header.layout() is not None:
+        header.layout().setSpacing(density.tile_header_gap)
+    content = outer.itemAt(1).widget() if outer.count() > 1 else None
+    if content is not None and content.layout() is not None:
+        content.layout().setSpacing(density.tile_inner_gap)
+
+
+def group_separator() -> QFrame:
+    """Linia 1 px między grupami (``QFrame#groupSep``, kolor z QSS) — wzorzec: ustawienia na białym rozdzielone linią."""
+    line = QFrame()
+    line.setObjectName("groupSep")
+    line.setFrameShape(QFrame.Shape.NoFrame)
+    line.setFixedHeight(1)
+    line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    return line
+
+
 def make_bento_column() -> tuple[QWidget, QVBoxLayout]:
     """Pionowa kolumna Bento — kafelki sklejają się bez pustych przerw między wierszami siatki."""
     col = QWidget()
     col.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     lay = QVBoxLayout(col)
     lay.setContentsMargins(0, 0, 0, 0)
-    lay.setSpacing(SECTION_GAP)
+    lay.setSpacing(CARD_GAP)
     return col, lay
 
 
@@ -282,18 +363,53 @@ def add_grid_span(grid: QGridLayout, row: int, widget: QWidget) -> None:
     grid.addWidget(widget, row, 0, 1, 2)
 
 
-def set_themed_icon(btn: QPushButton, factory: Callable[[], QIcon]) -> QPushButton:
-    """Ikona rysowana z kolorów motywu — ``refresh_themed_icons`` odświeża ją po zmianie motywu."""
+ICON_TEXT_GAP = 8  # odstęp ikona ↔ napis na przycisku (px logiczne); styl Qt dawał ~0–2 px
+ICON_SIZE = QSize(16, 16)
+
+
+def apply_button_icon(btn: QPushButton) -> None:
+    """(Prze)rysowuje ikonę przycisku z fabryki motywu; przycisk z napisem dostaje ``ICON_TEXT_GAP`` odstępu.
+
+    Odstęp to przezroczysty pasek po prawej stronie ikony (jedno miejsce w całym programie — nie w każdym
+    przycisku osobno i nie spacjami w napisach); ``iconSize`` rośnie o ten pasek, więc ikona nie jest skalowana.
+    Przycisk bez napisu (tylko ikona) odstępu nie dostaje. Wołane przy tworzeniu, zmianie motywu i zmianie napisu.
+    """
+    factory = getattr(btn, "_icon_factory", None)
+    if factory is None:
+        return
+    base: QSize = getattr(btn, "_icon_base_size", ICON_SIZE)
+    icon = factory()
+    if not btn.text():
+        btn.setIconSize(base)
+        btn.setIcon(icon)
+        return
+    dpr = max(1.0, btn.devicePixelRatioF())
+    src = icon.pixmap(base, dpr)
+    out = QPixmap(round((base.width() + ICON_TEXT_GAP) * dpr), round(base.height() * dpr))
+    out.setDevicePixelRatio(dpr)
+    out.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(out)
+    painter.drawPixmap(0, int((base.height() - src.height() / dpr) / 2), src)
+    painter.end()
+    btn.setIconSize(QSize(base.width() + ICON_TEXT_GAP, base.height()))
+    btn.setIcon(QIcon(out))
+
+
+def set_themed_icon(btn: QPushButton, factory: Callable[[], QIcon], size: QSize = ICON_SIZE) -> QPushButton:
+    """Ikona rysowana z kolorów motywu — ``refresh_themed_icons`` odświeża ją po zmianie motywu.
+
+    Rozmiar ikony podaje się tutaj (``size``), nie przez ``setIconSize`` po fakcie — ten ustawia ``apply_button_icon``.
+    """
     btn._icon_factory = factory  # type: ignore[attr-defined]
-    btn.setIcon(factory())
+    btn._icon_base_size = QSize(size)  # type: ignore[attr-defined]
+    apply_button_icon(btn)
     return btn
 
 
 def refresh_themed_icons(root: QWidget) -> None:
     for btn in root.findChildren(QPushButton):
-        factory = getattr(btn, "_icon_factory", None)
-        if factory is not None:
-            btn.setIcon(factory())
+        if getattr(btn, "_icon_factory", None) is not None:
+            apply_button_icon(btn)
 
 
 def tool_button_row(
@@ -306,15 +422,10 @@ def tool_button_row(
     row = QHBoxLayout()
     row.setSpacing(8 if large else 6)
     row.setContentsMargins(0, 0, 0, 0)
-    icon_size = QSize(16, 16)
     for text, slot, icon in specs:
         btn = QPushButton(text, parent)
         btn.setObjectName("toolBtn")
-        if callable(icon):
-            set_themed_icon(btn, icon)
-        else:
-            btn.setIcon(icon)
-        btn.setIconSize(icon_size)
+        set_themed_icon(btn, icon if callable(icon) else (lambda ic=icon: ic))
         btn.setToolTip(text)
         btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         if large:
@@ -325,6 +436,113 @@ def tool_button_row(
         row.addWidget(btn)
     row.addStretch()
     return row
+
+
+def tool_button_grid(
+    specs: list[tuple[str, Callable[[], None], "QIcon | Callable[[], QIcon]"]],
+    parent: QWidget | None = None,
+) -> tuple[QWidget, list[QPushButton]]:
+    """Rząd przycisków z ikonami, który umie się przełożyć na dwa rzędy (2.6.5, napisy wersalikami są szersze).
+
+    Zwraca kontener (jego szerokość nie wymusza minimum kolumny — poziomy rozmiar ``Ignored``) i przyciski.
+    ``arrange_tool_grid`` ustawia je w jednym rzędzie albo w parach; decyzję podejmuje okno wg dostępnej szerokości.
+    """
+    box = QWidget(parent)
+    box.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    grid = QGridLayout(box)
+    grid.setContentsMargins(0, 0, 0, 0)
+    grid.setSpacing(6)
+    buttons: list[QPushButton] = []
+    for text, slot, icon in specs:
+        btn = QPushButton(text, box)
+        btn.setObjectName("toolBtn")
+        set_themed_icon(btn, icon if callable(icon) else (lambda ic=icon: ic))
+        btn.setToolTip(text)
+        btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        btn.setMinimumHeight(BTN_H)
+        btn.clicked.connect(slot)
+        buttons.append(btn)
+    arrange_tool_grid(box, buttons, len(buttons))
+    return box, buttons
+
+
+def arrange_tool_grid(box: QWidget, buttons: list[QPushButton], cols: int) -> None:
+    """Ustawia przyciski po ``cols`` w rzędzie (reszta rzędu to rozciągliwy odstęp po prawej)."""
+    grid = box.layout()
+    for btn in buttons:
+        grid.removeWidget(btn)
+    for i, btn in enumerate(buttons):
+        grid.addWidget(btn, i // cols, i % cols)
+    for c in range(len(buttons) + 1):
+        grid.setColumnStretch(c, 1 if c == cols else 0)
+    grid.invalidate()
+
+
+def pin_button_min_widths(root: QWidget, skip: "QWidget | None" = None, only: "list[QWidget] | None" = None) -> None:
+    """Minimalna szerokość przycisku z napisem = jego żywy sizeHint (nigdy mniej niż minimum ze stylu).
+
+    QSS ustawia ``min-width`` (np. 106 px), które przesłania minimum układu — przy braku miejsca układ ściskał
+    przyciski poniżej szerokości napisu (napis ucięty). Wersaliki z DS 2.0 są o 12–20 % szersze, więc ściskanie
+    byłoby widoczne. Wartość ze stylu zapamiętujemy raz (``_qss_min_w``) i używamy jako dolnej granicy.
+    """
+    allowed = set(only) if only is not None else None  # tylko przyciski z tych widżetów-rodziców (zakres pomiaru)
+    for btn in root.findChildren(QPushButton):
+        if not btn.text() or btn.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored:
+            continue
+        if skip is not None and skip.isAncestorOf(btn):
+            continue
+        if allowed is not None and btn.parentWidget() not in allowed:
+            continue
+        btn.ensurePolished()  # min-width ze stylu musi być już nałożone, zanim je zapamiętamy
+        qss_min = btn.property("_qss_min_w")
+        if qss_min is None:
+            qss_min = btn.minimumWidth()
+            btn.setProperty("_qss_min_w", qss_min)
+        want = max(int(qss_min), btn.sizeHint().width())
+        if btn.minimumWidth() != want and btn.maximumWidth() >= want:
+            btn.setMinimumWidth(want)
+
+
+# Litery z akcentami nad wersalikiem — wyznaczają, ile miejsca nad linią pisma potrzebuje tytuł Mindset.
+_TITLE_ACCENT_PROBE = "ŚĆÓŻŹĄĘŁŃ"
+
+
+def fit_title_height(lbl: QLabel) -> None:
+    """Wysokość tytułu z żywych metryk czcionki, nie ze stałej: akcenty wersalików sięgają wyżej niż ``ascent``.
+
+    Czcionka Mindset ma ascent 18 px przy 22 px, a „Ś”, „Ć”, „Ó” sięgają 20 px nad linię pisma — etykieta o wysokości
+    ``fontMetrics().height()`` ucinała 2 px czubków akcentów (widać było „JAKOSC”, „PLIKOW”). Etykieta dostaje
+    wysokość = (najwyższy znak z akcentem) + descent i wyrównanie do dołu, więc zapas idzie nad tekst.
+    Wołane po nałożeniu stylu (czcionka ze stylu i wersaliki z filtra typografii są już ustawione).
+    """
+    lbl.ensurePolished()
+    fm = QFontMetrics(lbl.font())
+    glyph_top = -fm.tightBoundingRect(_TITLE_ACCENT_PROBE).top()
+    need = max(fm.height(), int(glyph_top + 0.999) + fm.descent() + 1)
+    if lbl.minimumHeight() != need:
+        lbl.setMinimumHeight(need)
+    align = lbl.alignment()
+    if not (align & Qt.AlignmentFlag.AlignBottom):
+        lbl.setAlignment((align & ~Qt.AlignmentFlag.AlignVertical_Mask) | Qt.AlignmentFlag.AlignBottom)
+
+
+def fit_title_heights(widgets) -> None:
+    """``fit_title_height`` dla wszystkich tytułów Mindset (obiekty z ``typography.DISPLAY_OBJECTS``) w podanych widżetach."""
+    from inyfinn_resizer.app.themes.typography import DISPLAY_OBJECTS
+
+    names = set(DISPLAY_OBJECTS) | {"stepNumber", "dropEmptyTitle"}  # numer kroku i tytuł pustej strefy też są Mindset
+    for w in widgets:
+        if isinstance(w, QLabel) and w.objectName() in names and w.text():
+            fit_title_height(w)
+
+
+def mark_quiet(btn: QPushButton) -> QPushButton:
+    """DS 2.0.1 (S13): przycisk „cichy” — bez obrysu, jasne tło (QSS: ``QPushButton[quiet="true"]``).
+
+    W grupie przycisków: najwyżej jeden zielony główny, najwyżej jeden z obrysem, reszta cicha.
+    """
+    btn.setProperty("quiet", True)
+    return btn
 
 
 def mark_large(widget: QWidget, height: int = CONTROL_H) -> QWidget:

@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog
+from inyfinn_resizer.app.dialogs.base_dialog import DIALOG_STACK_GAP, AppDialog, apply_dialog_layout
 
 OVERWRITE = "overwrite"
 CONV = "conv"
@@ -27,8 +27,7 @@ class SimpleSaveChoiceDialog(AppDialog):
         self._choice: str | None = None
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(12)
+        apply_dialog_layout(root, spacing=DIALOG_STACK_GAP)
 
         title = QLabel("Nie wybrano folderu zapisu")
         title.setObjectName("saveChoiceTitle")

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 from inyfinn_resizer.app.widgets.section_icons import help_section_pixmap
 
@@ -172,8 +172,7 @@ class HelpGuideDialog(AppDialog):
         self.resize(640, 680)
 
         root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.setContentsMargins(20, 16, 20, 16)
+        apply_dialog_layout(root)
 
         intro = QLabel(
             f"Wsadowa konwersja i kompresja zdjęć. "

@@ -108,31 +108,54 @@ def restore_results_dialog_geometry(dialog) -> bool:
         return False
 
 
+def _window_size_key(mode: str) -> str:
+    return f"ui/window_size_{'advanced' if mode == 'advanced' else 'simple'}"
+
+
+def save_window_size(mode: str, width: int, height: int) -> None:
+    """Rozmiar obszaru klienta okna wybrany ręcznie przez usera (osobno dla trybu prostego i zaawansowanego)."""
+    _settings().setValue(_window_size_key(mode), [int(width), int(height)])
+
+
+def load_window_size(mode: str):
+    """Zapisany rozmiar klienta jako QSize albo None. Czy mieści się w ekranie, rozstrzyga ``window_fit``."""
+    from PySide6.QtCore import QSize
+
+    raw = _settings().value(_window_size_key(mode))
+    try:
+        w, h = int(raw[0]), int(raw[1])
+    except (TypeError, ValueError, IndexError, KeyError):
+        return None
+    if w < 200 or h < 200:
+        return None
+    return QSize(w, h)
+
+
 def save_geometry(window: MainWindow) -> None:
     s = _settings()
     if splitter := window._main_splitter:
         s.setValue("ui/splitter", splitter.sizes())
+    window.save_manual_window_size()
 
 
 def restore_geometry(window: MainWindow) -> bool:
-    from inyfinn_resizer.app.main_window import DEFAULT_SPLITTER_SIZES, RIGHT_PANEL_MIN_WIDTH
+    """Zapamiętany podział lewej i prawej kolumny. Rozmiar okna dobiera osobno ``MainWindow._fit_window``.
 
-    s = _settings()
-    sizes = s.value("ui/splitter")
-    if sizes and window._main_splitter:
+    Zwraca, czy podział był zapisany — to NIE wyłącza dopasowania okna do ekranu (do 2.6.4 wyłączało:
+    po pierwszym uruchomieniu okno zawsze miało 1280×920, niezależnie od ekranu).
+    """
+    from inyfinn_resizer.app.main_window import RIGHT_PANEL_MIN_WIDTH
+
+    sizes = _settings().value("ui/splitter")
+    window._saved_splitter = None
+    if sizes:
         try:
             parsed = [int(x) for x in sizes]
-            if len(parsed) == 2:
-                right = parsed[1]
-                if right < RIGHT_PANEL_MIN_WIDTH:
-                    window._main_splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
-                else:
-                    left = max(400, parsed[0])
-                    window._main_splitter.setSizes([left, right])
-            else:
-                window._main_splitter.setSizes(parsed)
         except (TypeError, ValueError):
-            pass
+            parsed = []
+        # Prawa kolumna węższa niż minimum albo nie dwie liczby = zapis nieprawidłowy → podział domyślny.
+        if len(parsed) == 2 and parsed[0] > 0 and parsed[1] >= RIGHT_PANEL_MIN_WIDTH:
+            window._saved_splitter = parsed
     return bool(sizes)
 
 

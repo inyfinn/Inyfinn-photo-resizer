@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QProgressBar, QPushButton, QVBoxLayout
 
 from inyfinn_resizer import __version__
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog
+from inyfinn_resizer.app.dialogs.base_dialog import DIALOG_STACK_GAP, AppDialog, apply_dialog_layout
 
 
 class UpdateDialog(AppDialog):
@@ -19,7 +19,7 @@ class UpdateDialog(AppDialog):
         self.setModal(False)
 
         root = QVBoxLayout(self)
-        root.setSpacing(12)
+        apply_dialog_layout(root, spacing=DIALOG_STACK_GAP)
 
         self._status = QLabel("Sprawdzanie nowej wersji…")
         self._status.setWordWrap(True)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -23,9 +24,14 @@ from inyfinn_resizer.app.dialogs.advanced_options import (
     BRAND_GRADIENT_2,
     AdvancedSettingsPanel,
 )
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import (
+    DIALOG_ROW_GAP,
+    AppDialog,
+    apply_dialog_layout,
+    polish_dialog_buttons,
+)
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
-from inyfinn_resizer.app.widgets.layout_helpers import style_dropdown
+from inyfinn_resizer.app.widgets.layout_helpers import mark_quiet, style_dropdown
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality
 
@@ -39,7 +45,7 @@ def _preview_gradient_style(
 ) -> str:
     if reverse:
         c1, c2 = c2, c1
-    border = "border: 1px solid #94a3b8; border-radius: 4px;"
+    border = f"border: 1px solid {_swatch_border()}; border-radius: 4px;"
     if gradient_type == "radial":
         return (
             f"background: qradialgradient(cx:0.5, cy:0.5, radius:0.85, "
@@ -50,8 +56,32 @@ def _preview_gradient_style(
     )
 
 
+def _swatch_border() -> str:
+    """Obrys próbki koloru = obrys pola z motywu (dawniej stały szaroniebieski)."""
+    from inyfinn_resizer.app.themes import theme_token
+
+    return theme_token("@FIELD_BORDER@")
+
+
 def _swatch_style(hex_color: str) -> str:
-    return f"background-color: {hex_color}; border: 1px solid #94a3b8; border-radius: 4px;"
+    return f"background-color: {hex_color}; border: 1px solid {_swatch_border()}; border-radius: 4px;"
+
+
+class _PageScroll(QScrollArea):
+    """Obszar przewijania, który „chce” wysokości swojej strony (okno otwiera się tak wysokie, jak ekran pozwala),
+    ale może być dowolnie niższy — wtedy strona się przewija."""
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt API)
+        page = self.widget()
+        hint = page.sizeHint() if page is not None else QSize(300, 200)
+        return QSize(max(hint.width(), 300), hint.height() + 2 * self.frameWidth())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt API)
+        """Najmniejsza szerokość = szerokość treści strony (+ pasek przewijania): strona nie jest ucinana z boku."""
+        page = self.widget()
+        width = page.minimumSizeHint().width() if page is not None else 100
+        bar = self.verticalScrollBar().sizeHint().width()
+        return QSize(width + bar + 2 * self.frameWidth(), 120)
 
 
 class FormatSettingsDialog(AppDialog):
@@ -66,7 +96,7 @@ class FormatSettingsDialog(AppDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("Ustawienia rozszerzenia")
-        self.setMinimumWidth(520)
+        # Minimalna szerokość wynika z treści kart (_PageScroll.minimumSizeHint); wysokość: karty się przewijają.
         self.setMinimumHeight(480)
         self._opts = opts
         self._fmt = fmt
@@ -108,21 +138,24 @@ class FormatSettingsDialog(AppDialog):
         self._advanced_panel: AdvancedSettingsPanel | None = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        apply_dialog_layout(layout)
         tabs = QTabWidget()
         tabs.setObjectName("dialogTabs")
 
-        tabs.addTab(self._jpeg_tab(), "JPEG")
-        tabs.addTab(self._png_tab(), "PNG")
-        tabs.addTab(self._webp_tab(), "WebP")
-        tabs.addTab(self._avif_tab(), "AVIF")
-        tabs.addTab(self._gif_tab(), "GIF")
+        # 2.6.5: strony kart przewijają się wewnątrz okna (wcześniej przy niskim ekranie treść się nakładała).
+        tabs.addTab(self._scrolling_page(self._jpeg_tab()), "JPEG")
+        tabs.addTab(self._scrolling_page(self._png_tab()), "PNG")
+        tabs.addTab(self._scrolling_page(self._webp_tab()), "WebP")
+        tabs.addTab(self._scrolling_page(self._avif_tab()), "AVIF")
+        tabs.addTab(self._scrolling_page(self._gif_tab()), "GIF")
         self._advanced_panel = AdvancedSettingsPanel(self._resize, self._transforms)
         tabs.addTab(self._advanced_panel, "Zaawansowane")
 
         idx = {"jpeg": 0, "png": 1, "webp": 2, "avif": 3, "gif": 4}.get(fmt, 2)
         tabs.setCurrentIndex(idx)
         layout.addWidget(tabs)
+        self._tabs = tabs
+        self._page_width_checked = False
 
         hint = QLabel(FORMAT_EXTENSION_TIPS.get(fmt, ""))
         hint.setObjectName("hintLabel")
@@ -133,6 +166,7 @@ class FormatSettingsDialog(AppDialog):
         reset_btn = QPushButton("Resetuj")
         reset_btn.setObjectName("btnSecondary")
         reset_btn.setFixedHeight(36)
+        mark_quiet(reset_btn)  # S13: w tym rzędzie dialogu jest tylko „Resetuj” — cichy; obrys zostaje polom
         reset_btn.clicked.connect(self._reset)
         reset_row.addWidget(reset_btn)
         reset_row.addStretch()
@@ -146,10 +180,54 @@ class FormatSettingsDialog(AppDialog):
 
         self._load_from_opts()
 
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        super().showEvent(event)
+        if not self._page_width_checked:
+            self._page_width_checked = True
+            QTimer.singleShot(0, self._ensure_page_width)
+
+    def _ensure_page_width(self) -> None:
+        """Strony kart nie mogą być węższe niż ich treść (inaczej prawy brzeg pól jest ucięty, a poziomego paska nie ma).
+
+        Układ nie zna wypełnienia panelu kart ze stylu, więc różnicę mierzymy po pokazaniu i poszerzamy okno
+        (i jego minimum) o brakujące piksele — nie więcej niż pozwala ekran.
+        """
+        pages = [
+            self._tabs.widget(i)
+            for i in range(self._tabs.count())
+            if isinstance(self._tabs.widget(i), _PageScroll) and self._tabs.widget(i).widget() is not None
+        ]
+        if not pages:
+            return
+        visible = self._tabs.currentWidget()
+        if not isinstance(visible, _PageScroll):
+            visible = pages[0]
+        deficit = max(p.widget().minimumSizeHint().width() for p in pages) - visible.viewport().width()
+        if deficit <= 0:
+            return
+        screen = self.screen()
+        room = (screen.availableGeometry().width() - 16 - self.width()) if screen is not None else deficit
+        grow = max(0, min(deficit, room))
+        if grow:
+            before = self.width()
+            self.setMinimumWidth(self.minimumWidth() + grow)  # Qt może już tu poszerzyć okno do nowego minimum
+            self.resize(max(self.width(), before + grow), self.height())
+
+    @staticmethod
+    def _scrolling_page(page: QWidget) -> QScrollArea:
+        """Strona karty w obszarze przewijania (styl jak prawy panel: przezroczysty, bez ramki)."""
+        scroll = _PageScroll()
+        scroll.setObjectName("settingsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(page)
+        return scroll
+
     def _jpeg_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
-        fl.setSpacing(10)
+        fl.setSpacing(DIALOG_ROW_GAP)
 
         self._jpeg_matte_mode = style_dropdown(QComboBox())
         self._jpeg_matte_mode.addItems([
@@ -190,11 +268,14 @@ class FormatSettingsDialog(AppDialog):
         fl.addRow(self._jpeg_matte_noise)
 
         color_row = QHBoxLayout()
+        color_row.setSpacing(DIALOG_ROW_GAP)
         self._jpeg_color_btn = QPushButton("Kolor 1…")
         self._jpeg_color_btn.setObjectName("btnSecondary")
+        mark_quiet(self._jpeg_color_btn)  # S13: Kolor 1 i Kolor 2 to para — oba ciche
         self._jpeg_color_btn.clicked.connect(lambda: self._pick_color(1))
         self._jpeg_color2_btn = QPushButton("Kolor 2…")
         self._jpeg_color2_btn.setObjectName("btnSecondary")
+        mark_quiet(self._jpeg_color2_btn)
         self._jpeg_color2_btn.clicked.connect(lambda: self._pick_color(2))
         self._jpeg_preview = QLabel()
         self._jpeg_preview.setFixedSize(100, 100)
@@ -228,6 +309,7 @@ class FormatSettingsDialog(AppDialog):
     def _png_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
+        fl.setSpacing(DIALOG_ROW_GAP)
         self._png_mode = style_dropdown(QComboBox())
         self._png_mode.addItems([
             "Auto (z suwaka jakości)",
@@ -251,6 +333,7 @@ class FormatSettingsDialog(AppDialog):
     def _webp_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
+        fl.setSpacing(DIALOG_ROW_GAP)
         self._webp_lossless = QCheckBox("Bezstratny WebP")
         self._webp_lossless.setToolTip("Większy plik, zero strat — jak archiwum.")
         fl.addRow(self._webp_lossless)
@@ -262,7 +345,7 @@ class FormatSettingsDialog(AppDialog):
     def _gif_tab(self) -> QWidget:
         w = QWidget()
         fl = QFormLayout(w)
-        fl.setSpacing(8)
+        fl.setSpacing(DIALOG_ROW_GAP)
 
         self._gif_mode = style_dropdown(QComboBox())
         self._gif_mode.addItem("Jakość (2 z 3 klatek + lossy)", "quality")

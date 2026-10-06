@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 from inyfinn_resizer.app.widgets.layout_helpers import ROW_GAP, add_form_row
 from inyfinn_resizer.core.job import RenameRule
 from inyfinn_resizer.core.rename.templates import preview_rename
@@ -24,13 +24,12 @@ class RenameDialog(AppDialog):
     def __init__(self, rule: RenameRule, queue: list[Path], parent=None):
         super().__init__(parent)
         self.setWindowTitle("Zmiana nazw")
-        self.setMinimumSize(480, 360)
+        self.setMinimumWidth(480)
         self._rule = rule
         self._queue = queue
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(ROW_GAP)
+        apply_dialog_layout(layout)
 
         layout.addWidget(QLabel("Szablon nazwy (np. {name}_{counter:04d}):"))
         self.rename_template = QLineEdit(rule.template or "{name}_{counter:04d}")

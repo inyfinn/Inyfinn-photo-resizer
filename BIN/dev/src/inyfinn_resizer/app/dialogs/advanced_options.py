@@ -18,7 +18,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from inyfinn_resizer.app.widgets.layout_helpers import field_group, h_separator, style_dropdown
+from inyfinn_resizer.app.dialogs.base_dialog import (
+    DIALOG_MARGIN,
+    DIALOG_ROW_GAP,
+    DIALOG_SECTION_GAP,
+    DIALOG_STACK_GAP,
+)
+from inyfinn_resizer.app.widgets.layout_helpers import field_group, h_separator, mark_quiet, style_dropdown
 from inyfinn_resizer.core.job import ResizeMode, ResizeOptions, TransformOptions
 
 BRAND_GRADIENT_1 = "#76b82a"
@@ -33,10 +39,12 @@ def _plain_spin() -> QSpinBox:
 
 
 def _flat_section(title: str, tooltip: str = "") -> tuple[QWidget, QVBoxLayout]:
-    wrap = QWidget()
+    """Sekcja = panel L1 (``QFrame#dialogPanel``, DS 2.0 S2) z wypełnieniem 20 px; pola w środku są białe (L2)."""
+    wrap = QFrame()
+    wrap.setObjectName("dialogPanel")
     lay = QVBoxLayout(wrap)
-    lay.setContentsMargins(0, 0, 0, 0)
-    lay.setSpacing(6)
+    lay.setContentsMargins(DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN)
+    lay.setSpacing(DIALOG_STACK_GAP)
     hdr = QLabel(title)
     hdr.setObjectName("sectionTitle")
     if tooltip:
@@ -67,8 +75,8 @@ class AdvancedSettingsPanel(QWidget):
 
         body = QWidget()
         body_lay = QVBoxLayout(body)
-        body_lay.setSpacing(12)
-        body_lay.setContentsMargins(4, 4, 4, 4)
+        body_lay.setSpacing(DIALOG_SECTION_GAP)  # między panelami 16 px
+        body_lay.setContentsMargins(0, 0, 4, 0)
 
         resize_box, resize_lay = _flat_section(
             "Zmiana rozmiaru",
@@ -79,6 +87,7 @@ class AdvancedSettingsPanel(QWidget):
         resize_lay.addWidget(self.resize_enable)
 
         row1 = QHBoxLayout()
+        row1.setSpacing(DIALOG_ROW_GAP)
         self.side_combo = style_dropdown(QComboBox())
         self.side_combo.addItems(["Szerokość", "Wysokość", "Dłuższy bok", "Krótszy bok"])
         row1.addWidget(field_group("Skaluj według", self.side_combo), stretch=1)
@@ -104,8 +113,8 @@ class AdvancedSettingsPanel(QWidget):
             "Przytnij obraz do wybranego prostokąta lub do przezroczystych pikseli.",
         )
         crop_grid = QGridLayout()
-        crop_grid.setHorizontalSpacing(10)
-        crop_grid.setVerticalSpacing(8)
+        crop_grid.setHorizontalSpacing(DIALOG_ROW_GAP)
+        crop_grid.setVerticalSpacing(DIALOG_ROW_GAP)
 
         self.crop_enable = QCheckBox("Włącz kadrowanie (piksele)")
         crop_grid.addWidget(self.crop_enable, 0, 0, 1, 2)
@@ -256,7 +265,7 @@ class AdvancedSettingsPanel(QWidget):
 
 
 # Zachowaj dialog dla kompatybilności wstecznej (import z innych modułów).
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 
 
 class AdvancedOptionsDialog(AppDialog):
@@ -267,14 +276,14 @@ class AdvancedOptionsDialog(AppDialog):
         self._panel = AdvancedSettingsPanel(resize, transforms, self)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 16, 20, 16)
+        apply_dialog_layout(layout)
         layout.addWidget(self._panel, stretch=1)
 
         bottom = QHBoxLayout()
         reset_btn = QPushButton("Resetuj wszystko")
         reset_btn.setObjectName("btnSecondary")
         reset_btn.setFixedHeight(36)
+        mark_quiet(reset_btn)  # S13: „Resetuj wszystko” obok OK/Anuluj — cichy
         reset_btn.clicked.connect(self._panel.reset_all)
         bottom.addWidget(reset_btn)
         bottom.addStretch()

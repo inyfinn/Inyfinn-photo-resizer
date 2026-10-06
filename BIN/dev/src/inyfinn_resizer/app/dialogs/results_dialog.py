@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 from inyfinn_resizer.app.user_settings import (
     restore_results_dialog_geometry,
     restore_results_table_header,
@@ -125,6 +125,7 @@ class ResultsDialog(AppDialog):
             self._output_dir = results[0].job.output_path.parent
 
         layout = QVBoxLayout(self)
+        apply_dialog_layout(layout)
 
         header = QHBoxLayout()
         ok_count = sum(1 for r in results if r.status == JobStatus.OK)
@@ -303,6 +304,7 @@ class WizResultsDialog(AppDialog):
         self._output_dir = results[0].folder if results else None
 
         layout = QVBoxLayout(self)
+        apply_dialog_layout(layout)
         ok = sum(1 for r in results if r.status == JobStatus.OK)
         layout.addWidget(QLabel(f"Foldery: {ok}/{len(results)} zakończone pomyślnie — przetwarzanie in-place"))
 

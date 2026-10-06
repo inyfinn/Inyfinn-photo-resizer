@@ -3,7 +3,47 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QDialogButtonBox, QLabel, QMessageBox, QWidget
+
+from inyfinn_resizer.app.dialogs.base_dialog import DIALOG_ROW_GAP
+from inyfinn_resizer.app.widgets.layout_helpers import mark_quiet, pin_button_min_widths
+from inyfinn_resizer.app.widgets.section_icons import message_box_pixmap
+
+_KIND_BY_ICON = {
+    QMessageBox.Icon.Question: "question",
+    QMessageBox.Icon.Warning: "warning",
+    QMessageBox.Icon.Critical: "critical",
+    QMessageBox.Icon.Information: "information",
+}
+
+
+# Do tej szerokości tekst komunikatu jest w jednym wierszu; dłuższy Qt zawija sam (próg zawijania Qt to 500 px
+# szerokości układu, a ikona i marginesy to ponad 20 px — przy minimum 480 układ zawsze przekracza próg i zawija).
+# Niższy limit (420) zostawiał tekst 421–500 px bez zawijania i ucięty.
+MSGBOX_TEXT_MAX_W = 480
+
+
+class AppMessageBox(QMessageBox):
+    """Komunikat, którego rozmiar liczymy w chwili pokazania — z końcowymi czcionkami i napisami przycisków.
+
+    Qt ustala rozmiar okna w ``setVisible(True)`` i przedtem go nie zna. Minimum tekstu ustawione przy budowie
+    (przed nałożeniem motywu albo przed zmianą tekstu) było już nieaktualne, gdy wersaliki i nowe czcionki
+    poszerzyły napisy — tekst „Plik … już istr” był ucięty. Dlatego ``_finish_box`` wołamy tuż przed pokazaniem.
+    """
+
+    vertical_buttons = False  # dłuższe napisy przycisków jeden pod drugim (ustawiane przez wywołującego)
+    icon_kind = "information"  # question / warning / critical / information — ikona z design systemu
+
+    def set_kind(self, icon: QMessageBox.Icon) -> None:
+        """Rodzaj ikony wg ``QMessageBox.Icon``; sam obrazek rysujemy przy pokazaniu (kolory aktualnego motywu)."""
+        self.icon_kind = _KIND_BY_ICON.get(icon, "information")
+
+    def setVisible(self, visible: bool) -> None:  # noqa: N802 (Qt API)
+        if visible:
+            # Kwadrat z promieniem 4 i znakiem (DS) zamiast systemowego trójkąta/koła; nowy obraz po każdej zmianie motywu.
+            self.setIconPixmap(message_box_pixmap(self.icon_kind, size=32))
+            _finish_box(self, vertical=self.vertical_buttons)
+        super().setVisible(visible)
 
 
 def _polish_buttons(box: QMessageBox) -> None:
@@ -23,6 +63,32 @@ def _polish_buttons(box: QMessageBox) -> None:
             btn.setMinimumWidth(88)
 
 
+def _finish_box(box: QMessageBox, *, vertical: bool = False) -> None:
+    """Przyciski nie są ściskane poniżej napisu (wersaliki DS 2.0 są szersze) i mają odstęp ≥ 8 px."""
+    pin_button_min_widths(box)
+    # Styl nadaje `QMessageBox QLabel` min-width 320 px: etykieta z ikoną rosła do 320 px, a tekst miał minimum
+    # niezależne od swojej treści (Qt myślał, że się mieści — i ucinał go albo ikona nachodziła na tekst na wąskim
+    # ekranie). Zdejmujemy to minimum na poziomie widżetu; Qt liczy wtedy szerokość z treści i zawija tekst sam.
+    for lbl in box.findChildren(QLabel):
+        lbl.setStyleSheet("QLabel { min-width: 0px; }")
+    icon = box.findChild(QLabel, "qt_msgboxex_icon_label")
+    if icon is not None:
+        icon.ensurePolished()
+        icon.setMinimumWidth(icon.sizeHint().width())
+    text = box.findChild(QLabel, "qt_msgbox_label")
+    if text is not None:
+        # Minimum tekstu = jego szerokość bez zawijania (do MSGBOX_TEXT_MAX_W); dłuższy tekst Qt zawinie sam.
+        text.ensurePolished()
+        text.setWordWrap(False)
+        text.setMinimumWidth(min(text.sizeHint().width(), MSGBOX_TEXT_MAX_W))
+    bb = box.findChild(QDialogButtonBox)
+    if bb is not None and vertical:
+        # Dłuższe napisy przycisków (wersaliki) nie mieszczą się obok siebie na wąskim ekranie — jeden pod drugim.
+        bb.setOrientation(Qt.Orientation.Vertical)
+    if bb is not None and bb.layout() is not None:
+        bb.layout().setSpacing(DIALOG_ROW_GAP)
+
+
 def _make_box(
     parent: QWidget | None,
     icon: QMessageBox.Icon,
@@ -30,8 +96,8 @@ def _make_box(
     text: str,
     buttons: QMessageBox.StandardButton,
 ) -> QMessageBox:
-    box = QMessageBox(parent)
-    box.setIcon(icon)
+    box = AppMessageBox(parent)
+    box.set_kind(icon)
     box.setWindowTitle(title)
     box.setText(text)
     box.setStandardButtons(buttons)
@@ -51,8 +117,8 @@ def ask_overwrite_inplace(
     remaining: int,
 ) -> str | None:
     """Zwraca: yes | yes_all | no | no_all (anuluj całość) albo None."""
-    box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Warning)
+    box = AppMessageBox(parent)
+    box.set_kind(QMessageBox.Icon.Warning)
     box.setWindowTitle("Nadpisać plik?")
     extra = f"\n\nPozostało do sprawdzenia: {remaining}." if remaining > 1 else ""
     box.setText(
@@ -73,6 +139,10 @@ def ask_overwrite_inplace(
         if btn:
             btn.setObjectName(obj)
             btn.setMinimumHeight(36)
+    # S13: jeden zielony (Tak), jeden z obrysem (Nie), pozostałe ciche.
+    for btn in (btn_yes_all, btn_no_all):
+        mark_quiet(btn)
+    box.vertical_buttons = True
     box.exec()
     clicked = box.clickedButton()
     if clicked is btn_yes:
@@ -93,8 +163,8 @@ def ask_yes_no(parent: QWidget | None, title: str, text: str) -> bool:
 
 def ask_multi_folder_output(parent: QWidget | None) -> str | None:
     """Zwraca 'single', 'beside' albo None (anuluj)."""
-    box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Question)
+    box = AppMessageBox(parent)
+    box.set_kind(QMessageBox.Icon.Question)
     box.setWindowTitle("Gdzie zapisać zdjęcia?")
     box.setText(
         "Masz zdjęcia w kilku różnych folderach.\n\n"
@@ -115,6 +185,7 @@ def ask_multi_folder_output(parent: QWidget | None) -> str | None:
     if btn_beside:
         btn_beside.setObjectName("btnSecondary")
         btn_beside.setMinimumHeight(36)
+    box.vertical_buttons = True
     box.exec()
     clicked = box.clickedButton()
     if clicked is btn_single:
@@ -137,8 +208,8 @@ def show_info(parent: QWidget | None, title: str, text: str) -> None:
 
 
 def show_about(parent: QWidget | None, title: str, text: str) -> None:
-    box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Information)
+    box = AppMessageBox(parent)
+    box.set_kind(QMessageBox.Icon.Information)
     box.setWindowTitle(title)
     box.setText(text)
     box.setStandardButtons(QMessageBox.Ok)

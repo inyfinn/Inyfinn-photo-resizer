@@ -8,8 +8,8 @@ import os
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, Qt, QThread, QTimer, QSize
-from PySide6.QtGui import QActionGroup, QGuiApplication, QIntValidator, QPixmap
+from PySide6.QtCore import QEvent, QMargins, QPoint, QRect, QStandardPaths, Qt, QThread, QTimer, QSize
+from PySide6.QtGui import QActionGroup, QCursor, QGuiApplication, QIcon, QIntValidator, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -83,16 +83,21 @@ from inyfinn_resizer.utils.reveal import reveal_in_explorer
 from inyfinn_resizer.app.widgets.layout_helpers import (
     ACTION_H,
     BTN_H,
+    CARD_GAP,
     CONTROL_H,
     COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
-    SECTION_GAP,
+    LIST_MIN_H,
+    LIST_MIN_H_TIGHT,
     TILE_PADDING,
     TILE_PADDING_TOP,
+    apply_tile_density,
     browse_button,
+    apply_button_icon,
     refresh_themed_icons,
     set_themed_icon,
     mark_large,
+    mark_quiet,
     compact_row,
     field_label,
     footer_button,
@@ -103,6 +108,11 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     slider_control,
     stacked_field,
     style_dropdown,
+    arrange_tool_grid,
+    fit_title_heights,
+    group_separator,
+    pin_button_min_widths,
+    tool_button_grid,
     tool_button_row,
 )
 from inyfinn_resizer.app.widgets.section_icons import (
@@ -121,11 +131,14 @@ from inyfinn_resizer.app.widgets.tool_icons import (
 from inyfinn_resizer.app.user_settings import (
     load_session,
     load_theme,
+    load_window_size,
     persist_all,
     restore_geometry,
     save_theme,
+    save_window_size,
     snapshot_from_window,
 )
+from inyfinn_resizer.app.window_fit import DENSITIES, fit_window_size, frame_margins
 from inyfinn_resizer.core.formats.registry import (
     is_image_file,
     is_video_file,
@@ -178,11 +191,16 @@ from inyfinn_resizer.workers.batch_worker import BatchThread, BatchWorker
 from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 
-DEFAULT_WINDOW_WIDTH = 1280
-DEFAULT_WINDOW_HEIGHT = 920
-MIN_WINDOW_WIDTH = 1180
-MIN_WINDOW_HEIGHT = 700  # 2.6.4: mieści się na 1366×768 (pasek zadań ~40 px)
+DEFAULT_WINDOW_WIDTH = 1280  # preferowana szerokość startowa (przycinana do ekranu)
+DEFAULT_WINDOW_HEIGHT = 920  # tymczasowa wysokość z konstruktora i skryptów zrzutów; prawdziwą wylicza _fit_window
+MIN_WINDOW_WIDTH = 1180  # preferowane minimum; na węższym ekranie przycinane do dostępnego obszaru
+MIN_WINDOW_HEIGHT = 700  # j.w. (2.6.5: nigdy większe niż dostępna wysokość ekranu)
 RIGHT_PANEL_MIN_WIDTH = 700  # 2.6.4: większe kontrolki — dwa kafelki obok siebie bez ucinania
+# Najmniej, na ile prawy panel można zwęzić, gdy ekran jest węższy niż układ z 700 px (2.6.5).
+RIGHT_PANEL_ABS_MIN_WIDTH = 480
+VERTICAL_SCROLLBAR_W = 12
+ROW_ICON_PX = 20  # ikony wierszy plików (drzewo i lista trybu prostego); wzorzec ma większe ikony niż 16 px
+RETAIL_COMBO_MIN_W = 160  # najmniej, do ilu pasek u góry zwęża listę sieci (przyciski obok się nie ściskają)
 DEFAULT_SPLITTER_SIZES = (560, 720)
 
 
@@ -201,6 +219,17 @@ class MainWindow(QMainWindow):
         self._main_splitter: QSplitter | None = None
         self._show_colors_tile = False
         self._show_crop_tile = True
+        # 2.6.5 (G7): dopasowanie okna do ekranu — stan.
+        self._density = DENSITIES[0]
+        self._density_scroll = False  # prawy panel przewija się, bo nawet poziom 2 się nie mieści
+        self._gap_layouts: list = []  # układy, których odstęp = odstęp między kartami
+        self._gap_grids: list = []
+        self._fit_ready = False  # po konstruktorze; wcześniej tryb/format nie zmieniają okna
+        self._fitting = False
+        self._refit_pending = False
+        self._fit_size: QSize | None = None  # ostatni rozmiar klienta ustawiony przez program (nie przez usera)
+        self._saved_splitter: list[int] | None = None
+        self._last_fit = None  # ostatni FitResult (diagnostyka, testy)
 
         self._queue: list[Path] = []
         self._file_roots: dict[Path, Path] = {}
@@ -244,14 +273,7 @@ class MainWindow(QMainWindow):
         self._sync_remove_bg_ui()
         if self.output_dir_edit.text().strip():
             self._output_dir_manual = True
-        self._geometry_restored = restore_geometry(self)
-        if not self._geometry_restored:
-            self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        if self.width() < MIN_WINDOW_WIDTH or self.height() < MIN_WINDOW_HEIGHT:
-            self.resize(
-                max(self.width(), MIN_WINDOW_WIDTH),
-                max(self.height(), MIN_WINDOW_HEIGHT),
-            )
+        self._geometry_restored = restore_geometry(self)  # tylko podział kolumn; okno dobiera _fit_window
         self._app_footer = QLabel(f"Inyfinn Photo Resizer · v{__version__}")
         self._app_footer.setObjectName("appFooter")
         self.statusBar().addPermanentWidget(self._app_footer)
@@ -263,6 +285,10 @@ class MainWindow(QMainWindow):
 
         self._update_manager = UpdateManager(self, self._update_status)
         self._update_attach_done = False
+
+        # Okno ma od początku rozmiar i miejsce dopasowane do ekranu (przed pokazaniem — bez migotania).
+        self._fit_ready = True
+        self._fit_window(initial=True)
 
     def restore_default_status_message(self) -> None:
         self.statusBar().showMessage(self.DEFAULT_STATUS_MESSAGE)
@@ -283,19 +309,319 @@ class MainWindow(QMainWindow):
             self._update_manager.attach()
         if not self._initial_size_applied:
             self._initial_size_applied = True
-            QTimer.singleShot(0, self._fit_initial_window_size)
+            # Po pokazaniu system zna prawdziwą ramkę i pasek tytułu: jedna korekta (rozmiar liczony wcześniej
+            # z oszacowaną ramką), w razie potrzeby okno się zmniejsza albo przesuwa na ekran.
+            QTimer.singleShot(0, lambda: self._fit_window(initial=False, first_show=True))
 
-    def _fit_initial_window_size(self) -> None:
-        """Domyślny rozmiar 1200×765 — nie mniejszy niż MIN."""
-        screen = self.screen().availableGeometry()
-        w = max(MIN_WINDOW_WIDTH, min(DEFAULT_WINDOW_WIDTH, screen.width()))
-        h = max(MIN_WINDOW_HEIGHT, min(DEFAULT_WINDOW_HEIGHT, screen.height()))
-        if not getattr(self, "_geometry_restored", False):
-            self.resize(w, h)
-        if splitter := self._main_splitter:
-            right_w = max(RIGHT_PANEL_MIN_WIDTH, int(self.width() * 0.56))
-            left_w = max(400, self.width() - right_w)
-            splitter.setSizes([left_w, self.width() - left_w])
+    # ————————————————————————————————————————————————————————————————
+    #  Okno dopasowane do ekranu (2.6.5, reguła G7)
+    # ————————————————————————————————————————————————————————————————
+    def _target_screen(self):
+        """Ekran, na którym okno jest (przed pokazaniem: ekran pod kursorem, inaczej główny)."""
+        if self.isVisible():
+            return self.screen() or QGuiApplication.primaryScreen()
+        return QGuiApplication.screenAt(QCursor.pos()) or self.screen() or QGuiApplication.primaryScreen()
+
+    def _available_geometry(self) -> QRect:
+        """Obszar ekranu bez paska zadań, na którym okno ma się zmieścić (testy i skrypty mogą to podmienić)."""
+        return self._target_screen().availableGeometry()
+
+    def _layout_scope(self) -> list[QWidget]:
+        """Widżety, których układy dopasowanie okna naprawdę mierzy: pasek u góry, widok BIEŻĄCEGO trybu, pasek stanu.
+
+        Pomijamy wszystko, co ukryte (druga strona stosu, kafelki spoza układu, przyciski aktualizacji w pasku stanu)
+        i nakładkę konwersji. Układ ukrytego, jeszcze pustego widżetu „aktywowany na zapas” zapisywał w jego
+        ``QScrollArea`` rozmiar 0×0 (``sizeHint`` jest cache'owany do następnego LayoutRequest, który do ukrytego
+        widżetu nie dociera) — lista kart nakładki zostawała przy minimum 54 px mimo 3 plików.
+        """
+        out: list[QWidget] = []
+        overlay = getattr(self, "_conversion_overlay", None)
+
+        def walk(widget: QWidget) -> None:
+            if widget is overlay or widget.isHidden():
+                return
+            out.append(widget)
+            for child in widget.children():
+                if isinstance(child, QWidget) and not child.isWindow():
+                    walk(child)
+
+        for root in (self.menuWidget(), self.centralWidget(), self.statusBar()):
+            if root is not None:
+                walk(root)
+        return out
+
+    def _flush_layouts(self) -> None:
+        """Rozmiary podpowiedzi po zmianie odstępów/stanu liczymy od świeżych układów.
+
+        Qt przekazuje unieważnienie przez granice widżetów zdarzeniem LayoutRequest (u okna jeszcze niepokazanego
+        nie dochodzi do skutku), więc unieważniamy układy od najgłębszych, a na końcu aktywujemy główny.
+        Tylko w zakresie ``_layout_scope`` (to, co mierzymy) — nie ruszamy nakładki ani ukrytych stron.
+        """
+        self.ensurePolished()
+        scope = self._layout_scope()
+        pin_button_min_widths(self, skip=getattr(self, "_left_tool_box", None), only=scope)
+        fit_title_heights(scope)  # tytuły Mindset: wysokość z metryk po nałożeniu stylu (akcenty wersalików)
+        # Lista sieci to pole z uciętym tekstem — ona ustępuje pierwsza, gdy pasek u góry jest za wąski
+        # (styl ustawia jej min-width na ~244 px; ustawiamy po każdym nałożeniu stylu).
+        self.retail_preset_combo.setMinimumWidth(RETAIL_COMBO_MIN_W)
+        for widget in reversed(scope):
+            lay = widget.layout()
+            if lay is not None:
+                lay.invalidate()
+                lay.activate()
+        for lay in (self.centralWidget().layout(), self.layout()):
+            if lay is not None:
+                lay.invalidate()
+                lay.activate()
+
+    def _apply_density(self, level: int) -> None:
+        """Poziom zagęszczenia odstępów 0–2 (window_fit.DENSITIES). Wysokości kontrolek zostają."""
+        d = DENSITIES[max(0, min(level, len(DENSITIES) - 1))]
+        self._density = d
+        for lay in self._gap_layouts:
+            lay.setSpacing(d.card_gap)
+        for grid in self._gap_grids:
+            grid.setHorizontalSpacing(d.card_gap)
+            grid.setVerticalSpacing(d.card_gap)
+        if self._main_splitter is not None:
+            self._main_splitter.setHandleWidth(d.card_gap)  # jawna szerokość wygrywa z metryką stylu
+        self._central_layout.setContentsMargins(20, d.view_margin_v, 20, d.view_margin_v)
+        # Kafelki Kolory i Kadr bywają poza układem (nie mają wtedy rodzica) — dołączamy je jawnie.
+        tiles = set(self.findChildren(QFrame, "bentoTile"))
+        tiles.update(t for t in (getattr(self, "_bento_tile_colors", None), getattr(self, "_bento_tile_crop", None)) if t)
+        for tile in tiles:
+            apply_tile_density(tile, d)
+
+    def _right_min_width(self) -> int:
+        return self._right_column.minimumWidth()
+
+    def _set_right_min_width(self, width: int) -> None:
+        if self._right_column.minimumWidth() != width:
+            self._right_column.setMinimumWidth(width)
+
+    def _measure_needed(self, level: int) -> QSize:
+        """Rozmiar klienta okna, przy którym widok BIEŻĄCEGO trybu mieści się bez przewijania, dla poziomu ``level``."""
+        self._apply_density(level)
+        self._flush_layouts()
+        margins = self._central_layout.contentsMargins()
+        chrome_h = self.menuWidget().sizeHint().height() + self.statusBar().sizeHint().height()
+        if self._ui_mode == "advanced":
+            body = self._settings_body
+            # Wysokość prawej kolumny = cała treść ustawień + postęp + rząd Konwertuj (poza obszarem przewijania).
+            right_extra = (
+                self._right_column.layout().sizeHint().height() - self._settings_scroll.sizeHint().height()
+            )
+            right_h = body.sizeHint().height() + right_extra
+            left_h = self._left_column.minimumSizeHint().height()
+            view_h = max(right_h, left_h)
+            # Minimum prawego panelu = żywe minimum jego treści (nie stałe 700 px): szersze przyciski nie zostaną ucięte,
+            # a wąski ekran nie dostaje zbędnego zapasu.
+            vbar_w = self._settings_scroll.verticalScrollBar().sizeHint().width() + 2
+            self._set_right_min_width(
+                max(RIGHT_PANEL_ABS_MIN_WIDTH, body.minimumSizeHint().width() + max(vbar_w, 12))
+            )
+            view_w = (
+                self._left_column.minimumSizeHint().width()
+                + self._main_splitter.handleWidth()
+                + self._right_min_width()
+            )
+        else:
+            inner = self._simple_inner
+            center = self._simple_center
+            view_w = max(center.minimumSizeHint().width(), self._simple_footer.minimumSizeHint().width())
+            width = max(
+                view_w,
+                min(center.maximumWidth(), DEFAULT_WINDOW_WIDTH - margins.left() - margins.right()),
+            )
+            lay = inner.layout()
+            hfw = lay.totalHeightForWidth(width) if lay.hasHeightForWidth() else inner.sizeHint().height()
+            # QScrollArea przewija, gdy okno jest niższe niż minimumSizeHint widżetu (liczony przy węższym zawijaniu).
+            view_h = (
+                max(hfw, inner.minimumSizeHint().height())
+                + self._simple_page_lay.spacing()
+                + self._simple_footer.sizeHint().height()
+            )
+        return QSize(
+            margins.left() + view_w + margins.right(),
+            chrome_h + margins.top() + view_h + margins.bottom(),
+        )
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 (Qt API)
+        if event.type() == QEvent.Type.Resize and obj is getattr(self, "_left_tool_box", None):
+            if self._fit_ready:
+                self._update_tool_buttons_for_width()
+        return super().eventFilter(obj, event)
+
+    def _set_tool_mode(self, icons_only: bool) -> None:
+        """Przyciski nad listą: z napisem (``toolBtn``) albo same ikony (``iconBtn``, S7: kwadrat), z odstępem ikony."""
+        for b, text in self._left_tool_btns:
+            if icons_only != (b.text() == ""):
+                b.setText("" if icons_only else text)
+            b.setAccessibleName(text)
+            name = "iconBtn" if icons_only else "toolBtn"
+            if b.objectName() != name:
+                b.setObjectName(name)
+                b.style().unpolish(b)
+                b.style().polish(b)
+            apply_button_icon(b)
+            if icons_only:
+                side = getattr(self, "_tool_h", BTN_H)  # kwadrat o boku = wysokość przycisku z napisem (bez założeń o obrysie)
+                b.setFixedSize(side, side)
+            else:
+                b.setMinimumSize(0, BTN_H)
+                b.setMaximumSize(16777215, 16777215)
+
+    def _measure_tool_hints(self) -> list[int]:
+        """Szerokości przycisków z napisami (sizeHint), odświeżane po zmianie czcionki (np. wersaliki 2.0)."""
+        btns = self._left_tool_btns
+        key = tuple(b.font().key() for b, _ in btns)
+        if key != self._tool_hint_key:
+            was_icons = self._tool_state == "icons"
+            if was_icons:
+                self._set_tool_mode(False)
+            self._tool_hints = [b.sizeHint().width() for b, _ in btns]
+            self._tool_h = max([BTN_H] + [b.sizeHint().height() for b, _ in btns])
+            self._tool_hint_key = key
+            if was_icons:
+                self._set_tool_mode(True)
+        return self._tool_hints
+
+    def _tool_row_widths(self) -> tuple[int, int]:
+        """(szerokość jednego rzędu, szerokość rzędu z dwoma przyciskami) — z żywych sizeHint-ów."""
+        h = self._measure_tool_hints()
+        sp = self._left_tool_box.layout().spacing()
+        one = sum(h) + sp * (len(h) - 1)
+        two = max(h[i] + h[i + 1] + sp for i in range(0, len(h) - 1, 2)) if len(h) > 1 else h[0]
+        return one, two
+
+    def _update_tool_buttons_for_width(self) -> None:
+        """Przyciski nad listą plików: jeden rząd → dwa rzędy po dwa → same ikony (ostateczność), wg szerokości.
+
+        Napisy nigdy nie są skracane ani ucinane. Kontener ma poziomy rozmiar ``Ignored``, więc rząd nie
+        wymusza szerszej kolumny — minimum lewej kolumny wynika z reszty jej treści.
+        """
+        box = getattr(self, "_left_tool_box", None)
+        if box is None or not box.isVisible():
+            return
+        one, two = self._tool_row_widths()
+        width = box.width()
+        state = "row" if width >= one else ("grid" if width >= two else "icons")
+        if state == self._tool_state:
+            return
+        self._tool_state = state
+        btns = self._left_tool_btns
+        self._set_tool_mode(state == "icons")
+        arrange_tool_grid(box, [b for b, _ in btns], len(btns) if state == "row" else 2)
+        box.updateGeometry()
+
+    def _apply_splitter_sizes(self, client_w: int) -> None:
+        """Zapisany podział (jeśli poprawny), inaczej domyślny: prawa kolumna ≥ minimum, lewa lista użyteczna."""
+        splitter = self._main_splitter
+        if splitter is None:
+            return
+        margins = self._central_layout.contentsMargins()
+        total = client_w - margins.left() - margins.right() - splitter.handleWidth()
+        right_min = self._right_min_width()
+        saved = self._saved_splitter
+        if saved and saved[1] >= right_min:
+            splitter.setSizes(list(saved))
+            return
+        right = max(right_min, int(total * 0.56))
+        # Lewa kolumna ma dostać tyle, żeby przyciski nad listą zmieściły się w jednym rzędzie (z napisami),
+        # o ile prawy panel nadal ma swoje minimum.
+        left_pref = self._tool_row_widths()[0] + 2 * self._density.tile_pad
+        if total - right < left_pref <= total - right_min:
+            right = total - left_pref
+        splitter.setSizes([max(0, total - right), right])
+
+    def _square_icon_buttons(self) -> None:
+        """DS 2.0 (S7): przycisk samą ikoną jest kwadratem o boku równym wysokości pola obok (tu: lista wymiarów)."""
+        # Bezwarunkowo: każde ponowne nałożenie arkusza (zmiana motywu) wpisuje w przycisk min/max z QSS
+        # (#iconBtn: min 0, max-height bez limitu) i kasuje stały rozmiar z kodu — sam size() bywa wtedy jeszcze stary.
+        side = max(self.size_combo.sizeHint().height(), BTN_H)
+        self.delete_preset_btn.setFixedSize(side, side)
+        self.simple_output_clear.setFixedSize(CONTROL_H, CONTROL_H)
+        if getattr(self, "_tool_state", "") == "icons":
+            self._set_tool_mode(True)
+
+    def _fit_window(self, *, initial: bool, mode_switch: bool = False, first_show: bool = False) -> None:
+        """Rozmiar, poziom zagęszczenia i położenie okna wg ekranu (G7). Wołane: start, po pokazaniu, zmiana trybu."""
+        if self._fitting or not self._fit_ready:
+            return
+        if not initial and (self.isMaximized() or self.isFullScreen()):
+            return
+        self._fitting = True
+        try:
+            self._square_icon_buttons()
+            avail = self._available_geometry()
+            frame = frame_margins(self)
+            mode = self._ui_mode
+            if initial:
+                saved, pos = load_window_size(mode), None
+            else:
+                # Zmiana trybu / korekta po pokazaniu / zmiana formatu: nie zmniejszamy okna poniżej potrzeb nowego widoku,
+                # ale też nie kurczymy go, gdy user powiększył.
+                saved = self.size()
+                pos = self.frameGeometry().topLeft() if self.isVisible() else None
+
+            before = QSize(self.size())
+            # Zaczynamy od układu pełnego (lista ≥ 5 wierszy, miniatura podglądu) — zwężenie tylko w razie potrzeby.
+            self.input_tree.setMinimumHeight(LIST_MIN_H)
+            self._preview_body.setVisible(self.preview_cb.isChecked())
+            result = fit_window_size(
+                self._measure_needed,
+                avail,
+                frame,
+                saved=saved,
+                preferred_w=DEFAULT_WINDOW_WIDTH,
+                min_client=QSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT),
+                pos=pos,
+            )
+            self._apply_density(result.level)
+            self._density_scroll = result.scroll
+            self._last_fit = result
+            self.setMinimumSize(result.min_client)
+            self.resize(result.client)
+            self._flush_layouts()
+            # Podział kolumn ustawiamy przy starcie i gdy zmieniła się szerokość okna — nie przy każdej zmianie
+            # formatu, żeby nie cofać tego, co user przeciągnął.
+            if initial or first_show or self.width() != before.width():
+                self._apply_splitter_sizes(self.width())
+            self._update_tool_buttons_for_width()
+            self._flush_layouts()
+            if result.scroll:
+                # Ekran niższy niż układ potrzebuje nawet przy najmniejszych odstępach: lewa kolumna też ustępuje —
+                # najpierw lista (do ~2 wierszy), w ostateczności miniatura podglądu. Nic nie jest ucięte.
+                if self.minimumSizeHint().height() > result.client.height():
+                    self.input_tree.setMinimumHeight(LIST_MIN_H_TIGHT)
+                    self._flush_layouts()
+                if self.minimumSizeHint().height() > result.client.height() and self.preview_cb.isChecked():
+                    self._preview_body.setVisible(False)
+                    self._flush_layouts()
+            self.move(result.pos)
+            if initial or mode_switch or self.size() != before:
+                self._fit_size = QSize(self.size())  # baza dla „user zmienił rozmiar ręcznie”
+        finally:
+            self._fitting = False
+
+    def _schedule_refit(self) -> None:
+        """Format albo kadr zmieniły układ kafelków (a z nim wysokość) — dopasuj okno raz, po zakończeniu obsługi."""
+        if not self._fit_ready or self._refit_pending or not self.isVisible():
+            return
+        self._refit_pending = True
+
+        def _run() -> None:
+            self._refit_pending = False
+            self._fit_window(initial=False)
+
+        QTimer.singleShot(0, _run)
+
+    def save_manual_window_size(self) -> None:
+        """Przy zamknięciu: rozmiar, który user ustawił sam (różny od ostatnio ustawionego przez program)."""
+        if self._fit_size is None or self.isMaximized() or self.isFullScreen() or not self.isVisible():
+            return
+        if self.size() != self._fit_size:
+            save_window_size(self._ui_mode, self.width(), self.height())
 
     @staticmethod
     def _make_panel(
@@ -396,9 +722,11 @@ class MainWindow(QMainWindow):
         self.restore_retail_btn = QPushButton("Przywróć preset")
         self.restore_retail_btn.setObjectName("btnSecondary")
         set_themed_icon(self.restore_retail_btn, action_icon_restore)
-        self.restore_retail_btn.setIconSize(QSize(16, 16))
         self.restore_retail_btn.setToolTip("Przywraca ustawienia wybranej sieci po ręcznych zmianach")
         self.restore_retail_btn.setEnabled(False)
+        # 2.6.5: napis (wersalikami) nigdy nie jest ściskany — przy braku miejsca ustępuje lista sieci, nie przycisk.
+        self.restore_retail_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        mark_quiet(self.restore_retail_btn)  # S13: obok jest „Tryb prosty” — jedyny przycisk z obrysem w pasku
         self.restore_retail_btn.clicked.connect(self._restore_retail_preset)
         strip_lay.addWidget(self.restore_retail_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
         self._mode_btn = QPushButton("Zaawansowany tryb")
@@ -441,8 +769,9 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(20, 12, 20, 12)
+        root.setContentsMargins(20, DENSITIES[0].view_margin_v, 20, DENSITIES[0].view_margin_v)
         root.setSpacing(0)
+        self._central_layout = root
         self._view_stack = QStackedWidget()
         self._view_stack.setObjectName("viewStack")
         self._view_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -470,21 +799,29 @@ class MainWindow(QMainWindow):
         outer.setObjectName("simpleView")
         outer_lay = QVBoxLayout(outer)
         outer_lay.setContentsMargins(0, 8, 0, 8)
-        outer_lay.setSpacing(SECTION_GAP)
+        outer_lay.setSpacing(CARD_GAP)
+        self._simple_inner = outer
+        self._gap_layouts.append(outer_lay)
 
         center = QWidget()
-        center.setMinimumWidth(480)
+        # Bez stałego minimum szerokości: minimum wynika z zawartości (napisy przycisków wersalikami są szersze).
         center.setMaximumWidth(860)
+        self._simple_center = center
         center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         col = QVBoxLayout(center)
         col.setContentsMargins(0, 0, 0, 0)
-        col.setSpacing(SECTION_GAP)
+        col.setSpacing(CARD_GAP)
+        self._gap_layouts.append(col)
 
         # 1 — pliki
+        # Krok 1: sam kafelek jest strefą upuszczania (``variant="drop"``: szary, przerywany obrys). Upuszczanie plików
+        # obsługuje okno (``dropEvent``) — etykiety i przyciski w kafelku nie przechwytują zdarzeń, lista też nie.
         files_tile, files_lay = make_tile(
-            "1. Wrzuć zdjęcia albo filmy",
+            "Wrzuć zdjęcia albo filmy",
             "Przeciągnij pliki tutaj lub dodaj z dysku. Film (MP4, MOV, WebM) zamieni się w GIF-a.",
             fill=True,
+            variant="drop",
+            number="1.",
         )
         files_lay.addLayout(tool_button_row([
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
@@ -498,7 +835,8 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setObjectName("simpleFileList")
         self.simple_file_list.setMinimumHeight(160)
         self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.simple_file_list.setIconSize(QSize(16, 16))
+        self.simple_file_list.setIconSize(QSize(ROW_ICON_PX, ROW_ICON_PX))
+        self.simple_file_list.setSpacing(6)  # wiersze to ciche kafelki — odstęp 6 px, bez własnej ramki listy
         self.simple_file_list.setToolTip(
             "Kliknij, aby zaznaczyć. Ctrl — kilka plików, Shift — zakres.\n"
             "Delete albo ✕ przy pliku usuwa go z listy (pliku na dysku nie rusza)."
@@ -511,12 +849,20 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.simple_file_list.customContextMenuRequested.connect(self._show_simple_context_menu)
         files_lay.addWidget(self.simple_file_list, stretch=1)
+        # Pusty stan (tylko gdy lista jest pusta): ikona, tytuł, podpowiedź — wyśrodkowane jak we wzorcu.
+        self._simple_empty = self._build_drop_empty_state()
+        files_lay.addWidget(self._simple_empty, stretch=1)
+        self.simple_file_list.setVisible(False)
+        self.simple_queue_label.setVisible(False)
         col.addWidget(files_tile, stretch=1)
+        col.addWidget(group_separator())
 
         # 2 — jakość
         q_tile, q_lay = make_tile(
-            "2. Wybierz jakość",
+            "Wybierz jakość",
             "Im niżej, tym mniejszy plik. Poniżej 70% PNG schodzi na PNG-8. Przezroczystość zostaje.",
+            variant="plain",
+            number="2.",
         )
         self.simple_quality_slider = WheelSlider(Qt.Horizontal)
         self.simple_quality_slider.setRange(1, 100)
@@ -529,11 +875,14 @@ class MainWindow(QMainWindow):
             tooltip="Jakość kompresji (1–100)",
         ))
         col.addWidget(q_tile)
+        col.addWidget(group_separator())
 
         # 3 — folder zapisu
         out_tile, out_lay = make_tile(
-            "3. Zapisz do folderu",
+            "Zapisz do folderu",
             "Opcjonalnie. Bez folderu program zapyta: nadpisać, czy zapisać jako nowe (_conv).",
+            variant="plain",
+            number="3.",
         )
         out_row = QHBoxLayout()
         out_row.setContentsMargins(0, 0, 0, 0)
@@ -545,7 +894,7 @@ class MainWindow(QMainWindow):
         self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         mark_large(self.simple_output_edit)
         self.simple_output_clear = QPushButton()  # krzyżyk rysowany (glif ✕ nie ma we wszystkich czcionkach)
-        self.simple_output_clear.setObjectName("btnBrowse")
+        self.simple_output_clear.setObjectName("iconBtn")  # S7: przycisk samą ikoną, kwadrat (CONTROL_H × CONTROL_H)
         set_themed_icon(self.simple_output_clear, icon_clear_gray)
         self.simple_output_clear.setToolTip("Nie zapisuj do tego folderu — zapis obok oryginałów")
         self.simple_output_clear.clicked.connect(self._clear_simple_output)
@@ -557,7 +906,6 @@ class MainWindow(QMainWindow):
             slot=self._browse_output_simple,
         )
         set_themed_icon(simple_browse, action_icon_folder_orange)
-        simple_browse.setIconSize(QSize(16, 16))
         mark_large(simple_browse)
         out_row.addWidget(self.simple_output_edit, stretch=1)
         out_row.addWidget(self.simple_output_clear)
@@ -565,10 +913,14 @@ class MainWindow(QMainWindow):
         out_lay.addLayout(out_row)
         col.addWidget(out_tile)
 
-        # Film → GIF — kafelek pojawia się dopiero, gdy na liście jest film
+        # Film → GIF — kafelek pojawia się dopiero, gdy na liście jest film (wraz z linią nad nim)
+        self._simple_video_sep = group_separator()
+        self._simple_video_sep.setVisible(False)
+        col.addWidget(self._simple_video_sep)
         self.simple_video_tile, video_lay = make_tile(
             "Film → GIF",
             "Zdjęcia zostają bez zmian. To ustawienie dotyczy tylko filmów z listy.",
+            variant="plain",
         )
         video_row = QHBoxLayout()
         video_row.setContentsMargins(0, 0, 0, 0)
@@ -652,7 +1004,6 @@ class MainWindow(QMainWindow):
         fmt_col.addLayout(chips)
         action_row.addLayout(fmt_col)
         action_row.addStretch(1)
-        col.addLayout(action_row)
 
         h = QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
@@ -668,7 +1019,29 @@ class MainWindow(QMainWindow):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         scroll.setWidget(outer)
-        return scroll
+        self._simple_scroll = scroll
+
+        # 2.6.5: „Konwertuj” + formaty stoją pod obszarem przewijania i są zawsze widoczne (jak stopka prawego
+        # panelu w trybie zaawansowanym) — przy niskim ekranie przewijają się tylko karty.
+        footer = QWidget()
+        footer.setLayout(action_row)
+        footer.setMaximumWidth(860)
+        self._simple_footer = footer
+        footer_row = QHBoxLayout()
+        footer_row.setContentsMargins(0, 0, 0, 0)
+        footer_row.addStretch(1)
+        footer_row.addWidget(footer, stretch=100)
+        footer_row.addStretch(1)
+        page = QWidget()
+        page.setObjectName("simplePage")
+        page_lay = QVBoxLayout(page)
+        page_lay.setContentsMargins(0, 0, 0, 0)
+        page_lay.setSpacing(CARD_GAP)
+        page_lay.addWidget(scroll, 1)
+        page_lay.addLayout(footer_row)
+        self._gap_layouts.append(page_lay)
+        self._simple_page_lay = page_lay
+        return page
 
     def _apply_header_for_mode(self) -> None:
         """Widoczność elementów paska górnego zależnie od trybu."""
@@ -684,12 +1057,18 @@ class MainWindow(QMainWindow):
             self._app_title_label.setVisible(simple)
         if getattr(self, "_mode_btn", None) is not None:
             self._mode_btn.setText("Zaawansowany tryb" if simple else "Tryb prosty")
+            if self._fit_ready:
+                pin_button_min_widths(self.menuWidget())
 
     def _toggle_ui_mode(self) -> None:
         self._set_ui_mode("advanced" if self._ui_mode == "simple" else "simple")
 
     def _set_ui_mode(self, mode: str, *, mark_dirty: bool = True) -> None:
-        self._ui_mode = "advanced" if mode == "advanced" else "simple"
+        new_mode = "advanced" if mode == "advanced" else "simple"
+        switching = new_mode != self._ui_mode
+        if switching and self._fit_ready and self.isVisible():
+            self.save_manual_window_size()  # rozmiar ręczny trybu, który opuszczamy
+        self._ui_mode = new_mode
         simple = self._ui_mode == "simple"
         self._apply_header_for_mode()
         if hasattr(self, "_view_stack"):
@@ -698,6 +1077,8 @@ class MainWindow(QMainWindow):
             self._sync_simple_from_state()
         if mark_dirty:
             self._mark_dirty()
+        if switching and self._fit_ready and self.isVisible():
+            self._fit_window(initial=False, mode_switch=True)
 
     def _sync_simple_from_state(self) -> None:
         """Odśwież kontrolki trybu prostego na podstawie wspólnego stanu."""
@@ -715,15 +1096,62 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "simple_file_list"):
             return
         self.simple_file_list.clear()
-        foto_icon = icon_image_file()
-        film_icon = icon_video_file()
+        foto_icon = self._row_icon(icon_image_file)
+        film_icon = self._row_icon(icon_video_file)
         for p in self._queue:
             item = QListWidgetItem(film_icon if is_video_file(p) else foto_icon, p.name)
             item.setData(Qt.UserRole, str(p))
             item.setToolTip(str(p))
             self.simple_file_list.addItem(item)
         self.simple_queue_label.setText(self.queue_label.text())
+        empty = not self._queue
+        self._simple_empty.setVisible(empty)
+        self.simple_file_list.setVisible(not empty)
+        self.simple_queue_label.setVisible(not empty)
         self._refresh_simple_video_tile()
+
+    @staticmethod
+    def _row_icon(factory, size: int = ROW_ICON_PX) -> QIcon:
+        """Ikona z fabryki motywu w żądanym rozmiarze (jeśli fabryka przyjmuje rozmiar), inaczej jej domyślna."""
+        try:
+            return factory(size)
+        except TypeError:
+            return factory()
+
+    def _build_drop_empty_state(self) -> QWidget:
+        """Pusty stan strefy upuszczania (tryb prosty, lista pusta): ikona folderu, tytuł i podpowiedź, wyśrodkowane."""
+        box = QWidget()
+        box.setObjectName("dropEmpty")
+        box.setMinimumHeight(160)
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        lay.addStretch(1)
+        icon = QLabel()
+        icon.setObjectName("dropEmptyIcon")
+        icon.setFixedSize(44, 44)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._drop_empty_icon = icon
+        self._refresh_drop_empty_icon()
+        lay.addWidget(icon, 0, Qt.AlignmentFlag.AlignHCenter)
+        title = QLabel("Upuść tu zdjęcia albo filmy")
+        title.setObjectName("dropEmptyTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
+        title.setWordWrap(True)
+        lay.addWidget(title)
+        hint = QLabel("…albo dodaj je przyciskiem")
+        hint.setObjectName("dropEmptyHint")
+        hint.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        lay.addStretch(1)
+        return box
+
+    def _refresh_drop_empty_icon(self) -> None:
+        icon = getattr(self, "_drop_empty_icon", None)
+        if icon is not None:
+            icon.setPixmap(self._row_icon(icon_folder_green, 24).pixmap(QSize(24, 24)))
 
     def _refresh_simple_video_controls(self) -> None:
         """Jedno pole liczbowe, zależne od trybu: płynnie → klatki na sekundę, ULTRA → liczba zatrzymań."""
@@ -737,7 +1165,15 @@ class MainWindow(QMainWindow):
         tile = getattr(self, "simple_video_tile", None)
         if tile is None:
             return
-        tile.setVisible(any(is_video_file(p) for p in self._queue))
+        show = any(is_video_file(p) for p in self._queue)
+        sep = getattr(self, "_simple_video_sep", None)
+        if sep is not None:
+            sep.setVisible(show)
+        if tile.isHidden() == show:  # zmiana widoczności → wysokość widoku prostego się zmienia
+            tile.setVisible(show)
+            self._schedule_refit()
+        else:
+            tile.setVisible(show)
 
     def _refresh_simple_output(self) -> None:
         """Tryb prosty ma własny folder — nie dziedziczy pola „Wyjście” z zaawansowanego ani z sesji.
@@ -870,13 +1306,17 @@ class MainWindow(QMainWindow):
         for btn in getattr(self, "_simple_format_btns", []):
             btn.setEnabled(enabled)
 
+    def _set_progress_visible(self, visible: bool) -> None:
+        self._progress_wrap.setVisible(visible)
+        self.progress.setVisible(visible)
+        self.progress_label.setVisible(visible)
+
     def _run_jobs(self, jobs: list[JobSpec], *, overwrite: bool, log_label: str | None = None) -> None:
         """Wspólny silnik uruchamiania zadań (overlay + worker + wątek)."""
         if not jobs:
             return
         self._set_convert_controls_enabled(False)
-        self.progress.setVisible(False)
-        self.progress_label.setVisible(False)
+        self._set_progress_visible(False)
         self._batch_cancelled = False
         self._convert_start = time.time()
         self._active_jobs = jobs
@@ -928,7 +1368,9 @@ class MainWindow(QMainWindow):
         left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(SECTION_GAP)
+        left_layout.setSpacing(CARD_GAP)
+        self._gap_layouts.append(left_layout)
+        self._left_column = left_column
 
         list_tile, list_layout = make_tile("Lista plików", fill=True)
 
@@ -948,25 +1390,36 @@ class MainWindow(QMainWindow):
         meta_row.addWidget(self.sort_combo)
         list_layout.addLayout(meta_row)
 
-        list_layout.addLayout(tool_button_row([
+        # 2.6.5: przyciski mają napisy wersalikami (szersze) — jeden rząd, a gdy lewa kolumna jest za wąska,
+        # dwa rzędy po dwa; ikony bez napisów dopiero w ostateczności (_update_tool_buttons_for_width).
+        tool_box, tool_btns = tool_button_grid([
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
             ("Dodaj folder", self._add_folder_dialog, icon_folder_green),
             ("Usuń", self._remove_selected, icon_minus_red),
             ("Wyczyść", self._clear_queue, icon_clear_gray),
-        ]))
+        ])
+        list_layout.addWidget(tool_box)
+        self._left_tool_box = tool_box
+        self._left_tool_btns = [(b, b.text()) for b in tool_btns]
+        self._tool_state = "row"
+        self._tool_hint_key: tuple | None = None
+        self._tool_hints: list[int] = []
+        tool_box.installEventFilter(self)
 
         self.input_tree = InputFileTree(self)
         self.input_tree.setObjectName("inputList")
         self.input_tree.setHeaderLabels(["Nazwa pliku", "Rozmiar"])
         self.input_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.input_tree.setRootIsDecorated(True)
-        self.input_tree.setIconSize(QSize(16, 16))
+        self.input_tree.setIconSize(QSize(ROW_ICON_PX, ROW_ICON_PX))
         self.input_tree.setAlternatingRowColors(True)
         hdr = self.input_tree.header()
         hdr.setStretchLastSection(False)
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        hdr.setMinimumSectionSize(72)
+        # Zaznaczony wiersz jest pogrubiony (styl), a szerokość „Rozmiar” liczy się dla zwykłego tekstu — minimum 88 px
+        # (dawna szerokość kolumny), inaczej „11 KB” zamieniało się w „11 …” po zaznaczeniu.
+        hdr.setMinimumSectionSize(88)
         self.input_tree.setColumnWidth(1, 88)
         self.input_tree.currentItemChanged.connect(self._on_selection_changed)
         self.input_tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -982,9 +1435,11 @@ class MainWindow(QMainWindow):
         )
         self.input_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         list_layout.addWidget(self.input_tree, stretch=1)
+        # Podgląd to część panelu listy (pod listą, za linią) — wzorzec ma jeden szary blok na ekran, nie dwa.
+        list_layout.addWidget(group_separator())
+        list_layout.addWidget(self._build_preview_panel())
 
         left_layout.addWidget(list_tile, stretch=1)
-        left_layout.addWidget(self._build_preview_panel())
 
         _splash_pulse()
         splitter.addWidget(left_column)
@@ -996,7 +1451,9 @@ class MainWindow(QMainWindow):
         right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(SECTION_GAP)
+        right_layout.setSpacing(CARD_GAP)
+        self._gap_layouts.append(right_layout)
+        self._right_column = right_column
 
         settings_scroll = QScrollArea()
         settings_scroll.setObjectName("settingsScroll")
@@ -1025,6 +1482,9 @@ class MainWindow(QMainWindow):
         self.progress.setFormat("")
         progress_col.addWidget(self.progress_label)
         progress_col.addWidget(self.progress)
+        # 2.6.5: bez paska postępu nie ma też pustego wiersza (dodatkowy odstęp 16 px nad „Konwertuj”).
+        progress_wrap.setVisible(False)
+        self._progress_wrap = progress_wrap
         right_layout.addWidget(progress_wrap)
 
         action_row = QHBoxLayout()
@@ -1048,15 +1508,17 @@ class MainWindow(QMainWindow):
         _splash_pulse()
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 3)
+        splitter.splitterMoved.connect(lambda *_: self._update_tool_buttons_for_width())
         splitter.setSizes(list(DEFAULT_SPLITTER_SIZES))
         splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         return splitter
 
-    def _build_preview_panel(self) -> QFrame:
-        panel = QFrame()
-        panel.setObjectName("bentoTile")
+    def _build_preview_panel(self) -> QWidget:
+        """Blok podglądu zaznaczonego pliku (bez własnego tła — leży w panelu „Lista plików”)."""
+        panel = QWidget()
+        panel.setObjectName("previewBlock")
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(TILE_PADDING, TILE_PADDING_TOP, TILE_PADDING, TILE_PADDING)
+        outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(6)
 
         self.preview_cb = QCheckBox("Podgląd zaznaczonego pliku")
@@ -1100,6 +1562,7 @@ class MainWindow(QMainWindow):
     def _on_preview_toggled(self, checked: bool) -> None:
         self._mark_dirty()
         self._preview_body.setVisible(checked)
+        self._schedule_refit()
         if checked:
             self._on_selection_changed(self.input_tree.currentItem(), None)
         else:
@@ -1112,29 +1575,32 @@ class MainWindow(QMainWindow):
         body.setObjectName("settingsBody")
         body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(body)
-        root.setSpacing(SECTION_GAP)
+        root.setSpacing(CARD_GAP)
         root.setContentsMargins(0, 0, 0, 0)
-
-        flow_hint = QLabel("Krok po kroku: format i jakość → wymiary → zapis plików.")
-        flow_hint.setObjectName("workflowHint")
-        flow_hint.setWordWrap(False)
-        root.addWidget(flow_hint)
+        self._gap_layouts.append(root)
+        # 2.6.5: bez podpisu „Krok po kroku: format i jakość → wymiary → zapis plików.” — pierwsza karta
+        # prawej kolumny stoi na tej samej wysokości co „Lista plików”.
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(SECTION_GAP)
-        grid.setVerticalSpacing(SECTION_GAP)
+        grid.setHorizontalSpacing(CARD_GAP)
+        grid.setVerticalSpacing(CARD_GAP)
         grid.setContentsMargins(0, 0, 0, 0)
+        self._gap_grids.append(grid)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
-        grid.setRowStretch(0, 0)
-        grid.setRowStretch(1, 1)
-        grid.setRowStretch(2, 0)
+        # Wiersze: 0 Format i jakość | 1 linia | 2 kolumny (Tło, Kolory | Wymiary, Kadr) | 3 linia | 4 Zapis plików.
+        # Grupy są „plain” (na białym) rozdzielone linią 1 px i odstępem 16 px po obu jej stronach.
+        for row, stretch in enumerate((0, 0, 1, 0, 0)):
+            grid.setRowStretch(row, stretch)
         self._bento_grid = grid
+        self._bento_seps = [group_separator(), group_separator()]  # linie w kolumnach (między kartami jednej kolumny)
 
         # Wiersz 0: Format i jakość (span 2)
         tile_fmt, lay_fmt = make_tile(
             "Format i jakość",
             tooltip="Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
+            variant="plain",
+            eyebrow=True,
         )
         fmt_row = QHBoxLayout()
         fmt_row.setSpacing(8)
@@ -1179,9 +1645,10 @@ class MainWindow(QMainWindow):
             tight=True,
         ))
         grid.addWidget(tile_fmt, 0, 0, 1, 2)
+        grid.addWidget(group_separator(), 1, 0, 1, 2)
 
         # Wiersz 1: Tło i warianty | Kolory
-        tile_bg, lay_bg = make_tile("Tło i warianty")
+        tile_bg, lay_bg = make_tile("Tło i warianty", variant="plain", eyebrow=True)
         self._bento_tile_bg = tile_bg
         self.remove_bg_cb = QCheckBox("Usuń tło")
         self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
@@ -1208,7 +1675,7 @@ class MainWindow(QMainWindow):
         self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
         lay_bg.addWidget(self.wiz_sequence_cb)
 
-        tile_colors, lay_colors = make_tile("Kolory")
+        tile_colors, lay_colors = make_tile("Kolory", variant="plain", eyebrow=True)
         self._bento_tile_colors = tile_colors
         self.png_colors_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.png_colors_slider.setRange(24, 256)
@@ -1242,6 +1709,7 @@ class MainWindow(QMainWindow):
 
         self._bento_left_col, self._bento_left_lay = make_bento_column()
         self._bento_right_col, self._bento_right_lay = make_bento_column()
+        self._gap_layouts += [self._bento_left_lay, self._bento_right_lay]
         # Rozmieszczenie kafelków w kolumnach ustala _relayout_bento().
 
         # Wymiary (lewa kolumna, pod Tło)
@@ -1249,6 +1717,8 @@ class MainWindow(QMainWindow):
             "Wymiary",
             tooltip="Skala, własny format i kadr przycięcia",
             fill=True,
+            variant="plain",
+            eyebrow=True,
         )
         self._bento_tile_dims = tile_dims
 
@@ -1256,9 +1726,8 @@ class MainWindow(QMainWindow):
         self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
         self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
         self.delete_preset_btn = QPushButton()
-        self.delete_preset_btn.setObjectName("toolBtn")
+        self.delete_preset_btn.setObjectName("iconBtn")  # S7: przycisk samą ikoną, kwadrat jak pole obok
         set_themed_icon(self.delete_preset_btn, icon_minus_red)
-        self.delete_preset_btn.setIconSize(self.delete_preset_btn.iconSize())
         self.delete_preset_btn.setFixedSize(BTN_H, BTN_H)
         self.delete_preset_btn.setToolTip("Usuń własny preset wymiarów")
         self.delete_preset_btn.clicked.connect(self._delete_custom_size_preset)
@@ -1347,7 +1816,7 @@ class MainWindow(QMainWindow):
         lay_dims.addWidget(dims_opts_wrap)
         lay_dims.addStretch(1)
 
-        tile_crop, lay_crop = make_tile("Kadr", fill=True)
+        tile_crop, lay_crop = make_tile("Kadr", fill=True, variant="plain", eyebrow=True)
         self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
@@ -1366,6 +1835,8 @@ class MainWindow(QMainWindow):
         tile_save, lay_save = make_tile(
             "Zapis plików",
             tooltip="Folder wyjściowy i opcje wsadowe",
+            variant="plain",
+            eyebrow=True,
         )
         self._bento_tile_save = tile_save
 
@@ -1400,9 +1871,9 @@ class MainWindow(QMainWindow):
         self.update_output_btn = QPushButton("Aktualizuj ścieżkę")
         self.update_output_btn.setObjectName("btnUpdatePath")
         set_themed_icon(self.update_output_btn, action_icon_refresh_path)
-        self.update_output_btn.setIconSize(QSize(16, 16))
         self.update_output_btn.setToolTip(UI_TOOLTIPS["output_update_path"])
         self.update_output_btn.setMinimumHeight(BTN_H)
+        mark_quiet(self.update_output_btn)  # S13: oba przyciski pary („Aktualizuj ścieżkę”, „Przeglądaj”) są ciche
         self.update_output_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.update_output_btn.clicked.connect(self._update_output_path)
         path_btn_row.addWidget(self.update_output_btn, stretch=1)
@@ -1412,8 +1883,8 @@ class MainWindow(QMainWindow):
             slot=self._browse_output,
         )
         set_themed_icon(browse_out, action_icon_folder_orange)
-        browse_out.setIconSize(QSize(16, 16))
         browse_out.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        mark_quiet(browse_out)
         path_btn_row.addWidget(browse_out, stretch=1)
         out_section_layout.addLayout(path_btn_row)
 
@@ -1442,7 +1913,8 @@ class MainWindow(QMainWindow):
             cb_grid.addWidget(cb, i // 2, i % 2)
         lay_save.addLayout(cb_grid)
 
-        grid.addWidget(tile_save, 2, 0, 1, 2)
+        grid.addWidget(group_separator(), 3, 0, 1, 2)
+        grid.addWidget(tile_save, 4, 0, 1, 2)
         root.addLayout(grid, 1)
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
@@ -1500,22 +1972,32 @@ class MainWindow(QMainWindow):
         self._bento_tile_colors.setVisible(show_colors)
         self._bento_tile_crop.setVisible(show_crop)
         set_tile_fill(self._bento_tile_dims, True)
-        self._bento_left_lay.addWidget(self._bento_tile_bg, 0)
-
+        left: list[tuple[QWidget, int]] = [(self._bento_tile_bg, 0)]
+        right: list[tuple[QWidget, int]] = []
         if colors_beside_bg:
             set_tile_fill(self._bento_tile_colors, True)
-            self._bento_left_lay.addWidget(self._bento_tile_colors, 1)
-            self._bento_right_lay.addWidget(self._bento_tile_dims, 1)
+            left.append((self._bento_tile_colors, 1))
+            right.append((self._bento_tile_dims, 1))
         else:
-            self._bento_left_lay.addWidget(self._bento_tile_dims, 1)
+            left.append((self._bento_tile_dims, 1))
             if show_colors and show_crop:
                 set_tile_fill(self._bento_tile_colors, False)
                 set_tile_fill(self._bento_tile_crop, True)
-                self._bento_right_lay.addWidget(self._bento_tile_colors, 0)
-                self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
+                right += [(self._bento_tile_colors, 0), (self._bento_tile_crop, 1)]
             elif show_crop:
                 set_tile_fill(self._bento_tile_crop, True)
-                self._bento_right_lay.addWidget(self._bento_tile_crop, 1)
+                right.append((self._bento_tile_crop, 1))
+        # Między kartami jednej kolumny — linia (wzorzec: grupy na białym rozdziela linia, nie kolejne szare pudełka).
+        seps = iter(self._bento_seps)
+        for lay, tiles in ((self._bento_left_lay, left), (self._bento_right_lay, right)):
+            for i, (widget, stretch) in enumerate(tiles):
+                if i:
+                    line = next(seps)
+                    lay.addWidget(line)
+                    line.setVisible(True)
+                lay.addWidget(widget, stretch)
+        for unused in seps:
+            unused.setVisible(False)
 
         self._bento_right_col.setVisible(has_right)
 
@@ -1523,10 +2005,11 @@ class MainWindow(QMainWindow):
         grid.removeWidget(self._bento_left_col)
         grid.removeWidget(self._bento_right_col)
         if has_right:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 1)
-            grid.addWidget(self._bento_right_col, 1, 1, 1, 1)
+            grid.addWidget(self._bento_left_col, 2, 0, 1, 1)
+            grid.addWidget(self._bento_right_col, 2, 1, 1, 1)
         else:
-            grid.addWidget(self._bento_left_col, 1, 0, 1, 2)
+            grid.addWidget(self._bento_left_col, 2, 0, 1, 2)
+        self._schedule_refit()  # układ kafelków zmienia wysokość panelu (np. PNG ↔ AVIF)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)
@@ -1624,6 +2107,32 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), self._theme)
         self._finalize_checkbox_indicators()
         refresh_themed_icons(self)
+        self._refresh_item_icons()
+
+    def _refresh_item_icons(self) -> None:
+        """Ikony wierszy (drzewo plików i lista trybu prostego) rysujemy od nowa z kolorów aktualnego motywu.
+
+        Powstają raz, przy dodaniu pliku, a ``refresh_themed_icons`` obejmuje tylko przyciski — po przełączeniu
+        jasny↔ciemny ikony wierszy zostawały w kolorach poprzedniego motywu.
+        """
+        foto, film, folder = (self._row_icon(f) for f in (icon_image_file, icon_video_file, icon_folder_green))
+        self._refresh_drop_empty_icon()
+
+        def walk(item: QTreeWidgetItem) -> None:
+            item.setIcon(0, folder if item.data(0, Qt.UserRole + 1) == "folder" else foto)
+            for i in range(item.childCount()):
+                walk(item.child(i))
+
+        tree = getattr(self, "input_tree", None)
+        if tree is not None:
+            for i in range(tree.topLevelItemCount()):
+                walk(tree.topLevelItem(i))
+        lst = getattr(self, "simple_file_list", None)
+        if lst is not None:
+            for row in range(lst.count()):
+                item = lst.item(row)
+                path = item.data(Qt.UserRole)
+                item.setIcon(film if path and is_video_file(Path(path)) else foto)
 
     def _set_theme(self, theme: str) -> None:
         from PySide6.QtWidgets import QApplication
@@ -1635,6 +2144,9 @@ class MainWindow(QMainWindow):
         save_theme(theme)
         self._finalize_checkbox_indicators()
         refresh_themed_icons(self)
+        self._refresh_item_icons()
+        self._square_icon_buttons()  # arkusz nałożony od nowa skasował stałe rozmiary przycisków-ikon
+        fit_title_heights(self.findChildren(QWidget))
         if hasattr(self, "_theme_toggle"):
             self._theme_toggle.blockSignals(True)
             self._theme_toggle.set_dark(is_dark_theme(theme))
@@ -2107,7 +2619,7 @@ class MainWindow(QMainWindow):
 
     def _make_file_item(self, path: Path, *, label: str | None = None) -> QTreeWidgetItem:
         item = QTreeWidgetItem([label or path.name, self._format_size(path)])
-        item.setIcon(0, icon_image_file())
+        item.setIcon(0, self._row_icon(icon_image_file))
         item.setData(0, Qt.UserRole, str(path))
         item.setData(0, Qt.UserRole + 1, "file")
         item.setToolTip(0, str(path))
@@ -2115,7 +2627,7 @@ class MainWindow(QMainWindow):
 
     def _make_folder_item(self, folder: Path) -> QTreeWidgetItem:
         item = QTreeWidgetItem([folder.name, "folder"])
-        item.setIcon(0, icon_folder_green())
+        item.setIcon(0, self._row_icon(icon_folder_green))
         item.setData(0, Qt.UserRole, str(folder))
         item.setData(0, Qt.UserRole + 1, "folder")
         item.setToolTip(0, str(folder))
@@ -2805,8 +3317,7 @@ class MainWindow(QMainWindow):
             return
 
         self.convert_btn.setEnabled(False)
-        self.progress.setVisible(True)
-        self.progress_label.setVisible(True)
+        self._set_progress_visible(True)
         self.progress.setMaximum(len(folders))
         self.progress.setValue(0)
         self.progress_label.setText("Przygotowanie…")
@@ -2828,8 +3339,7 @@ class MainWindow(QMainWindow):
     def _on_wiz_finished(self, results) -> None:
         elapsed = time.time() - self._convert_start
         self.convert_btn.setEnabled(True)
-        self.progress.setVisible(False)
-        self.progress_label.setVisible(False)
+        self._set_progress_visible(False)
         ok = sum(1 for r in results if r.status.value == "OK")
         err = len(results) - ok
         log_event(

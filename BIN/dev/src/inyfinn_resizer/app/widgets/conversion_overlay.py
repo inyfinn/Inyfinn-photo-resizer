@@ -38,6 +38,9 @@ def _overlay_font(
     return font
 
 
+SCROLL_MAX_H = 280  # px: wyżej lista plików się przewija
+
+
 @dataclass
 class FileProgressItem:
     name: str
@@ -214,7 +217,8 @@ class ConversionOverlay(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setLineWidth(0)
-        scroll.setMaximumHeight(280)
+        scroll.setMaximumHeight(SCROLL_MAX_H)
+        self._scroll = scroll
 
         self._list_host = QWidget()
         self._list_layout = QVBoxLayout(self._list_host)
@@ -273,6 +277,7 @@ class ConversionOverlay(QWidget):
             card = _FileCard(item, self._list_host)
             self._cards.append(card)
             self._list_layout.insertWidget(self._list_layout.count() - 1, card)
+        self._fit_scroll_height()
         self._overall.setMaximum(max(1, len(self._items)))
         self._overall.setValue(0)
         self._update_summary()
@@ -281,6 +286,17 @@ class ConversionOverlay(QWidget):
         self.show()
         self.raise_()
         self.setFocus()
+
+    def _fit_scroll_height(self) -> None:
+        """Wysokość listy plików = treść (do SCROLL_MAX_H), ustawiona jawnie.
+
+        QScrollArea.sizeHint() zapamiętuje rozmiar zawartości przy pierwszym wywołaniu. Gdy ktoś wywoła je, zanim
+        dojdą karty (np. przeliczanie układów całego okna przez MainWindow._flush_layouts, które aktywuje też
+        układ ukrytej nakładki), zostaje (0, 0) i lista kurczy się do 54 px z suwakiem. Minimalna wysokość z
+        żywej podpowiedzi zawartości nie zależy od tego bufora.
+        """
+        need = self._list_host.sizeHint().height()
+        self._scroll.setMinimumHeight(min(SCROLL_MAX_H, max(need, 0)))
 
     def set_eta_seconds(self, seconds: float | None) -> None:
         self._eta_sec = seconds

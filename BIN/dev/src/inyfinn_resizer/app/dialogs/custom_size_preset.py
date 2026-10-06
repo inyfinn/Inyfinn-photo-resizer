@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer.app.dialogs.advanced_options import AdvancedSettingsPanel
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
 from inyfinn_resizer.core.job import ResizeMode, ResizeOptions, TransformOptions
 
 
@@ -28,16 +28,17 @@ class CustomSizePresetDialog(AppDialog):
         super().__init__(parent)
         self.setWindowTitle("Zapisz własny preset wymiarów")
         # Od 2.6.1 pola mają ramkę 2 px i są wyższe — przy 820 px zawartość się ściskała (obcięte pola X/Y).
-        # Wysokość dopasowana do ekranu, ale nie mniej niż 820.
-        screen = QGuiApplication.primaryScreen()
+        # 2.6.5: okno nigdy wyższe niż ekran (pasek tytułu i ramka ≈ 40 px); jeśli treść (820 px) się nie mieści,
+        # przewija się wewnątrz okna zamiast wystawać poza ekran.
+        screen = (parent.screen() if parent is not None else None) or QGuiApplication.primaryScreen()
         avail = screen.availableGeometry().height() - 40 if screen else 1040
-        height = max(820, min(1000, avail))
-        self.setMinimumSize(580, height)
+        height = min(1000, avail)
+        needs_scroll = height < 820
+        self.setMinimumSize(580, min(height, 820))
         self.resize(580, height)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 16, 20, 16)
+        apply_dialog_layout(layout)
 
         intro = QLabel(
             "Podaj nazwę i ustaw skalowanie lub kadrowanie. "
@@ -64,7 +65,7 @@ class CustomSizePresetDialog(AppDialog):
                 dimension=1200,
             )
 
-        self._panel = AdvancedSettingsPanel(resize, transforms, self, scroll=False)
+        self._panel = AdvancedSettingsPanel(resize, transforms, self, scroll=needs_scroll)
         layout.addWidget(self._panel, stretch=1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

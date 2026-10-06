@@ -7,7 +7,7 @@ import time
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout
 
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog
+from inyfinn_resizer.app.dialogs.base_dialog import DIALOG_STACK_GAP, AppDialog, apply_dialog_layout
 from inyfinn_resizer.core.transforms import rmbg_models
 
 
@@ -56,7 +56,7 @@ class ModelDownloadDialog(AppDialog):
         self.setModal(True)
 
         root = QVBoxLayout(self)
-        root.setSpacing(12)
+        apply_dialog_layout(root, spacing=DIALOG_STACK_GAP)
 
         self._status = QLabel(f"Pobieranie modelu „{spec.label}” ({spec.size_mb} MB)…")
         self._status.setWordWrap(True)
