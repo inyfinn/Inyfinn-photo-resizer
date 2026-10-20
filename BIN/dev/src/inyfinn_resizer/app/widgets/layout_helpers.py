@@ -35,6 +35,7 @@ TILE_PADDING_TOP = TILE_PADDING - 4  # nagłówki 8 px wyżej w kafelku
 TILE_HEADER_SPACING = 10
 TILE_INNER_SPACING = 10
 TILE_TITLE_HEIGHT = 26
+TILE_TITLE_HINT_GAP = 6  # tytuł karty -> jego opis (S80: dawniej 1 px, opis dotykał tytułu)
 CROP_PICKER_HEIGHT = 90
 STEP_ICON_SIZE = 28
 COMPACT_LABEL_W = 100
@@ -195,7 +196,8 @@ def make_tile(
 
     - ``panel`` — szare tło (domyślnie), jedyny blok na ekranie wg wzorca „Stwórz prezentację”;
     - ``plain`` — bez tła, treść prosto na białym; wypełnienie poziome 0 (treść równa z krawędzią kolumny);
-    - ``drop`` — szare tło z przerywanym obrysem 1 px = strefa upuszczania plików.
+    - ``drop`` — szare tło z przerywanym obrysem 1 px (od 2.6.8 tryb prosty go nie używa: strefą upuszczania jest
+      BIAŁE pole ``dropField`` w zwykłym panelu, S79).
 
     ``eyebrow`` — tytuł jako nadtytuł sekcji (``sectionTitle``: Lato, wersaliki, zielony) zamiast Mindset;
     ``number`` — numer kroku (``stepNumber``, np. „1.”) w osobnej etykiecie przed tytułem;
@@ -240,7 +242,7 @@ def make_tile(
 
     text_col = QVBoxLayout()
     text_col.setContentsMargins(0, 0, 0, 0)
-    text_col.setSpacing(1)
+    text_col.setSpacing(TILE_TITLE_HINT_GAP)
     title_lbl = QLabel(title)
     title_lbl.setObjectName("sectionTitle" if eyebrow else "sectionStepTitle")
     if number:

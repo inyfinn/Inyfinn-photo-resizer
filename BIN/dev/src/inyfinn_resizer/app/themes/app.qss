@@ -151,7 +151,7 @@ QLabel#formLabel, QLabel#formLabelInline {
     background: transparent;
 }
 
-QLabel#hintLabel, QLabel#dropHint {
+QLabel#hintLabel, QLabel#dropHint, QLabel#saveInfo {
     color: @FG_MUTED@;
     font-size: 14px;
 }
@@ -193,6 +193,14 @@ QFrame#bentoTile[variant="drop"] {
     border-radius: @RADIUS_DROP@;
 }
 
+/* Pole na pliki w trybie prostym (S79): BIAŁE (L2) wewnątrz szarego panelu L1, cienka przerywana ramka; trzyma pusty
+   stan albo listę plików. Panel z nagłówkiem, przyciskami i licznikiem zostaje L1. */
+QFrame#dropField {
+    background-color: @BG_PANEL_ALT@;
+    border: @DROP_BORDER@;
+    border-radius: @RADIUS_DROP@;
+}
+
 /* Linia między grupami ustawień na białym (1 px border) */
 QFrame#groupSep {
     background-color: @SEP@;
@@ -214,7 +222,7 @@ QLabel#stepNumber {
 }
 
 QLabel#dropEmptyIcon {
-    background-color: @BG_PANEL_ALT@;
+    background-color: @BG_PANEL@;
     border: none;
     border-radius: @RADIUS_BTN@;
     min-width: 44px;
@@ -717,12 +725,12 @@ QTreeWidget#inputList::item {
     padding-right: 30px;
 }
 
-/* Lista w strefie upuszczania: sama bez tła i obrysu (ramkę i tło robi kafelek variant="drop"); wiersze to białe
-   płytki L2 z odstępem 6 px */
+/* Lista w białym polu na pliki (S79, ramkę i tło robi QFrame#dropField): sama bez tła i obrysu; wiersze białe
+   rozdzielone linią 1 px (S10, te same tokeny co lista trybu zaawansowanego), bez odstępów */
 QListWidget#simpleFileList {
     background-color: transparent;
     outline: none;
-    padding: 4px;
+    padding: 0;
     border: none;
 }
 
@@ -730,8 +738,8 @@ QListWidget#simpleFileList::item {
     background-color: @BG_PANEL_ALT@;
     padding: 7px 30px 7px 10px;
     min-height: 26px;
-    margin: 3px 0;
-    border-radius: @RADIUS_BTN@;
+    margin: 0;
+    border-bottom: @LIST_ROW_LINE@;
 }
 
 /* Wiersze (S3 + „biel ma dominować”): zaznaczony = jasne tło brand-soft + tekst text (pogrubienie robi delegat),

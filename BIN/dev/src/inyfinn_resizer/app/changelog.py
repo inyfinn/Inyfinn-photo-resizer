@@ -19,6 +19,21 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.8",
+        "2026-10-20",
+        [
+            "Tryb prosty: pliki wrzucasz do białego pola w szarym panelu (wcześniej cały panel był jedną wielką beżową ramką). Nagłówek, przyciski „Dodaj pliki”, „Dodaj folder”, „Wyczyść” i liczba plików zostają na szarym, a lista plików leży na białym tle, z cienką linią między nazwami.",
+            "Program mówi, co zrobi z zapisem. Pod polem „Folder” stoi jedno zdanie: zapis obok oryginałów, ten sam folder co zdjęcia albo nazwa wybranego folderu. W trybie zaawansowanym takie zdanie jest w karcie „Zapis plików” i zmienia się razem z przełącznikami.",
+            "Pytanie o zajęte nazwy: gdy plik o takiej nazwie już jest (także gdy zapisujesz w tym samym folderze i w tym samym formacie), program pyta „Zapisz obok z dopiskiem” albo „Nadpisz”. Bezpieczna droga, czyli zapis obok z dopiskiem w nazwie, jest zaznaczona i działa po Enter. Gdy żadna nazwa nie jest zajęta, program nie pyta o nic. W trybie zaawansowanym jedno takie pytanie zastąpiło pytanie o każdy plik osobno.",
+            "GIF w oknie „Ustawienia…”: sposób zmniejszania wybierasz przyciskami „Jakość”, „Mniej klatek” i „ULTRA”. Widać tylko pola wybranego sposobu, żadne nie jest wyszarzone, a pod przyciskami jest jedno zdanie, co ten sposób robi z animacją. „Mniej klatek” ma listę „Zostaw klatek” (od 90% do 15%), „ULTRA” ma „Najwyżej klatek” i „Lossy”.",
+            "Film → GIF: dwa sposoby, „Płynnie” i „ULTRA”, i jedno pole liczbowe z pełną nazwą: „Klatki na sekundę” albo „Liczba zatrzymań”. W oknie „Ustawienia…” „Płynnie” ma jeszcze „Najwięcej klatek” z wyjaśnieniem, że to bezpiecznik dla długich filmów.",
+            "Poprawka GIF-a w sposobie „Jakość”: gdy lossy wynosiło 0, program po cichu wracał do wbudowanego ustawienia i pomijał wybraną liczbę kolorów. Teraz 0 znaczy po prostu „bez lossy”.",
+            "Więcej oddechu w trybie prostym: większe odstępy między wierszami (Folder, Format, Jakość, Film → GIF) i między tytułem pola plików a jego opisem. Odstępy między częściami ekranu bez zmian.",
+            "Z opisów w programie zniknął techniczny dopisek z nazwy pliku. Zamiast niego jest „z dopiskiem w nazwie”.",
+            "Funkcje konwersji się nie zmieniły.",
+        ],
+    ),
+    (
         "2.6.7",
         "2026-10-20",
         [
@@ -87,7 +102,7 @@ CHANGELOG: list[tuple[str, str, list[str]]] = [
             "Jeden język wizualny Dobra Kaloria (design system 1.4.0): tło okna, karty, pola i elementy w polach mają stałe, delikatne stopnie jasności. W trybie jasnym im głębiej, tym odrobinę ciemniej, w ciemnym — odrobinę jaśniej. Nigdzie nie ma już czystej bieli.",
             "Pola do wypełniania, listy plików, tabela wyników i podgląd są minimalnie ciemniejsze niż w 2.6.2 — lepiej odcinają się od karty.",
             "Przyciski formatu (PNG, JPG, AVIF) i znaczniki formatu w oknie konwersji mają odcień wybranego stylu — każdy format lekko inną barwę, zawsze z napisem.",
-            "Okno „Nie wybrano folderu zapisu”: bezpieczne „Zapisz jako nowe (_conv)” jest teraz głównym żółtym przyciskiem i działa po Enter. „Nadpisz oryginały” to przycisk z ramką — nie da się go wybrać przypadkiem.",
+            "Okno „Nie wybrano folderu zapisu”: bezpieczne zapisanie obok z dopiskiem w nazwie jest teraz głównym żółtym przyciskiem i działa po Enter. „Nadpisz oryginały” to przycisk z ramką — nie da się go wybrać przypadkiem.",
             "Kafelek „Kolory” (PNG, GIF) nie ma już pustego miejsca nad suwakiem: stoi pod „Tło i warianty”, a „Wymiary” obok — obie kolumny równej wysokości.",
             "Menu, rozwijane listy i podpowiedzi w kolorach stylu.",
             "Funkcje programu się nie zmieniły.",
@@ -254,7 +269,7 @@ CHANGELOG: list[tuple[str, str, list[str]]] = [
         "2.4.2",
         "2026-09-10",
         [
-            "Tryb prosty bez folderu: pytanie, czy nadpisać oryginały, czy zapisać obok z dopiskiem _conv.",
+            "Tryb prosty bez folderu: pytanie, czy nadpisać oryginały, czy zapisać obok z dopiskiem w nazwie.",
             "PNG poniżej 70% jakości schodzi z PNG-24 na PNG-8 (paleta) — dużo mniejszy plik, przezroczystość zostaje.",
             "PNG bez tła zostaje PNG bez tła. Format wyjścia = format oryginału, chyba że wybierzesz inny.",
             "Obok Konwertuj: trzy przyciski w obrysie PNG / JPG / AVIF — konwersja do innego formatu.",

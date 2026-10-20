@@ -6,6 +6,8 @@ więc nie zależą od ekranu maszyny testowej.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from PySide6.QtCore import QMargins, QPoint, QRect, QSettings, QSize, Qt
 from PySide6.QtWidgets import QApplication, QFrame, QLabel, QWidget
@@ -453,7 +455,7 @@ def _dialog_builders():
     from inyfinn_resizer.app.dialogs.help_guide import HelpGuideDialog
     from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
     from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResultsDialog
-    from inyfinn_resizer.app.dialogs.simple_save_dialog import SimpleSaveChoiceDialog
+    from inyfinn_resizer.app.dialogs.simple_save_dialog import SaveConflictDialog
     from inyfinn_resizer.app.dialogs.update_dialog import UpdateDialog
     from inyfinn_resizer.core.job import FormatOptions, RenameRule, ResizeOptions, TransformOptions
 
@@ -464,7 +466,9 @@ def _dialog_builders():
         "rename": lambda: RenameDialog(RenameRule(), [], None),
         "results": lambda: ResultsDialog([], 3.0),
         "wiz_results": lambda: WizResultsDialog([], 3.0),
-        "simple_save": lambda: SimpleSaveChoiceDialog(None, file_count=5, folders=[]),
+        "simple_save": lambda: SaveConflictDialog(
+            None, conflicts=[Path("a.png"), Path("b.png"), Path("c.png"), Path("d.png")], total=5, same_as_source=True,
+        ),
         "update": lambda: UpdateDialog(),
         "help": lambda: HelpGuideDialog(),
         "changelog": lambda: ChangelogDialog(),
@@ -764,10 +768,10 @@ def test_dialog_title_has_room_for_accents(make_window):
     from PySide6.QtGui import QFontMetrics
     from PySide6.QtWidgets import QLabel
 
-    from inyfinn_resizer.app.dialogs.simple_save_dialog import SimpleSaveChoiceDialog
+    from inyfinn_resizer.app.dialogs.simple_save_dialog import SaveConflictDialog
 
     _make, app, _ = make_window
-    dlg = SimpleSaveChoiceDialog(None, file_count=5, folders=[])
+    dlg = SaveConflictDialog(None, conflicts=[Path("a.png")], total=5, same_as_source=False)
     dlg.fit_to_screen(QRect(0, 0, 1366, 720))
     dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
     dlg.show()
@@ -836,7 +840,8 @@ def test_simple_has_four_parts_without_numbered_steps(make_window):
     assert not win._simple_inner.findChildren(QFrame, "groupSep")  # części rozdziela odstęp (~70 px), nie linie
     variants = {t.findChild(QLabel, "sectionStepTitle").text(): t.property("variant")
                 for t in _tiles(win) if t.findChild(QLabel, "sectionStepTitle") and t.isVisibleTo(win)}
-    assert variants["Wrzuć zdjęcia albo filmy"] == "drop"
+    # 2.6.8 (S79): pliki leżą w zwykłym szarym panelu, białe pole z przerywaną ramką to osobny QFrame#dropField
+    assert variants["Wrzuć zdjęcia albo filmy"] == "panel"
 
 
 def test_simple_empty_state_shown_only_for_empty_queue_and_drops_still_reach_the_window(make_window, tmp_path):
@@ -879,7 +884,7 @@ def test_row_icons_are_20px_in_both_lists(make_window, tmp_path):
     assert ROW_ICON_PX == 20
     assert win.input_tree.iconSize() == QSize(20, 20)
     assert win.simple_file_list.iconSize() == QSize(20, 20)
-    assert win.simple_file_list.spacing() == 6
+    assert win.simple_file_list.spacing() == 0  # 2.6.8 (S79): wiersze na bieli rozdziela linia 1 px, nie odstęp 6 px
 
 
 def test_message_box_uses_ds_icon_from_current_theme(make_window):

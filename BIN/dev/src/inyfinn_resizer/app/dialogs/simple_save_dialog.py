@@ -1,4 +1,4 @@
-"""Tryb prosty: brak folderu → nadpisz oryginały albo zapisz jako *_conv."""
+"""Pytanie o zajęte nazwy (2.6.8, S82): nadpisać czy zapisać obok z dopiskiem. Wspólne dla trybu prostego i zaawansowanego."""
 
 from __future__ import annotations
 
@@ -8,71 +8,70 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from inyfinn_resizer.app.dialogs.base_dialog import DIALOG_STACK_GAP, AppDialog, apply_dialog_layout
+from inyfinn_resizer.app.save_conflicts import OVERWRITE, SUFFIX, nbsp
 
-OVERWRITE = "overwrite"
-CONV = "conv"
+TITLE = "Te nazwy są już zajęte"
+SHOWN_NAMES = 3
 
 
-class SimpleSaveChoiceDialog(AppDialog):
-    def __init__(
-        self,
-        parent=None,
-        *,
-        file_count: int,
-        folders: list[Path],
-    ) -> None:
+def _body_text(conflicts: list[Path], total: int, same_as_source: bool) -> str:
+    n = len(conflicts)
+    if total <= 1:
+        head = "Plik o tej samej nazwie już istnieje w miejscu zapisu:"
+    else:
+        head = f"{n} z {total} plików ma już plik o tej samej nazwie w miejscu zapisu:"
+    names = [f"• {p.name}" for p in conflicts[:SHOWN_NAMES]]
+    extra = n - SHOWN_NAMES
+    if extra > 0:
+        names.append("i 1 inny" if extra == 1 else f"i {extra} innych")
+    lines = [nbsp(head), *names]
+    if same_as_source:
+        lines += ["", f"Nadpisanie zastąpi {'oryginał' if n == 1 else 'oryginały'}."]
+    return "\n".join(lines)
+
+
+class SaveConflictDialog(AppDialog):
+    def __init__(self, parent=None, *, conflicts: list[Path], total: int, same_as_source: bool) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Gdzie zapisać?")
-        self.setMinimumWidth(440)
+        self.setWindowTitle(TITLE)
+        self.setMinimumWidth(460)
         self._choice: str | None = None
 
         root = QVBoxLayout(self)
         apply_dialog_layout(root, spacing=DIALOG_STACK_GAP)
 
-        title = QLabel("Nie wybrano folderu zapisu")
+        title = QLabel(TITLE)
         title.setObjectName("saveChoiceTitle")
         title.setWordWrap(True)
         root.addWidget(title)
 
-        n = max(1, file_count)
-        plikow = "plik" if n == 1 else "pliki" if n < 5 else "plików"
-        folder_txt = _folder_summary(folders)
-        body = QLabel(
-            f"Masz {n} {plikow} w {folder_txt}.\n"
-            "Zapisać obok jako nowe pliki z dopiskiem _conv, czy nadpisać oryginały?"
-        )
+        body = QLabel(_body_text(conflicts, total, same_as_source))
         body.setObjectName("saveChoiceBody")
         body.setWordWrap(True)
         root.addWidget(body)
 
-        # Bezpieczna akcja = główna (żółta, Enter). Nadpisanie oryginałów = drugorzędna z ramką —
-        # nie może być najbardziej widocznym ani domyślnym przyciskiem, bo jest nieodwracalne.
-        conv_btn = QPushButton("Zapisz jako nowe (_conv)")
-        conv_btn.setObjectName("saveChoicePrimary")
-        conv_btn.setMinimumHeight(40)
-        conv_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        conv_btn.setToolTip("np. KULKI-KREATYNA1_conv.png — oryginał zostaje nietknięty.")
-        conv_btn.setAutoDefault(True)
-        conv_btn.setDefault(True)
-        conv_btn.clicked.connect(lambda: self._pick(CONV))
-        root.addWidget(conv_btn)
+        # Bezpieczna droga = główna (żółta, Enter). Nadpisanie jest nieodwracalne, więc to przycisk z obrysem.
+        suffix_btn = QPushButton("Zapisz obok z dopiskiem")
+        suffix_btn.setObjectName("saveChoicePrimary")
+        suffix_btn.setMinimumHeight(40)
+        suffix_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        suffix_btn.setToolTip("Oryginał zostaje bez zmian. Nowy plik dostaje dopisek w nazwie.")
+        suffix_btn.setAutoDefault(True)
+        suffix_btn.setDefault(True)
+        suffix_btn.clicked.connect(lambda: self._pick(SUFFIX))
+        root.addWidget(suffix_btn)
 
-        overwrite_btn = QPushButton("Nadpisz oryginały")
+        overwrite_btn = QPushButton("Nadpisz")
         overwrite_btn.setObjectName("saveChoiceOutline")
         overwrite_btn.setMinimumHeight(40)
         overwrite_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        overwrite_btn.setToolTip("Zastąpi pliki w tym samym folderze, w tym samym formacie.")
+        overwrite_btn.setToolTip("Zastąpi istniejące pliki. Tego nie da się cofnąć.")
         overwrite_btn.setAutoDefault(False)
         overwrite_btn.setDefault(False)
         overwrite_btn.clicked.connect(lambda: self._pick(OVERWRITE))
         root.addWidget(overwrite_btn)
-        self.conv_button = conv_btn
+        self.suffix_button = suffix_btn
         self.overwrite_button = overwrite_btn
-
-        hint = QLabel("Jeśli nazwa z _conv jest zajęta, program doda kolejny numer: _conv2, _conv3…")
-        hint.setObjectName("saveChoiceHint")
-        hint.setWordWrap(True)
-        root.addWidget(hint)
 
         cancel_row = QHBoxLayout()
         cancel_row.addStretch(1)
@@ -84,7 +83,7 @@ class SimpleSaveChoiceDialog(AppDialog):
         cancel.clicked.connect(self.reject)
         cancel_row.addWidget(cancel)
         root.addLayout(cancel_row)
-        conv_btn.setFocus(Qt.FocusReason.OtherFocusReason)
+        suffix_btn.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _pick(self, choice: str) -> None:
         self._choice = choice
@@ -94,29 +93,9 @@ class SimpleSaveChoiceDialog(AppDialog):
         return self._choice
 
 
-def _folder_summary(folders: list[Path]) -> str:
-    names = []
-    seen: set[str] = set()
-    for folder in folders:
-        key = str(folder)
-        if key in seen:
-            continue
-        seen.add(key)
-        names.append(folder.name or key)
-        if len(names) == 2:
-            break
-    if not names:
-        return "folderze źródłowym"
-    if len(seen) == 1:
-        return f"folderze „{names[0]}”"
-    extra = len(seen) - len(names)
-    if extra > 0:
-        return f"folderach „{names[0]}”, „{names[1]}” i {extra} kolejnych"
-    return f"folderach „{names[0]}” i „{names[1]}”"
-
-
-def ask_simple_save_choice(parent, *, file_count: int, folders: list[Path]) -> str | None:
-    dlg = SimpleSaveChoiceDialog(parent, file_count=file_count, folders=folders)
-    if dlg.exec() != SimpleSaveChoiceDialog.Accepted:
+def ask_save_conflict(parent, *, conflicts: list[Path], total: int, same_as_source: bool) -> str | None:
+    """``"suffix"`` | ``"overwrite"`` | ``None`` (anulowano)."""
+    dlg = SaveConflictDialog(parent, conflicts=conflicts, total=total, same_as_source=same_as_source)
+    if dlg.exec() != SaveConflictDialog.Accepted:
         return None
     return dlg.choice()

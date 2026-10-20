@@ -1,7 +1,7 @@
 # Inyfinn Photo Resizer — dokumentacja deweloperska
 
 Natywna aplikacja Windows (Python 3.12 · PySide6 · libvips · pngquant · gifsicle).  
-**Wersja:** 2.6.7 · **Korzeń projektu:** wyłącznie `InyfinnPhotoResizer.exe` (launcher).
+**Wersja:** 2.6.8 · **Korzeń projektu:** wyłącznie `InyfinnPhotoResizer.exe` (launcher).
 
 Dokumentacja i logi są **tylko tutaj** (`BIN/dev/`), nie w korzeniu.
 
@@ -25,6 +25,20 @@ Zgłoszenie: „wybieranie rozszerzeń z listy rozwijanej jest trudne, bo zwija 
 - **Puszczenie przycisku**, które przychodzi do listy bez wciśnięcia w niej (klik, który ją otworzył), jest pomijane — nie zamyka listy i nie zmienia wyboru.
 - Kod: `src/inyfinn_resizer/app/widgets/format_multi_combo.py` (filtr zdarzeń na `view().viewport()`, flagi `_press_in_popup`, `_swallow_release`). Test: `tests/test_format_combo_popup.py` (prawdziwe okno Qt, nie `offscreen` — na `offscreen` lista się nie otwiera).
 - Od 2.6.7 rozszerzenia w trybie zaawansowanym to pigułki (poniżej); `FormatMultiCombo` zostaje w kodzie razem z poprawką i testem, ale okno główne go już nie używa.
+
+## Zapis jawnie, białe pole na pliki, GIF bez wyszarzonych pól — 2.6.8
+
+Słowa usera z 20.10.2026 po 2.6.7 (panel „toporny”, liczenie klatek niezrozumiałe, w GIF-ach „nie da się kliknąć”, za mało oddechu, jedna wielka beżowa ramka na pliki, program nie mówi, czy nadpisze, w opisach jakiś „CNOV”). Reguły design systemu: S79–S83 (`ZALECENIA-USERA.md`).
+
+- **Białe pole na pliki (S79).** Tryb prosty: kafelek plików to zwykły panel L1 (`variant="panel"`; nagłówek, przyciski, licznik), a miejsce na pliki to `QFrame#dropField` (L2, przerywana ramka `DROP_BORDER`, promień `RADIUS_DROP`) z pustym stanem albo listą. Wiersze listy: białe, linia 1 px `LIST_ROW_LINE` (te same tokeny co lista trybu zaawansowanego), bez odstępów. Kwadrat ikony pustego stanu ma `BG_PANEL`, żeby było go widać na bieli. Upuszczanie obsługuje nadal okno (`dropEvent`). Wariant `drop` kafelka zostaje w QSS i w `make_tile`, ale nic go już nie używa.
+- **Oddech (S80).** Odstęp między wierszami formularzy trybu prostego 12 → 20 px (`main_window.SIMPLE_ROW_GAP` = 20 / 16 / 12 wg gęstości okna, więc niski ekran nadal się zagęszcza); opis kafelka 6 px pod tytułem (`TILE_TITLE_HINT_GAP`). `Density.section_gap` (70) bez zmian. Wysokość trybu prostego liczy się przy szerokości, jaką okno naprawdę dostanie (`_measure_w`), bo zdania pod polami zawijają się w wąskim oknie.
+- **Zapis jawnie (S82, S83).** `app/save_conflicts.py` (czysta logika): zdania pod polem „Folder” (tryb prosty: `saveInfo`, odświeżane przy zmianie folderu i kolejki; tryb zaawansowany: karta „Zapis plików”, odświeżane przełącznikami „Zapisz do folderu wyjściowego” i „Pytaj przed nadpisaniem”), wykrywanie zajętych celów (istnieją na dysku albo powtarzają się w partii), nazwy z dopiskiem przez `core.pipeline.unique_conv_path` (nazwy unikalne także w partii). `dialogs/simple_save_dialog.SaveConflictDialog` / `ask_save_conflict` zwraca `"suffix"`, `"overwrite"` albo `None`; „Zapisz obok z dopiskiem” jest domyślne (Enter).
+  - Tryb prosty: bez bezwarunkowego pytania. Cel = wybrany folder albo obok oryginału z rozszerzeniem formatu wyjściowego; pytanie tylko przy zajętych nazwach (np. „Jak oryginał” bez folderu, folder = folder zdjęć).
+  - Tryb zaawansowany: jedno pytanie o całą partię zamiast `ask_overwrite_inplace` na każdy plik i okna Tak/Nie; bez folderu wyjściowego pytamy zawsze, z folderem tylko przy „Pytaj przed nadpisaniem” (bez niego nadpisanie po cichu jak dotąd). Sekwencja wizek bez zmian.
+  - W opisach programu nie ma już `_conv` („z dopiskiem w nazwie”); w rdzeniu plik nadal dostaje `_conv`.
+- **GIF (S81).** Okno „Ustawienia…”: sposób wybierany pigułkami „Jakość / Mniej klatek / ULTRA” (`PillGroup`), pod nimi jedno zdanie o skutku; widoczne są tylko pola wybranego sposobu (`FormGrid.set_row_visible`), nic nie jest wyszarzone. Jakość: „Lossy i kolory z suwaka Jakość” + linia „Teraz: …” (ręczny lossy 0–200 dopiero po odznaczeniu); Mniej klatek: lista „Zostaw klatek” (`FRAME_PRESETS` 10 → 1, wartość = `gif_level`); ULTRA: „Najwyżej klatek” 2–8 i „Lossy” 0–200. Film → GIF: pigułki „Płynnie / ULTRA”; Płynnie = „Klatki na sekundę” + „Najwięcej klatek” (bezpiecznik), ULTRA = „Liczba zatrzymań”. W trybie prostym rząd Film → GIF to te same dwie pigułki i JEDNO pole liczbowe z jawną etykietą („Klatki na sekundę” / „Liczba zatrzymań”).
+- **Poprawka rdzenia.** `compress_gif`, sposób „Jakość”: własne kolory i lossy działają zawsze, gdy podano kolory (lossy 0 = bez lossy); dawniej `lossy == 0` po cichu wracało do presetu poziomu (256 kolorów, lossy 80).
+- **Testy:** `tests/test_save_flow_268.py` (zdania o zapisie, zajęte nazwy, przepływy trybu prostego i zaawansowanego, `dropField`, oddech, GIF, `compress_gif`), przepisane `tests/test_simple_save_dialog.py`, poprawione `test_simple_video.py`, `test_window_fit.py`, `test_look_267.py`. **Zrzuty:** `scripts\capture_ui.py <iteracja> <folder> <motywy> v268`.
 
 ## Nowy wygląd czterech części — 2.6.7
 

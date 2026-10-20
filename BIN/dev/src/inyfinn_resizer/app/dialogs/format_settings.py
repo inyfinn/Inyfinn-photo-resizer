@@ -38,8 +38,11 @@ from inyfinn_resizer.app.dialogs.base_dialog import (
     build_dialog_footer,
 )
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
+from inyfinn_resizer.app.save_conflicts import nbsp
 from inyfinn_resizer.app.widgets.form_grid import FormGrid
+from inyfinn_resizer.app.widgets.pills import PillGroup
 from inyfinn_resizer.app.widgets.layout_helpers import h_separator, mark_quiet, style_dropdown
+from inyfinn_resizer.core.compressors.gif import FRAME_PRESETS
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality
 
@@ -105,6 +108,13 @@ class _SectionForm(FormGrid):
 
 
 SCROLL_TOP_GAP = 8  # odstęp nad sekcją po kliknięciu kotwicy
+
+
+def _kolorow(n: int) -> str:
+    """1 kolor · 2–4 kolory (poza 12–14) · reszta kolorów."""
+    if n == 1:
+        return "kolor"
+    return "kolory" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "kolorów"
 # kotwice u góry okna: (klucz sekcji, napis)
 _ANCHORS = (
     ("jpeg", "JPEG"),
@@ -153,12 +163,16 @@ class FormatSettingsDialog(AppDialog):
         self._gif_lossy: QSpinBox | None = None
         self._gif_from_quality: QCheckBox | None = None
         self._gif_colors_label: QLabel | None = None
-        self._gif_mode: QComboBox | None = None
-        self._gif_level: QSpinBox | None = None
+        self._gif_form: _SectionForm | None = None
+        self._gif_mode: PillGroup | None = None
+        self._gif_level: QComboBox | None = None
+        self._gif_quality_info: QLabel | None = None
+        self._gif_lossy_hint: QLabel | None = None
+        self._video_frames_hint: QLabel | None = None
         self._gif_ultra_frames: QSpinBox | None = None
         self._gif_ultra_lossy: QSpinBox | None = None
         self._gif_mode_hint: QLabel | None = None
-        self._video_mode: QComboBox | None = None
+        self._video_mode: PillGroup | None = None
         self._video_frames: QSpinBox | None = None
         self._video_ultra_frames: QSpinBox | None = None
         self._video_scale: QSpinBox | None = None
@@ -410,37 +424,66 @@ class FormatSettingsDialog(AppDialog):
         return w
 
     def _gif_tab(self) -> QWidget:
+        """GIF (2.6.8, S81): jedna droga naraz. Wybierasz sposób pigułką, widzisz TYLKO jego pola (reszta jest ukryta,
+        nie wyszarzona) i jedno zdanie o tym, co ten sposób robi z animacją."""
         w = fl = _SectionForm()
+        self._gif_form = fl
 
-        self._gif_mode = style_dropdown(QComboBox())
-        self._gif_mode.addItem("Jakość (2 z 3 klatek + lossy)", "quality")
-        self._gif_mode.addItem("Klatki (redukcja bez utraty jakości)", "frames")
-        self._gif_mode.addItem("ULTRA (max 4 klatki, zamrożenia)", "ultra")
-        self._gif_mode.setToolTip(UI_TOOLTIPS["gif_mode_quality"])
-        self._gif_mode.currentIndexChanged.connect(self._sync_gif_mode_controls)
-        fl.addRow("Tryb kompresji:", self._gif_mode)
+        self._gif_mode = PillGroup([[
+            ("quality", "Jakość", UI_TOOLTIPS["gif_mode_quality"]),
+            ("frames", "Mniej klatek", UI_TOOLTIPS["gif_mode_frames"]),
+            ("ultra", "ULTRA", UI_TOOLTIPS["gif_mode_ultra"]),
+        ]], multi=False)
+        self._gif_mode.changed.connect(self._sync_gif_mode_controls)
+        fl.addRow("Sposób:", self._gif_mode)
 
         self._gif_mode_hint = QLabel()
         self._gif_mode_hint.setObjectName("hintLabel")
         self._gif_mode_hint.setWordWrap(True)
         fl.addRow(self._gif_mode_hint)
 
-        self._gif_level = QSpinBox()
-        self._gif_level.setRange(1, 10)
-        self._gif_level.setToolTip(UI_TOOLTIPS["gif_level"])
-        fl.addRow("Poziom (1–10):", self._gif_level)
+        # — Jakość —
+        self._gif_from_quality = QCheckBox(nbsp("Lossy i kolory z suwaka Jakość (zalecane)"))
+        self._gif_from_quality.setToolTip(
+            "Gdy włączone, lossy i liczba kolorów są liczone z głównego suwaka Jakość."
+        )
+        self._gif_from_quality.toggled.connect(self._sync_gif_controls)
+        fl.addRow(self._gif_from_quality)
 
+        self._gif_quality_info = QLabel()
+        self._gif_quality_info.setObjectName("hintLabel")
+        self._gif_quality_info.setWordWrap(True)
+        fl.addRow(self._gif_quality_info)
+
+        self._gif_lossy = QSpinBox()
+        self._gif_lossy.setRange(0, 200)
+        self._gif_lossy.setToolTip("Lossy usuwa niewidoczne detale — mniejszy plik. 0 = wyłączone.")
+        fl.addRow("Lossy:", self._gif_lossy)
+
+        self._gif_lossy_hint = QLabel(nbsp("0 = bez lossy. Liczbę kolorów ustawiasz w oknie głównym (Liczba kolorów)."))
+        self._gif_lossy_hint.setObjectName("hintLabel")
+        self._gif_lossy_hint.setWordWrap(True)
+        fl.addRow(self._gif_lossy_hint)
+
+        # — Mniej klatek: ile klatek zostaje (poziom 10…1 = 90%…15%) —
+        self._gif_level = style_dropdown(QComboBox())
+        for level in sorted(FRAME_PRESETS, reverse=True):
+            self._gif_level.addItem(FRAME_PRESETS[level].name, level)
+        self._gif_level.setToolTip(UI_TOOLTIPS["gif_level"])
+        fl.addRow("Zostaw klatek:", self._gif_level)
+
+        # — ULTRA —
         self._gif_ultra_frames = QSpinBox()
         self._gif_ultra_frames.setRange(2, 8)
         self._gif_ultra_frames.setValue(4)
-        self._gif_ultra_frames.setToolTip("Maksymalna liczba klatek w trybie ULTRA (domyślnie 4).")
-        fl.addRow("ULTRA — max klatek:", self._gif_ultra_frames)
+        self._gif_ultra_frames.setToolTip("Najwięcej klatek, jakie zostaną w animacji (domyślnie 4).")
+        fl.addRow("Najwyżej klatek:", self._gif_ultra_frames)
 
         self._gif_ultra_lossy = QSpinBox()
         self._gif_ultra_lossy.setRange(0, 200)
         self._gif_ultra_lossy.setValue(70)
-        self._gif_ultra_lossy.setToolTip("Lossy w trybie ULTRA (domyślnie 70).")
-        fl.addRow("ULTRA — lossy:", self._gif_ultra_lossy)
+        self._gif_ultra_lossy.setToolTip("Lossy usuwa niewidoczne detale — mniejszy plik. 0 = wyłączone (domyślnie 70).")
+        fl.addRow("Lossy:", self._gif_ultra_lossy)
 
         self._gif_dither = QCheckBox("Dithering (szum — gładkie przejścia kolorów)")
         self._gif_dither.setToolTip(
@@ -448,61 +491,48 @@ class FormatSettingsDialog(AppDialog):
         )
         fl.addRow(self._gif_dither)
 
-        self._gif_from_quality = QCheckBox("Lossy i kolory z suwaka jakości (tylko tryb Jakość)")
-        self._gif_from_quality.setToolTip(
-            "Gdy włączone, lossy i liczba kolorów są liczone z głównego suwaka Jakość."
-        )
-        self._gif_from_quality.toggled.connect(self._sync_gif_controls)
-        fl.addRow(self._gif_from_quality)
-
-        self._gif_lossy = QSpinBox()
-        self._gif_lossy.setRange(0, 200)
-        self._gif_lossy.setToolTip("Lossy usuwa niewidoczne detale — mniejszy plik. 0 = wyłączone.")
-        fl.addRow("Lossy (0–200):", self._gif_lossy)
-
-        self._gif_colors_label = QLabel()
-        self._gif_colors_label.setObjectName("hintLabel")
-        fl.addRow("Liczba kolorów:", self._gif_colors_label)
-
         fl.add_span(h_separator())
         video_title = QLabel("Film → GIF (MP4, MOV, WebM…)")
         video_title.setObjectName("fieldLabel")
         fl.add_span(video_title)
 
-        self._video_mode = style_dropdown(QComboBox())
-        self._video_mode.addItem("Równomiernie — płynny ruch", "smooth")
-        self._video_mode.addItem("ULTRA — zatrzymania jako jedna klatka", "ultra")
-        self._video_mode.setToolTip(
-            "ULTRA zostawia kadr początkowy i te miejsca, w których obraz stoi najdłużej. "
-            "Długość animacji zostaje taka jak w filmie, a plik jest wielokrotnie mniejszy."
-        )
-        fl.addRow("Tryb dla filmu:", self._video_mode)
+        self._video_mode = PillGroup([[
+            ("smooth", "Płynnie", "Klatki rozłożone równo w czasie."),
+            ("ultra", "ULTRA", "Zostaje kadr początkowy i miejsca, w których obraz stoi najdłużej. "
+                               "Długość animacji zostaje taka jak w filmie, a plik jest wielokrotnie mniejszy."),
+        ]], multi=False)
+        self._video_mode.changed.connect(self._sync_video_controls)
+        fl.addRow("Sposób:", self._video_mode)
 
         self._video_fps = QSpinBox()
         self._video_fps.setRange(1, 30)
         self._video_fps.setSuffix(" kl/s")
         self._video_fps.setToolTip(
-            "Tempo gotowego GIF-a. 12 kl/s wystarcza do płynnego ruchu, 24 kl/s jest gładsze, "
-            "ale plik rośnie.\nW trybie ULTRA służy tylko do wykrywania zatrzymań — "
-            "czasy klatek liczy sam program."
+            "Tempo gotowego GIF-a. 12 kl/s wystarcza do płynnego ruchu, 24 kl/s jest gładsze, ale plik rośnie."
         )
         fl.addRow("Klatki na sekundę:", self._video_fps)
-
-        self._video_ultra_frames = QSpinBox()
-        self._video_ultra_frames.setRange(2, 300)
-        self._video_ultra_frames.setToolTip(
-            "Tylko tryb ULTRA: ile zatrzymań zostanie w animacji.\n"
-            "Mniej = mniejszy plik; długość animacji i tak zostaje taka jak w filmie."
-        )
-        fl.addRow("ULTRA — liczba zatrzymań:", self._video_ultra_frames)
 
         self._video_frames = QSpinBox()
         self._video_frames.setRange(2, 900)
         self._video_frames.setToolTip(
-            "Bezpiecznik trybu równomiernego: górna granica klatek dla długich filmów.\n"
-            "Tempo animacji ustawiasz polem „Klatki na sekundę”."
+            "Górna granica klatek dla długich filmów. Tempo animacji ustawiasz polem „Klatki na sekundę”."
         )
-        fl.addRow("Równomiernie — limit klatek:", self._video_frames)
+        fl.addRow("Najwięcej klatek:", self._video_frames)
+
+        self._video_frames_hint = QLabel(
+            nbsp("Bezpiecznik dla długich filmów: klatki rozłożą się równo, film nie zostanie ucięty.")
+        )
+        self._video_frames_hint.setObjectName("hintLabel")
+        self._video_frames_hint.setWordWrap(True)
+        fl.addRow(self._video_frames_hint)
+
+        self._video_ultra_frames = QSpinBox()
+        self._video_ultra_frames.setRange(2, 300)
+        self._video_ultra_frames.setToolTip(
+            "Ile zatrzymań zostanie w animacji.\n"
+            "Mniej = mniejszy plik; długość animacji i tak zostaje taka jak w filmie."
+        )
+        fl.addRow("Liczba zatrzymań:", self._video_ultra_frames)
 
         self._video_scale = QSpinBox()
         self._video_scale.setRange(1, 100)
@@ -583,62 +613,63 @@ class FormatSettingsDialog(AppDialog):
             self._jpeg_gradient_reverse.setEnabled(gradient)
         self._update_matte_preview()
 
+    def _gif_mode_value(self) -> str:
+        return self._gif_mode.value() if self._gif_mode else "quality"
+
     def _sync_gif_mode_controls(self) -> None:
-        mode = "quality"
-        if self._gif_mode:
-            data = self._gif_mode.currentData()
-            mode = str(data) if data else "quality"
-        hints = {
-            "quality": UI_TOOLTIPS["gif_mode_quality"],
-            "frames": UI_TOOLTIPS["gif_mode_frames"],
-            "ultra": UI_TOOLTIPS["gif_mode_ultra"],
-        }
+        """Pokazuje TYLKO pola wybranego sposobu (S81: ukryć, nie wyszarzyć) i jedno zdanie o tym, co on robi."""
+        mode = self._gif_mode_value()
         if self._gif_mode_hint:
-            self._gif_mode_hint.setText(hints.get(mode, ""))
-        quality_mode = mode == "quality"
-        ultra_mode = mode == "ultra"
-        if self._gif_level:
-            self._gif_level.setEnabled(not ultra_mode)
-            self._gif_level.setToolTip(
-                UI_TOOLTIPS["gif_level"] if not ultra_mode else "W ULTRA poziom nie dotyczy — używane są zamrożenia."
-            )
-        if self._gif_from_quality:
-            self._gif_from_quality.setEnabled(quality_mode)
-        if self._gif_ultra_frames:
-            self._gif_ultra_frames.setEnabled(ultra_mode)
-        if self._gif_ultra_lossy:
-            self._gif_ultra_lossy.setEnabled(ultra_mode)
+            self._gif_mode_hint.setText(nbsp(UI_TOOLTIPS.get(f"gif_mode_{mode}", "")))
+        form = self._gif_form
+        if form is None:
+            return
+        quality, frames, ultra = mode == "quality", mode == "frames", mode == "ultra"
+        form.set_row_visible(self._gif_from_quality, quality)
+        form.set_row_visible(self._gif_quality_info, quality)
+        form.set_row_visible(self._gif_level, frames)
+        form.set_row_visible(self._gif_ultra_frames, ultra)
+        form.set_row_visible(self._gif_ultra_lossy, ultra)
         self._sync_gif_controls()
 
     def _sync_gif_controls(self) -> None:
-        mode = "quality"
-        if self._gif_mode:
-            data = self._gif_mode.currentData()
-            mode = str(data) if data else "quality"
-        auto = bool(
-            mode == "quality"
-            and self._gif_from_quality
-            and self._gif_from_quality.isChecked()
+        """Sposób „Jakość”: ręczny lossy (z podpowiedzią) widać tylko wtedy, gdy lossy nie idzie z suwaka Jakość."""
+        manual = (
+            self._gif_mode_value() == "quality"
+            and self._gif_from_quality is not None
+            and not self._gif_from_quality.isChecked()
         )
-        if self._gif_lossy:
-            self._gif_lossy.setEnabled(not auto)
+        if self._gif_form is not None:
+            self._gif_form.set_row_visible(self._gif_lossy, manual)
+            self._gif_form.set_row_visible(self._gif_lossy_hint, manual)
         self._update_gif_labels()
 
+    def _sync_video_controls(self) -> None:
+        """Film → GIF: „Płynnie” pokazuje klatki na sekundę i bezpiecznik, „ULTRA” liczbę zatrzymań."""
+        if self._gif_form is None or self._video_mode is None:
+            return
+        ultra = self._video_mode.value() == "ultra"
+        for widget in (self._video_fps, self._video_frames, self._video_frames_hint):
+            self._gif_form.set_row_visible(widget, not ultra)
+        self._gif_form.set_row_visible(self._video_ultra_frames, ultra)
+
     def _update_gif_labels(self) -> None:
-        if not self._gif_colors_label:
+        if not self._gif_quality_info:
             return
         q = self._opts.quality
         colors = palette_colors_for_quality(q)
         lossy = gif_lossy_for_quality(q)
         auto = bool(self._gif_from_quality and self._gif_from_quality.isChecked())
         if auto:
-            self._gif_colors_label.setText(f"{colors} (z jakości {q}%)")
+            self._gif_quality_info.setText(
+                nbsp(f"Teraz: {colors} {_kolorow(colors)}, lossy {lossy} (suwak Jakość {q}%)")
+            )
             if self._gif_lossy:
                 self._gif_lossy.blockSignals(True)
                 self._gif_lossy.setValue(lossy)
                 self._gif_lossy.blockSignals(False)
         else:
-            self._gif_colors_label.setText(str(self._opts.gif_max_colors))
+            self._gif_quality_info.setText(f"Kolory: {self._opts.gif_max_colors}")
 
     def _update_matte_preview(self) -> None:
         if not self._jpeg_preview or not self._jpeg_matte_mode:
@@ -702,7 +733,7 @@ class FormatSettingsDialog(AppDialog):
             mode_map = {"auto": 0, "png8": 1, "png24": 2}
             self._png_mode.setCurrentIndex(mode_map.get(self._opts.png_mode, 0))
         if self._video_mode:
-            self._video_mode.setCurrentIndex(max(0, self._video_mode.findData(self._opts.video_mode)))
+            self._video_mode.set_value(self._opts.video_mode)
         if self._video_frames:
             self._video_frames.setValue(int(self._opts.video_max_frames))
         if self._video_ultra_frames:
@@ -718,10 +749,9 @@ class FormatSettingsDialog(AppDialog):
         if self._gif_from_quality:
             self._gif_from_quality.setChecked(self._opts.gif_from_quality)
         if self._gif_mode:
-            idx = max(0, self._gif_mode.findData(self._opts.gif_mode))
-            self._gif_mode.setCurrentIndex(idx)
+            self._gif_mode.set_value(self._opts.gif_mode)
         if self._gif_level:
-            self._gif_level.setValue(self._opts.gif_level)
+            self._gif_level.setCurrentIndex(max(0, self._gif_level.findData(self._opts.gif_level)))
         if self._gif_ultra_frames:
             self._gif_ultra_frames.setValue(self._opts.gif_ultra_max_frames)
         if self._gif_ultra_lossy:
@@ -739,6 +769,7 @@ class FormatSettingsDialog(AppDialog):
             self._avif_keep_meta.setChecked(self._opts.keep_metadata)
         self._sync_matte_controls()
         self._sync_gif_mode_controls()
+        self._sync_video_controls()
 
     def _reset(self) -> None:
         self._opts = FormatOptions()
@@ -771,7 +802,7 @@ class FormatSettingsDialog(AppDialog):
             modes = ["auto", "png8", "png24"]
             self._opts.png_mode = modes[self._png_mode.currentIndex()]
         if self._video_mode:
-            self._opts.video_mode = str(self._video_mode.currentData() or "smooth")
+            self._opts.video_mode = self._video_mode.value()
         if self._video_frames:
             self._opts.video_max_frames = self._video_frames.value()
         if self._video_ultra_frames:
@@ -783,10 +814,9 @@ class FormatSettingsDialog(AppDialog):
         if self._gif_dither:
             self._opts.gif_dither = self._gif_dither.isChecked()
         if self._gif_mode:
-            data = self._gif_mode.currentData()
-            self._opts.gif_mode = str(data) if data else "quality"
+            self._opts.gif_mode = self._gif_mode.value()
         if self._gif_level:
-            self._opts.gif_level = self._gif_level.value()
+            self._opts.gif_level = int(self._gif_level.currentData() or self._opts.gif_level)
         if self._gif_ultra_frames:
             self._opts.gif_ultra_max_frames = self._gif_ultra_frames.value()
         if self._gif_ultra_lossy:

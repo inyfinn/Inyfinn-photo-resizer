@@ -26,7 +26,7 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             "Szybki start",
             [
                 "Przeciągnij zdjęcia na listę po lewej lub użyj Dodaj pliki / Dodaj folder.",
-                "Tryb prosty: jakość, opcjonalnie folder, Konwertuj. Bez folderu program zapyta: nadpisać czy zapisać jako _conv.",
+                "Tryb prosty: jakość, opcjonalnie folder, Konwertuj. Gdy plik o tej nazwie już istnieje, program zapyta: nadpisać czy zapisać obok z dopiskiem w nazwie.",
                 "Obok Konwertuj są przyciski PNG / JPG / AVIF, gdy chcesz zmienić format.",
                 "Ustaw format, jakość i wymiary, wybierz folder wyjściowy, kliknij Konwertuj.",
                 "Prawy przycisk myszy na liście: konwersja wybranych, usuń, otwórz folder, kopiuj ścieżkę.",
@@ -82,11 +82,11 @@ def _help_sections() -> list[tuple[str, str, list[str]]]:
             "Zapis plików",
             [
                 "Zapisz do folderu wyjściowego — wyniki trafiają do wskazanego katalogu.",
-                "Tryb prosty bez folderu: nadpisz oryginały albo zapisz obok z dopiskiem _conv (gdy zajęte: _conv2…).",
+                "Zajęte nazwy plików: program pyta, czy nadpisać, czy zapisać obok z dopiskiem w nazwie (gdy i ta jest zajęta, dopisuje kolejny numer). Pod polem „Folder” widać, co się wydarzy.",
                 "Aktualizuj ścieżkę proponuje folder obok plików źródłowych po dodaniu listy.",
                 "Zachowaj strukturę folderów — odtwarza podfoldery względem wspólnego korzenia.",
                 "Zachowaj datę i godzinę — kopiuje znaczniki czasu z pliku źródłowego.",
-                "Pytaj przed nadpisaniem — ostrzeżenie, gdy plik docelowy już istnieje.",
+                "Pytaj przed nadpisaniem — gdy plik w folderze wyjściowym już istnieje, program pyta: nadpisać czy zapisać obok z dopiskiem. Bez tej opcji nadpisuje bez pytania.",
                 "Wiele plików naraz — równoległa konwersja wsadowa (szybsza na wielu plikach).",
                 "Folder wyjściowy jest pomijany w trybie sekwencji wizek.",
             ],

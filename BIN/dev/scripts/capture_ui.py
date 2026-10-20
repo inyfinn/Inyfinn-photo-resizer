@@ -5,7 +5,11 @@
 Zestawy (4. argument):
 - ``stare`` (domyślny): główne okno, tryb prosty, Ustawienia, Opcje zaawansowane, okno konwersji;
 - ``v267``: wygląd 2.6.7 — tryb prosty (pusty, z 3 plikami, wąski 960 px), tryb zaawansowany (rozwinięty, dwie karty
-  zwinięte, wąski 960 px), Ustawienia (góra i przewinięte), Opcje zaawansowane.
+  zwinięte, wąski 960 px), Ustawienia (góra i przewinięte), Opcje zaawansowane;
+- ``v268``: wygląd 2.6.8 — białe pole na pliki, zdanie o zapisie, ustawienia GIF, pytanie o zajęte nazwy.
+
+Motyw: pełne id (``dobra-kaloria-zielen-ciemny``) albo skrót (``zielen-ciemny``, ``krem-jasny``, ``zielen-jasny``, ``krem-ciemny``).
+Nieznana nazwa kończy program błędem (wcześniej cicho dawała jasny domyślny, więc „ciemne” zrzuty wychodziły jasne).
 """
 
 from __future__ import annotations
@@ -27,6 +31,15 @@ from inyfinn_resizer.app.main_window import (
 )
 from inyfinn_resizer.app.themes import THEMES, apply_theme, is_dark_theme
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
+
+
+def _theme_id(name: str) -> str:
+    """Skrót ``zielen-ciemny`` → pełne id motywu. Nieznana nazwa NIE jest cicho zamieniana na jasny domyślny
+    (przez to zrzuty „ciemne” wychodziły jasne): kończy program błędem."""
+    full = name if name in THEMES else f"dobra-kaloria-{name}"
+    if full not in THEMES:
+        raise SystemExit(f"Nieznany motyw {name!r}; dostępne: {', '.join(THEMES)}")
+    return full
 
 
 def _repolish(widget: QWidget) -> None:
@@ -120,6 +133,16 @@ def _fill_files(widget: MainWindow) -> None:
     widget._refresh_simple_file_list()
 
 
+def _save_choice_dialog() -> QWidget:
+    """Pytanie o zapis, gdy nazwy są zajęte (3 pliki z listy próbnej, wszystkie w jednym folderze)."""
+    from inyfinn_resizer.app.dialogs import simple_save_dialog as ssd
+
+    files = _sample_files()
+    if hasattr(ssd, "SaveConflictDialog"):
+        return ssd.SaveConflictDialog(None, conflicts=files[:2], total=len(files), same_as_source=True)
+    return ssd.SimpleSaveChoiceDialog(None, file_count=len(files), folders=[p.parent for p in files])
+
+
 def _scroll_of(dialog: QWidget) -> QScrollArea | None:
     return dialog.findChild(QScrollArea, "settingsScroll")
 
@@ -144,6 +167,17 @@ STATES_V267: list[tuple[str, str, dict]] = [
     ("format", "ustawienia-przewiniete", {"fmt": "jpeg", "scroll": "end"}),
     ("advanced", "opcje-zaawansowane", {}),
 ]
+# 2.6.8: strefa plików, informacja o zapisie, ustawienia GIF, pytanie „Nadpisz / Zapisz obok z dopiskiem”
+STATES_V268: list[tuple[str, str, dict]] = [
+    ("simple", "prosty-pusty", {}),
+    ("simple", "prosty-3-pliki", {"files": True}),
+    ("simple", "prosty-folder-zdjec", {"files": True, "simple_out": "source"}),
+    ("simple", "prosty-waski-960", {"files": True, "width": 960}),
+    ("main", "zaawansowany-gif", {"format": "gif", "files": True}),
+    ("format", "ustawienia-gif", {"fmt": "gif"}),
+    ("format", "ustawienia-gif-film", {"fmt": "gif", "scroll_extra": 460}),
+    ("savechoice", "pytanie-zapis", {}),
+]
 
 
 def main() -> int:
@@ -153,7 +187,8 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     iteration = sys.argv[1] if len(sys.argv) > 1 else "final"
     themes = sys.argv[3].split(",") if len(sys.argv) > 3 else list(THEMES)
-    states = STATES_V267 if (len(sys.argv) > 4 and sys.argv[4] == "v267") else STATES_OLD
+    sets = {"v267": STATES_V267, "v268": STATES_V268}
+    states = sets.get(sys.argv[4], STATES_OLD) if len(sys.argv) > 4 else STATES_OLD
 
     app = QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)
@@ -184,13 +219,15 @@ def main() -> int:
             widget._set_ui_mode("simple", mark_dirty=False)
         elif kind == "format":
             widget = FormatSettingsDialog(opts.get("fmt", "webp"), FormatOptions())
+        elif kind == "savechoice":
+            widget = _save_choice_dialog()
         else:
             widget = AdvancedOptionsDialog(ResizeOptions(), TransformOptions())
 
         # Motyw PO konstrukcji: MainWindow.__init__ woła _apply_saved_theme()
         # i nadpisuje apply_theme ustawione wcześniej.
-        apply_theme(app, theme)
-        _sync_window_theme(widget, theme)
+        apply_theme(app, _theme_id(theme))
+        _sync_window_theme(widget, _theme_id(theme))
         if fmt:
             try:
                 _set_output_format(widget, fmt)
@@ -198,6 +235,9 @@ def main() -> int:
                 print(f"WARN format {fmt}: {type(exc).__name__}: {exc}", file=sys.stderr)
         if opts.get("files") and isinstance(widget, MainWindow):
             _fill_files(widget)
+        if opts.get("simple_out") == "source" and isinstance(widget, MainWindow):
+            widget._simple_output_dir = _sample_files()[0].parent
+            widget._refresh_simple_output()
         for key in opts.get("collapse", []):
             widget._cards[key].set_collapsed(True)
 
@@ -237,6 +277,14 @@ def main() -> int:
             overlay.set_overall(0, 3)
             overlay.set_eta_seconds(148)
             app.processEvents()
+        if opts.get("scroll_extra"):
+            scroll = _scroll_of(widget)
+            section = getattr(widget, "_sections", {}).get(opts.get("fmt", ""))
+            if scroll is not None and section is not None:
+                app.processEvents()
+                scroll.verticalScrollBar().setValue(section.y() + int(opts["scroll_extra"]))
+                widget._initial_scrolled = True  # showEvent nie przewinie z powrotem do początku sekcji
+                app.processEvents()
         if opts.get("scroll") == "end":
             scroll = _scroll_of(widget)
             if scroll is not None:

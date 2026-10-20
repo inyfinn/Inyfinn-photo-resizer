@@ -40,7 +40,6 @@ from PySide6.QtWidgets import (
 )
 from inyfinn_resizer.app.dialogs.message_boxes import (
     ask_confirm_delete,
-    ask_overwrite_inplace,
     ask_yes_no,
     show_about,
     show_critical,
@@ -53,7 +52,16 @@ from inyfinn_resizer.app.dialogs.custom_size_preset import CustomSizePresetDialo
 from inyfinn_resizer.app.dialogs.format_settings import FormatSettingsDialog
 from inyfinn_resizer.app.changelog import show_changelog
 from inyfinn_resizer.app.dialogs.help_guide import show_help_guide
-from inyfinn_resizer.app.dialogs.simple_save_dialog import ask_simple_save_choice
+from inyfinn_resizer.app.dialogs.simple_save_dialog import ask_save_conflict
+from inyfinn_resizer.app.save_conflicts import (
+    OVERWRITE,
+    SUFFIX,
+    advanced_save_info,
+    conflicting_indices,
+    same_as_source,
+    simple_save_info,
+    with_suffix_names,
+)
 from inyfinn_resizer.app.update_manager import UpdateManager
 from inyfinn_resizer.app.widgets.update_status_bar import UpdateStatusBar
 from inyfinn_resizer.app.dialogs.rename_dialog import RenameDialog
@@ -62,7 +70,7 @@ from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResults
 from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
 from inyfinn_resizer.app.widgets.conversion_overlay import ConversionOverlay
 from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
-from inyfinn_resizer.app.widgets.form_grid import FORM_VGAP, ActionRow, FormGrid
+from inyfinn_resizer.app.widgets.form_grid import ActionRow, FormGrid
 from inyfinn_resizer.app.widgets.pills import FormatPills, PillGroup
 from inyfinn_resizer.app.widgets.section_card import SectionCard
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
@@ -155,7 +163,7 @@ from inyfinn_resizer.core.job import (
     ResizeOptions,
     TransformOptions,
 )
-from inyfinn_resizer.core.pipeline import build_output_path, unique_conv_path
+from inyfinn_resizer.core.pipeline import build_output_path
 from inyfinn_resizer.core.presets import (
     apply_preset,
     auto_save_profile_rotating,
@@ -203,6 +211,11 @@ DEFAULT_SPLITTER_SIZES = (560, 720)
 SIMPLE_MAX_WIDTH = 1040  # 2.6.7: kolumna trybu prostego (makieta D); wcześniej 860
 SIMPLE_LABEL_W = 110  # kolumna etykiet trybu prostego (Folder, Format, Jakość, Film → GIF)
 SIMPLE_FORMAT_ORIGINAL = "original"  # pigułka „Jak oryginał” (format zostaje taki jak w pliku)
+# 2.6.8 (S80, więcej oddechu): odstęp między wierszami formularzy trybu prostego wg gęstości okna 0 / 1 / 2 (było 12 px).
+SIMPLE_ROW_GAP = (20, 16, 12)
+SAVE_INFO_GAP = 8  # pole „Folder” → zdanie o zapisie pod nim
+DROP_FIELD_PAD = 10  # wypełnienie białego pola na pliki (od jego przerywanej ramki do wierszy listy)
+SIMPLE_VIDEO_SPIN_W = 132  # pole liczbowe filmu (z „ kl/s” po liczbie)
 
 
 class MainWindow(QMainWindow):
@@ -229,6 +242,7 @@ class MainWindow(QMainWindow):
         self._cards: dict[str, SectionCard] = {}  # karty sekcji trybu zaawansowanego (zwijane)
         self._fit_ready = False  # po konstruktorze; wcześniej tryb/format nie zmieniają okna
         self._fitting = False
+        self._measure_w: int | None = None  # szerokość okna, przy której ``_measure_needed`` liczy zawijanie (tryb prosty)
         self._refit_pending = False
         self._fit_size: QSize | None = None  # ostatni rozmiar klienta ustawiony przez program (nie przez usera)
         self._saved_splitter: list[int] | None = None
@@ -391,6 +405,13 @@ class MainWindow(QMainWindow):
             lay.setSpacing(d.card_gap)
         for lay in self._section_layouts:
             lay.setSpacing(d.section_gap)  # tryb prosty: ~70 px między częściami (S60), na niskim ekranie mniej
+        row_gap = SIMPLE_ROW_GAP[max(0, min(d.level, len(SIMPLE_ROW_GAP) - 1))]  # S80: formularze trybu prostego
+        for grid in (getattr(self, "_simple_folder_grid", None), getattr(self, "_simple_format_grid", None),
+                     getattr(self, "simple_video_tile", None)):
+            if grid is not None:
+                grid.set_gaps(vgap=row_gap)
+        if getattr(self, "_simple_format_lay", None) is not None:
+            self._simple_format_lay.setSpacing(row_gap)
         for grid in self._gap_grids:
             grid.setHorizontalSpacing(d.col_gap)  # kolumny: nie mniej niż 12 px (2.6.6), pion = odstęp kart
             grid.setVerticalSpacing(d.card_gap)
@@ -448,7 +469,7 @@ class MainWindow(QMainWindow):
             view_w = max(center.minimumSizeHint().width(), self._simple_footer.minimumSizeHint().width())
             width = max(
                 view_w,
-                min(center.maximumWidth(), DEFAULT_WINDOW_WIDTH - margins.left() - margins.right()),
+                min(center.maximumWidth(), (self._measure_w or DEFAULT_WINDOW_WIDTH) - margins.left() - margins.right()),
             )
             lay = inner.layout()
             hfw = lay.totalHeightForWidth(width) if lay.hasHeightForWidth() else inner.sizeHint().height()
@@ -584,6 +605,9 @@ class MainWindow(QMainWindow):
                 pos = self.frameGeometry().topLeft() if self.isVisible() else None
 
             before = QSize(self.size())
+            # 2.6.8: wysokość trybu prostego liczymy przy szerokości, jaką okno naprawdę dostanie (węższe okno zawija opisy
+            # i zdania pod polami — przy szerokości domyślnej wysokość wychodziła za mała i dół się przewijał).
+            self._measure_w = saved.width() if saved is not None and saved.width() > 0 else None
             # Zaczynamy od układu pełnego (lista ≥ 5 wierszy, miniatura podglądu) — zwężenie tylko w razie potrzeby.
             self.input_tree.setMinimumHeight(LIST_MIN_H)
             self._preview_body.setVisible(self.preview_cb.isChecked())
@@ -622,6 +646,7 @@ class MainWindow(QMainWindow):
                 self._fit_size = QSize(self.size())  # baza dla „user zmienił rozmiar ręcznie”
         finally:
             self._fitting = False
+            self._measure_w = None
 
     def _schedule_refit(self) -> None:
         """Format albo kadr zmieniły układ kafelków (a z nim wysokość) — dopasuj okno raz, po zakończeniu obsługi."""
@@ -837,8 +862,9 @@ class MainWindow(QMainWindow):
         col.setSpacing(DENSITIES[0].section_gap)
         self._section_layouts.append(col)
 
-        # 1 — pliki. Sam kafelek jest strefą upuszczania (``variant="drop"``: szary, przerywany obrys). Upuszczanie plików
-        # obsługuje okno (``dropEvent``) — etykiety i przyciski w kafelku nie przechwytują zdarzeń, lista też nie.
+        # 1 — pliki (S79). Panel L1 trzyma nagłówek, przyciski i licznik; miejsce na pliki to BIAŁE pole (``dropField``,
+        # cienka przerywana ramka) z pustym stanem albo listą. Upuszczanie plików obsługuje okno (``dropEvent``) —
+        # etykiety, przyciski, pole ani lista nie przechwytują zdarzeń.
         files_tools = QWidget()
         files_tools.setLayout(tool_button_row([
             ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
@@ -849,18 +875,24 @@ class MainWindow(QMainWindow):
             "Wrzuć zdjęcia albo filmy",
             "Przeciągnij pliki tutaj lub dodaj z dysku. Film (MP4, MOV, WebM) zamieni się w GIF-a.",
             fill=True,
-            variant="drop",
             header_right=files_tools,
         )
         self.simple_queue_label = QLabel("0 plików")
         self.simple_queue_label.setObjectName("queueCount")
         files_lay.addWidget(self.simple_queue_label)
+        drop_field = QFrame()
+        drop_field.setObjectName("dropField")
+        drop_field.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        field_lay = QVBoxLayout(drop_field)
+        field_lay.setContentsMargins(DROP_FIELD_PAD, DROP_FIELD_PAD, DROP_FIELD_PAD, DROP_FIELD_PAD)
+        field_lay.setSpacing(0)
+        self._drop_field = drop_field
         self.simple_file_list = QListWidget()
         self.simple_file_list.setObjectName("simpleFileList")
         self.simple_file_list.setMinimumHeight(160)
         self.simple_file_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.simple_file_list.setIconSize(QSize(ROW_ICON_PX, ROW_ICON_PX))
-        self.simple_file_list.setSpacing(6)  # wiersze to ciche kafelki — odstęp 6 px, bez własnej ramki listy
+        self.simple_file_list.setSpacing(0)  # wiersze na bieli rozdziela linia 1 px (S10), nie odstęp
         self.simple_file_list.setToolTip(
             "Kliknij, aby zaznaczyć. Ctrl — kilka plików, Shift — zakres.\n"
             "Delete albo ✕ przy pliku usuwa go z listy (pliku na dysku nie rusza)."
@@ -872,16 +904,17 @@ class MainWindow(QMainWindow):
         )
         self.simple_file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.simple_file_list.customContextMenuRequested.connect(self._show_simple_context_menu)
-        files_lay.addWidget(self.simple_file_list, stretch=1)
+        field_lay.addWidget(self.simple_file_list, stretch=1)
         # Pusty stan (tylko gdy lista jest pusta): ikona, tytuł, podpowiedź — wyśrodkowane jak we wzorcu.
         self._simple_empty = self._build_drop_empty_state()
-        files_lay.addWidget(self._simple_empty, stretch=1)
+        field_lay.addWidget(self._simple_empty, stretch=1)
+        files_lay.addWidget(drop_field, stretch=1)
         self.simple_file_list.setVisible(False)
         self.simple_queue_label.setVisible(False)
         col.addWidget(files_tile, stretch=1)
 
         # 2 — folder zapisu: etykieta | pole + zwykły przycisk drugorzędny (szerokość napisu)
-        folder_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        folder_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel", vgap=SIMPLE_ROW_GAP[0])
         self._simple_folder_grid = folder_grid
         out_row = QWidget()
         out_lay = QHBoxLayout(out_row)
@@ -903,7 +936,7 @@ class MainWindow(QMainWindow):
         self.simple_output_clear.setFixedWidth(CONTROL_H)
         simple_browse = browse_button(
             "Wybierz folder…",
-            tooltip="Wybierz folder na gotowe zdjęcia. Bez folderu program zapyta: nadpisać, czy zapisać jako nowe (_conv).",
+            tooltip="Wybierz folder na gotowe zdjęcia. Bez folderu program zapisze obok oryginałów.",
             slot=self._browse_output_simple,
         )
         set_themed_icon(simple_browse, action_icon_folder_orange)
@@ -911,15 +944,24 @@ class MainWindow(QMainWindow):
         out_lay.addWidget(self.simple_output_edit, stretch=1)
         out_lay.addWidget(self.simple_output_clear)
         out_lay.addWidget(simple_browse)
-        folder_grid.add_row("Folder", out_row)
+        # S82: pod polem jedno zdanie o tym, gdzie program zapisze i co zrobi z zajętymi nazwami
+        folder_block = QWidget()
+        folder_block_lay = QVBoxLayout(folder_block)
+        folder_block_lay.setContentsMargins(0, 0, 0, 0)
+        folder_block_lay.setSpacing(SAVE_INFO_GAP)
+        folder_block_lay.addWidget(out_row)
+        self.simple_save_info_label = self._make_save_info_label()
+        folder_block_lay.addWidget(self.simple_save_info_label)
+        folder_grid.add_row("Folder", folder_block, top_pad=(CONTROL_H - 18) // 2)  # napis stoi na wysokości pola
         col.addWidget(folder_grid)
 
         # 3 — format i jakość: pigułki (jeden wybór), suwak jakości w SWOIM rzędzie, ustawienia filmu tylko przy filmie
         fmt_part = QWidget()
         fmt_lay = QVBoxLayout(fmt_part)
         fmt_lay.setContentsMargins(0, 0, 0, 0)
-        fmt_lay.setSpacing(FORM_VGAP)
-        fmt_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        fmt_lay.setSpacing(SIMPLE_ROW_GAP[0])
+        self._simple_format_lay = fmt_lay
+        fmt_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel", vgap=SIMPLE_ROW_GAP[0])
         self._simple_format_grid = fmt_grid
         video_note = "\nFilm z listy i tak zapisze się jako GIF."
         self.simple_format_pills = PillGroup([[
@@ -946,45 +988,45 @@ class MainWindow(QMainWindow):
         fmt_lay.addWidget(fmt_grid)
 
         # Film → GIF — rząd pojawia się dopiero, gdy na liście jest film
-        video_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        video_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel", vgap=SIMPLE_ROW_GAP[0])
         self.simple_video_tile = video_grid
-        self.simple_video_mode = style_dropdown(QComboBox())
-        self.simple_video_mode.addItem("Płynnie — klatki co równy odstęp", "smooth")
-        self.simple_video_mode.addItem("ULTRA — zatrzymania jako jedna klatka", "ultra")
-        self.simple_video_mode.setToolTip(
-            "ULTRA zostawia kadr początkowy i te miejsca, w których obraz stoi najdłużej.\n"
-            "GIF trwa tyle co film, a plik jest wielokrotnie mniejszy."
-        )
-        self.simple_video_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.simple_video_mode.setMinimumWidth(180)
-        mark_large(self.simple_video_mode)
+        # Dwie drogi (pigułki, jak format) i JEDNO pole liczbowe z jawną etykietą (S81): płynnie → klatki na sekundę,
+        # ULTRA → liczba zatrzymań. Klucz pigułki = wartość ``FormatOptions.video_mode``.
+        self.simple_video_mode = PillGroup([[
+            ("smooth", "Płynnie", "Klatki rozłożone równo w czasie. Im więcej klatek na sekundę, tym płynniejszy i większy GIF."),
+            ("ultra", "ULTRA", "Zostaje kadr początkowy i miejsca, w których obraz stoi najdłużej.\n"
+                               "GIF trwa tyle co film, a plik jest wielokrotnie mniejszy."),
+        ]], multi=False)
+        self.simple_video_mode.set_value(self._format_opts.video_mode if self._format_opts.video_mode in ("smooth", "ultra") else "smooth")
         self.simple_video_fps = QSpinBox()
         self.simple_video_fps.setRange(1, 30)
+        self.simple_video_fps.setSuffix(" kl/s")
         self.simple_video_fps.setValue(int(round(self._format_opts.video_fps)))
         self.simple_video_fps.setToolTip("Tempo gotowego GIF-a. Mniej klatek na sekundę = mniejszy plik.")
-        self.simple_video_fps.setFixedWidth(104)
+        self.simple_video_fps.setFixedWidth(SIMPLE_VIDEO_SPIN_W)
         mark_large(self.simple_video_fps)
         self.simple_video_frames = QSpinBox()
         self.simple_video_frames.setRange(2, 300)
         self.simple_video_frames.setValue(self._format_opts.video_ultra_frames)
         self.simple_video_frames.setToolTip("Ile zatrzymań zostanie w gotowym GIF-ie.")
-        self.simple_video_frames.setFixedWidth(104)
+        self.simple_video_frames.setFixedWidth(SIMPLE_VIDEO_SPIN_W)
         mark_large(self.simple_video_frames)
         self.simple_video_num_label = QLabel()
         self.simple_video_num_label.setObjectName("fieldLabel")
         video_row = QWidget()
         video_lay = QHBoxLayout(video_row)
         video_lay.setContentsMargins(0, 0, 0, 0)
-        video_lay.setSpacing(8)
-        video_lay.addWidget(self.simple_video_mode, stretch=1)
+        video_lay.setSpacing(16)
+        video_lay.addWidget(self.simple_video_mode)
         video_lay.addWidget(self.simple_video_num_label)
         video_lay.addWidget(self.simple_video_fps)
         video_lay.addWidget(self.simple_video_frames)
+        video_lay.addStretch(1)
         video_grid.add_row(
             "Film → GIF", video_row,
             tooltip="Zdjęcia zostają bez zmian. To ustawienie dotyczy tylko filmów z listy.",
         )
-        self.simple_video_mode.currentIndexChanged.connect(self._refresh_simple_video_controls)
+        self.simple_video_mode.changed.connect(self._refresh_simple_video_controls)
         self._refresh_simple_video_controls()
         video_grid.setVisible(False)
         fmt_lay.addWidget(video_grid)
@@ -1122,6 +1164,7 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setVisible(not empty)
         self.simple_queue_label.setVisible(not empty)
         self._refresh_simple_video_tile()
+        self._refresh_simple_save_info()
 
     @staticmethod
     def _row_icon(factory, size: int = ROW_ICON_PX) -> QIcon:
@@ -1168,10 +1211,10 @@ class MainWindow(QMainWindow):
 
     def _refresh_simple_video_controls(self) -> None:
         """Jedno pole liczbowe, zależne od trybu: płynnie → klatki na sekundę, ULTRA → liczba zatrzymań."""
-        ultra = self.simple_video_mode.currentData() == "ultra"
+        ultra = self.simple_video_mode.value() == "ultra"
         self.simple_video_fps.setVisible(not ultra)
         self.simple_video_frames.setVisible(ultra)
-        self.simple_video_num_label.setText("Zatrzymań:" if ultra else "Klatki/s:")
+        self.simple_video_num_label.setText("Liczba zatrzymań" if ultra else "Klatki na sekundę")
 
     def _refresh_simple_video_tile(self) -> None:
         """Ustawienia filmu pokazujemy tylko wtedy, gdy na liście naprawdę jest film."""
@@ -1196,8 +1239,30 @@ class MainWindow(QMainWindow):
         text = str(folder) if folder else ""
         self.simple_output_edit.setText(text)
         self.simple_output_edit.setCursorPosition(0)
-        self.simple_output_edit.setToolTip(text or "Bez folderu program zapyta: nadpisać, czy zapisać obok jako _conv.")
+        self.simple_output_edit.setToolTip(text or "Nie wybrano folderu — zapis obok oryginałów.")
         self.simple_output_clear.setVisible(folder is not None)
+        self._refresh_simple_save_info()
+
+    @staticmethod
+    def _make_save_info_label() -> QLabel:
+        """Zdanie o zapisie (S82): wyciszone jak podpowiedź, zawijane."""
+        lbl = QLabel()
+        lbl.setObjectName("saveInfo")
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        return lbl
+
+    def _refresh_simple_save_info(self) -> None:
+        """Pod polem „Folder” (tryb prosty): gdzie zapisze i co zrobi z zajętymi nazwami; wołane po zmianie folderu i kolejki."""
+        lbl = getattr(self, "simple_save_info_label", None)
+        if lbl is not None:
+            lbl.setText(simple_save_info(self._simple_output_dir, self._queue))
+
+    def _refresh_advanced_save_info(self, *_args) -> None:
+        """To samo w karcie „Zapis plików” (tryb zaawansowany): zależy od przełącznika folderu i „Pytaj przed nadpisaniem”."""
+        lbl = getattr(self, "advanced_save_info_label", None)
+        if lbl is not None:
+            lbl.setText(advanced_save_info(self.output_enabled_cb.isChecked(), self.overwrite_cb.isChecked()))
 
     def _clear_simple_output(self) -> None:
         self._simple_output_dir = None
@@ -1236,7 +1301,7 @@ class MainWindow(QMainWindow):
         video_frames = self._format_opts.video_ultra_frames
         video_fps = self._format_opts.video_fps
         if hasattr(self, "simple_video_mode"):
-            video_mode = self.simple_video_mode.currentData()
+            video_mode = self.simple_video_mode.value()
             video_frames = self.simple_video_frames.value()
             video_fps = float(self.simple_video_fps.value())
         return replace(
@@ -1251,19 +1316,32 @@ class MainWindow(QMainWindow):
             rgb_bitmap_only=False,
         )
 
-    def _simple_output_path(
-        self,
-        inp: Path,
-        fmt: str,
-        dest_dir: Path | None,
-        save_mode: str,
-    ) -> Path:
+    def _simple_output_path(self, inp: Path, fmt: str, dest_dir: Path | None) -> Path:
+        """Cel zapisu: wskazany folder albo obok oryginału (z rozszerzeniem formatu wyjściowego)."""
         if dest_dir is not None:
             return build_output_path(inp, dest_dir, fmt, preserve_structure=False)
-        target = inp.with_suffix(output_extension(fmt))
-        if save_mode == "conv":
-            return unique_conv_path(target)
-        return target
+        return inp.with_suffix(output_extension(fmt))
+
+    def _resolve_save_conflicts(self, jobs: list[JobSpec], *, ask: bool = True) -> list[JobSpec] | None:
+        """Zajęte nazwy (S82): pytanie „zapisz obok z dopiskiem czy nadpisz”. ``None`` = anulowano (nic nie zapisujemy).
+
+        Bez zajętych nazw nie pytamy. ``ask=False`` (tryb zaawansowany z folderem i bez „Pytaj przed nadpisaniem”):
+        nadpisujemy bez pytania, jak wcześniej.
+        """
+        clash = conflicting_indices(jobs)
+        if not clash or not ask:
+            return jobs
+        choice = ask_save_conflict(
+            self,
+            conflicts=[jobs[i].output_path for i in clash],
+            total=len(jobs),
+            same_as_source=same_as_source(jobs, clash),
+        )
+        if choice == SUFFIX:
+            return with_suffix_names(jobs, clash)
+        if choice == OVERWRITE:
+            return jobs
+        return None
 
     def _simple_target_format(self) -> str | None:
         """Format wybrany pigułkami trybu prostego; ``None`` = „Jak oryginał” (format wg pliku wejściowego)."""
@@ -1276,21 +1354,12 @@ class MainWindow(QMainWindow):
             show_warning(self, "Konwersja", "Najpierw dodaj zdjęcia.")
             return
         dest_dir: Path | None = self._simple_output_dir
-        save_mode = "overwrite"
         if dest_dir is not None:
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
                 show_critical(self, "Błąd", f"Nie można utworzyć folderu:\n{exc}")
                 return
-        else:
-            folders = [p.parent for p in self._queue]
-            choice = ask_simple_save_choice(
-                self, file_count=len(self._queue), folders=folders,
-            )
-            if choice is None:
-                return
-            save_mode = choice
 
         fmt_opts = self._simple_format_opts()
         resize = ResizeOptions(mode=ResizeMode.NONE, scale_percent=100.0, min_longest_enabled=False)
@@ -1301,7 +1370,7 @@ class MainWindow(QMainWindow):
             fmt = output_format or output_format_for_input(inp)
             if is_video_file(inp):
                 fmt = "gif"  # film zapisujemy jako animację, niezależnie od wybranej pigułki
-            out = self._simple_output_path(inp, fmt, dest_dir, save_mode)
+            out = self._simple_output_path(inp, fmt, dest_dir)
             jobs.append(JobSpec(
                 input_path=inp,
                 output_path=out,
@@ -1311,6 +1380,9 @@ class MainWindow(QMainWindow):
                 metadata=self._metadata,
                 format_opts=fmt_opts,
             ))
+        jobs = self._resolve_save_conflicts(jobs)
+        if jobs is None:
+            return
         label = f"tryb prosty {output_format}" if output_format else "tryb prosty"
         self._run_jobs(jobs, overwrite=True, log_label=label)
 
@@ -1857,6 +1929,9 @@ class MainWindow(QMainWindow):
         mark_quiet(browse_out)
         path_btn_row.addWidget(browse_out, stretch=1)
         out_section_layout.addLayout(path_btn_row)
+        # S82: zdanie o zapisie pod przyciskami folderu (zależy od przełącznika folderu i „Pytaj przed nadpisaniem”)
+        self.advanced_save_info_label = self._make_save_info_label()
+        out_section_layout.addWidget(self.advanced_save_info_label)
 
         self._out_row = out_section
         self._out_control = out_section
@@ -1884,6 +1959,9 @@ class MainWindow(QMainWindow):
             setattr(self, attr, cb)
             cb_grid.addWidget(cb, i // 2, i % 2)
         save_grid.add_row("Opcje", options)
+        self.output_enabled_cb.toggled.connect(self._refresh_advanced_save_info)
+        self.overwrite_cb.toggled.connect(self._refresh_advanced_save_info)
+        self._refresh_advanced_save_info()
         root.addStretch(1)
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
@@ -3102,37 +3180,6 @@ class MainWindow(QMainWindow):
                 ))
         return jobs
 
-    def _filter_jobs_with_inplace_confirm(self, jobs: list[JobSpec]) -> list[JobSpec]:
-        if self._output_path_active():
-            return jobs
-        existing = [j for j in jobs if j.output_path.exists()]
-        if not existing:
-            return jobs
-        yes_all = False
-        filtered: list[JobSpec] = []
-        for i, job in enumerate(jobs):
-            if not job.output_path.exists():
-                filtered.append(job)
-                continue
-            if yes_all:
-                filtered.append(job)
-                continue
-            remaining = sum(1 for j in jobs[i:] if j.output_path.exists())
-            choice = ask_overwrite_inplace(
-                self,
-                filename=job.output_path.name,
-                remaining=remaining,
-            )
-            if choice is None or choice == "no_all":
-                return []
-            if choice == "yes_all":
-                yes_all = True
-                filtered.append(job)
-            elif choice == "yes":
-                filtered.append(job)
-            # "no" — pomiń ten plik
-        return filtered
-
     def _start_convert_selected(self) -> None:
         paths = self._selected_file_paths()
         if not paths:
@@ -3156,24 +3203,15 @@ class MainWindow(QMainWindow):
         if not self._prepare_output_for_convert(inputs):
             return
         jobs = self._build_jobs(inputs=inputs)
-        jobs = self._filter_jobs_with_inplace_confirm(jobs)
+        # Bez folderu wyjściowego pytamy zawsze, z folderem tylko przy „Pytaj przed nadpisaniem” (S82).
+        jobs = self._resolve_save_conflicts(jobs, ask=not self._output_path_active() or self.overwrite_cb.isChecked())
         if not jobs:
             return
-        overwrite = True
-        if self._output_path_active() and self.overwrite_cb.isChecked():
-            existing = [j for j in jobs if j.output_path.exists()]
-            if existing:
-                if not ask_yes_no(
-                    self,
-                    "Nadpisanie",
-                    f"{len(existing)} plik(ów) już istnieje. Nadpisać?",
-                ):
-                    overwrite = False
 
         preset = self._current_size_preset_id()
         self._run_jobs(
             jobs,
-            overwrite=overwrite,
+            overwrite=True,
             log_label=f"{'+'.join(self._selected_formats())}, preset: {preset}",
         )
 

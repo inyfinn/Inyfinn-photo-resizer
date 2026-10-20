@@ -827,3 +827,28 @@
 - Hash commita, SHA256 assetów i link do wydania: odpowiedź workera dla kierownika oraz opis wydania na GitHubie.
 
 **Źródła:** `ds-dobra-kaloria/components.md` rozdz. 26 (26.1, 26.3, 26.4, 26.5, 26.8), `ZALECENIA-USERA.md` S20, S30, S37, S48, S59, S60, makiety rundy `/design` (1D, 2B+C, 3D, 4B).
+
+---
+
+## 2026-10-20 — v2.6.8: zapis jawnie, białe pole na pliki, GIF bez wyszarzonych pól (kod, testy, zrzuty; bez wydania)
+
+**Komenda/Akcja:** Słowa usera po 2.6.7 („panel dalej toporny”, liczenie klatek niezrozumiałe, w GIF-ach „nie da się kliknąć”, za mało oddechu, jedna wielka beżowa ramka na pliki, program nie mówi, czy nadpisze, „CNOV” w opisach) → reguły S79–S83 design systemu. Brief kierownika, jeden worker, dziesięć zadań (T1–T10). Bez commita, bez buildu, bez wydania.
+
+**Log/Status:**
+1. T1 (S79): tryb prosty — kafelek plików to zwykły panel L1 (`variant="panel"`), pole na pliki to biały `QFrame#dropField` (L2, przerywana ramka `DROP_BORDER`, `RADIUS_DROP`) z pustym stanem albo listą; wiersze białe + linia `LIST_ROW_LINE` (tokeny listy trybu zaawansowanego); kwadrat ikony pustego stanu `BG_PANEL`. `dropEvent` nadal w oknie.
+2. T2 (S80): `SIMPLE_ROW_GAP` 20/16/12 px wg gęstości (`_apply_density` → `FormGrid.set_gaps`), opis kafelka 6 px pod tytułem (`TILE_TITLE_HINT_GAP`), `section_gap` 70 bez zmian. Skutek uboczny znaleziony na zrzucie 960 px: `_measure_needed` liczył wysokość trybu prostego przy szerokości domyślnej, a w wąskim oknie zdania się zawijają — dół (rząd Film → GIF) wpadał pod przewijanie. Poprawka: `_measure_w` (szerokość, jaką okno naprawdę dostanie, ustawiana w `_fit_window`).
+3. T3/T4 (S82): nowy `app/save_conflicts.py` (zdania `saveInfo` w obu trybach, zajęte cele = istnieją na dysku albo powtarzają się w partii, nazwy z dopiskiem przez `unique_conv_path` unikalne także w partii), `SaveConflictDialog` + `ask_save_conflict` (`"suffix"`/`"overwrite"`/`None`) zamiast `SimpleSaveChoiceDialog`. Tryb prosty: koniec bezwarunkowego pytania, pytanie tylko przy zajętych nazwach. Zaawansowany: jedno pytanie o partię zamiast `ask_overwrite_inplace` na plik (usunięte) i okna Tak/Nie; bez folderu pytamy zawsze, z folderem tylko przy „Pytaj przed nadpisaniem”.
+4. T5 (S81): okno „Ustawienia…” → GIF: pigułki „Jakość / Mniej klatek / ULTRA”, tylko pola wybranego sposobu (`set_row_visible`), nic wyszarzonego; lista „Zostaw klatek” (`FRAME_PRESETS` 10→1); ULTRA „Najwyżej klatek” + „Lossy”; Film → GIF: pigułki „Płynnie / ULTRA” i pola wybranego sposobu. Rdzeń: `compress_gif` quality — własne kolory/lossy zawsze gdy `colors is not None` (lossy 0 = bez lossy; wcześniej po cichu preset poziomu).
+5. T6: tryb prosty, Film → GIF = pigułki + jedno pole z etykietą „Klatki na sekundę” (` kl/s`) albo „Liczba zatrzymań”.
+6. T7 (S83): usunięty `_conv` z tooltipów `main_window.py`, `help_guide.py`, `changelog.py`, okna pytania; poprawione też nieaktualne „Tak/Nie” w `i18n_tooltips.py` (`overwrite`, `output_enabled`) i `gif_mode_*`. Rdzeń nadal dopisuje `_conv`.
+7. T8: wersja 2.6.8 w `__init__.py`, `pyproject.toml`, `installer/inyfinn_resizer.iss` (2×), README, `changelog.py`. Niezmienione (poza zakresem zapisu): `BIN\WERSJA.txt` (generowany przy buildzie), `design-system\MASTER.md` („Stan 2.6.7”, opis strefy plików).
+8. `scripts/capture_ui.py`: skróty motywów (`zielen-ciemny`) rozwijane do pełnego id, nieznana nazwa = błąd. Wcześniej `zielen-ciemny` i `krem-jasny` cicho dawały jasny motyw domyślny (pierwsza partia zrzutów „ciemnych” wyszła jasna; powtórzona).
+
+**Test/Ewaluacja:**
+- Pełny zestaw (`python -m pytest -q -p no:cacheprovider`, venv, `PYTHONPATH=src`, QT offscreen): przebieg 1 — 533 passed, 1 failed (`test_window_fit::test_row_icons_are_20px_in_both_lists`: stary test pilnował odstępu listy 6 px, od S79 0 — test poprawiony); przebieg końcowy po wszystkich zmianach — **534 passed, 0 failed** (2187 s).
+- Nowe: `tests/test_save_flow_268.py` (38: zdania o zapisie, zajęte nazwy i nazwy z dopiskiem w partii, przepływy trybu prostego i zaawansowanego z podmienionym oknem, `dropField` biały w zielen-jasny, oddech, wąskie okno bez przewijania, GIF pigułki / brak wyszarzonych pól / zapis i odczyt opcji / Reset, `compress_gif`). Przepisane: `test_simple_save_dialog.py` (13). Poprawione: `test_simple_video.py` (pigułki), `test_window_fit.py` (nowe okno pytania, wariant `panel`, odstęp listy), `test_look_267.py` (`_gif_level` to lista).
+- Zrzuty (własne okna, `capture_ui.py p1 <folder> <motyw> v268`, motywy zielen-jasny / krem-jasny / zielen-ciemny, po 8 stanów): `scratchpad\resizer-268\zrzuty\p1-*`; stan przed: `p0-*` (zielen-jasny).
+
+**Tymczasowe:** w scratchpadzie sesji `resizer-268\tmp\pytest-of-krzysztof.wieczorek` (755 plików, ok. 1,8 MB, katalogi pytesta z dwóch pełnych przebiegów) — kosz odmówił (za długa ścieżka); do usunięcia po przyjęciu zrzutów. Reszta posprzątana.
+
+**Źródła:** `ds-dobra-kaloria`: `ZALECENIA-USERA.md` S79–S83, `IDENTYFIKACJA-WIZUALNA.md` rozdz. 10, `components.md` rozdz. 25.10, 26.1, 26.8, 26.9; kod: `core/compressors/gif.py` (`compress_gif`, `FRAME_PRESETS`), `core/pipeline.py` (`unique_conv_path`).

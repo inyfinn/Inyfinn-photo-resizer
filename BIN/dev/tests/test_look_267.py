@@ -456,7 +456,8 @@ def test_format_settings_options_round_trip(make_window):  # noqa: F811
         dlg._subsampling.setCurrentIndex(dlg._subsampling.findData("full"))
         dlg._png_mode.setCurrentIndex(2)
         dlg._png_lossless.setChecked(True)
-        dlg._gif_level.setValue(3)
+        dlg._gif_mode.set_value("frames")  # 2.6.8: poziom to lista „Zostaw klatek”, widoczna tylko przy „Mniej klatek”
+        dlg._gif_level.setCurrentIndex(dlg._gif_level.findData(3))
         dlg._avif_cap.setChecked(True)
         dlg._avif_max_kb.setValue(300)
         opts = dlg.get_options()

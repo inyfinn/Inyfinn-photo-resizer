@@ -110,52 +110,6 @@ def ask_confirm_delete(parent: QWidget | None, title: str, text: str) -> bool:
     return ask_yes_no(parent, title, text)
 
 
-def ask_overwrite_inplace(
-    parent: QWidget | None,
-    *,
-    filename: str,
-    remaining: int,
-) -> str | None:
-    """Zwraca: yes | yes_all | no | no_all (anuluj całość) albo None."""
-    box = AppMessageBox(parent)
-    box.set_kind(QMessageBox.Icon.Warning)
-    box.setWindowTitle("Nadpisać plik?")
-    extra = f"\n\nPozostało do sprawdzenia: {remaining}." if remaining > 1 else ""
-    box.setText(
-        f"Plik już istnieje w miejscu źródłowym:\n{filename}\n\n"
-        f"Nadpisać go wynikiem konwersji?{extra}"
-    )
-    btn_yes = box.addButton("Tak", QMessageBox.YesRole)
-    btn_yes_all = box.addButton("Tak dla wszystkich", QMessageBox.ActionRole)
-    btn_no = box.addButton("Nie", QMessageBox.NoRole)
-    btn_no_all = box.addButton("Nie dla wszystkich", QMessageBox.RejectRole)
-    _polish_buttons(box)
-    for btn, obj in (
-        (btn_yes, "primaryBtn"),
-        (btn_yes_all, "btnSecondary"),
-        (btn_no, "btnSecondary"),
-        (btn_no_all, "btnSecondary"),
-    ):
-        if btn:
-            btn.setObjectName(obj)
-            btn.setMinimumHeight(36)
-    # S13: jeden zielony (Tak), jeden z obrysem (Nie), pozostałe ciche.
-    for btn in (btn_yes_all, btn_no_all):
-        mark_quiet(btn)
-    box.vertical_buttons = True
-    box.exec()
-    clicked = box.clickedButton()
-    if clicked is btn_yes:
-        return "yes"
-    if clicked is btn_yes_all:
-        return "yes_all"
-    if clicked is btn_no:
-        return "no"
-    if clicked is btn_no_all:
-        return "no_all"
-    return None
-
-
 def ask_yes_no(parent: QWidget | None, title: str, text: str) -> bool:
     box = _make_box(parent, QMessageBox.Question, title, text, QMessageBox.Yes | QMessageBox.No)
     return box.exec() == QMessageBox.Yes

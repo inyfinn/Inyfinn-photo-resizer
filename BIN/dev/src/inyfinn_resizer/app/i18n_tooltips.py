@@ -111,7 +111,7 @@ UI_TOOLTIPS: dict[str, str] = {
     ),
     "output_enabled": (
         "Gdy włączone — zapis do podanego folderu. "
-        "Gdy wyłączone — nadpisanie w miejscu źródłowym (z pytaniem przed nadpisaniem)."
+        "Gdy wyłączone — zapis obok oryginałów (gdy nazwa jest zajęta, program pyta: nadpisać czy zapisać z dopiskiem)."
     ),
     "segregate": "Gdy zapisujesz wiele rozszerzeń naraz, każde trafia do osobnego podfolderu (np. webp/, jpg/).",
     "remove_background": (
@@ -141,24 +141,21 @@ UI_TOOLTIPS: dict[str, str] = {
     "wiz": "Specjalna sekwencja wizualizacji produktów — kompresja w miejscu w folderze XL/L/S/SKLEP.",
     "preserve_structure": "Zachowaj podfoldery z folderu źródłowego w folderze docelowym.",
     "keep_dates": "Data modyfikacji pliku wynikowego taka jak oryginału.",
-    "overwrite": "Przed nadpisaniem istniejącego pliku pokaż pytanie Tak/Nie.",
+    "overwrite": "Gdy plik o tej nazwie już istnieje w folderze wyjściowym, zapytaj: nadpisać czy zapisać obok z dopiskiem.",
     "parallel": (
         "Równoległe przetwarzanie wątkami — kilka plików naraz na jednym CPU. "
         "Przyspiesza batch na mocnym PC; wyłącz, gdy chcesz mniejsze obciążenie lub stabilniejszą kolejność."
     ),
     "gif_mode_quality": (
-        "Kompresja jakości — stała liczba klatek (2 z każdych 3), zmiana kolorów i lossy. "
-        "Timing animacji zachowany."
+        "Zostają 2 z 3 klatek, obraz traci trochę kolorów i drobnych detali. Animacja trwa tyle samo."
     ),
     "gif_mode_frames": (
-        "Redukcja klatek — mniej klatek bez utraty jakości obrazu. "
-        "Czas każdej klatki proporcjonalny do pominiętych — pauzy i zamrożenia zachowane."
+        "Obraz bez zmian, wypada część klatek. Pauzy i długość animacji zostają."
     ),
     "gif_mode_ultra": (
-        "ULTRA — maks. 4 klatki: najdłużej zamrożone bloki + ostatnia klatka. "
-        "Najmniejszy plik, widoczna redukcja animacji."
+        "Zostają tylko najdłuższe zatrzymania obrazu i ostatnia klatka. Najmniejszy plik."
     ),
-    "gif_level": "Poziom 1–10: wyżej = lepsza jakość / więcej klatek, niżej = mniejszy plik.",
+    "gif_level": "Im mniej klatek zostaje, tym mniejszy plik i bardziej „skokowy” ruch. Obraz sam się nie zmienia.",
     "preview": "Pokaż miniaturę i rozmiar zaznaczonego pliku.",
     "advanced": "Dodatkowe opcje: obrót, odbicia, filtry, własne skalowanie.",
     "save_custom_size": "Zapisz obecne ustawienia wymiarów jako własny preset Format.",

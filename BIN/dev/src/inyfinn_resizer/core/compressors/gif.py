@@ -249,7 +249,7 @@ def compress_gif(
         use_lossy = 0
         tag = f"frames L{level} ({preset.name})"
     else:
-        if colors is not None and lossy > 0:
+        if colors is not None:  # własne kolory i lossy (lossy 0 = bez lossy), nie preset z poziomu
             preset_colors = colors
             preset_lossy = lossy
             indices = indices_2of3(n)
