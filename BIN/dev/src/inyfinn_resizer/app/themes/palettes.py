@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Kolory design systemu Dobra Kaloria 2.0.7 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
+"""Kolory design systemu Dobra Kaloria 2.0.10 (skill ds-dobra-kaloria, tokens/tokens_qt.py).
 
 PLIK GENEROWANY: python scripts/sync_design_tokens.py — nie edytuj ręcznie. Zmiana koloru = zmiana
 w tokens.json design systemu, build_tokens.py, potem ponowne uruchomienie skryptu.
@@ -67,7 +67,7 @@ ROLES: dict[str, dict[str, str]] = {
         "color_switch_knob": "#FFFFFF",
         "color_btn2_bg": "#FFFFFF",
         "color_btn2_text": "#222222",
-        "color_btn2_border": "#222222",
+        "color_btn2_border": "#868E96",
         "color_btn2_hover_bg": "#F6F2EF",
         "color_step_active_bg": "#007936",
         "color_step_active_text": "#FFFFFF",
@@ -107,7 +107,7 @@ ROLES: dict[str, dict[str, str]] = {
         "color_heading_accent": "#A2D686",
         "color_overlay": "#3D4427",
         "color_strip": "#192C18",
-        "color_zebra": "#192C18",
+        "color_zebra": "#24341C",
         "color_progress": "#A2D686",
         "color_accent": "#A2D686",
         "color_accent_hover": "#C2E59F",
@@ -193,7 +193,7 @@ ROLES: dict[str, dict[str, str]] = {
         "color_switch_knob": "#FFFFFF",
         "color_btn2_bg": "#FFFFFF",
         "color_btn2_text": "#222222",
-        "color_btn2_border": "#222222",
+        "color_btn2_border": "#868E96",
         "color_btn2_hover_bg": "#F6F2EF",
         "color_step_active_bg": "#007936",
         "color_step_active_text": "#FFFFFF",
@@ -233,7 +233,7 @@ ROLES: dict[str, dict[str, str]] = {
         "color_heading_accent": "#E6D3A0",
         "color_overlay": "#352E25",
         "color_strip": "#1A1611",
-        "color_zebra": "#1A1611",
+        "color_zebra": "#231E17",
         "color_progress": "#E6D3A0",
         "color_accent": "#E6D3A0",
         "color_accent_hover": "#F5F1E8",

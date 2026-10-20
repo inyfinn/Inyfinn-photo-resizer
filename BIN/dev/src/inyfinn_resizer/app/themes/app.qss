@@ -354,7 +354,7 @@ QMenuBar {
 }
 
 QMenuBar::item {
-    padding: 8px 14px;
+    padding: 8px 12px;
 }
 
 QMenuBar::item:selected {
@@ -1657,6 +1657,206 @@ QPushButton#footerClose:disabled {
 QPushButton#formatChip:disabled {
     background-color: @DISABLED_BG@;
     color: @FG_MUTED@;
+}
+
+/* —— 2.6.7: pigułki wyboru, karty sekcji, kotwice okna Ustawienia (design system 2.0.10, rozdz. 26) ——
+   Pigułka (26.1): jedna wartość albo kilka; zaznaczona = zielona (brand), reszta cicha (icon-bg), bez obrysu — kolor
+   tylko na wybranej. Wysokość 40 px (bez obrysu); przy fokusie obrys 2 px odejmujemy od wysokości i dopełnienia,
+   żeby pigułka się nie ruszyła. Wersalików nie ma (wyjątek w typography.wants_uppercase). */
+QPushButton[pigulka="true"] {
+    background-color: @ICON_BG@;
+    color: @FG_TEXT@;
+    border: none;
+    border-radius: 20px;
+    padding: 0 18px;
+    min-width: 0;
+    min-height: 40px;
+    max-height: 40px;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+QPushButton[pigulka="true"]:hover {
+    background-color: @BRAND_SOFT@;
+    color: @FG_TEXT@;
+}
+
+QPushButton[pigulka="true"]:pressed {
+    background-color: @BRAND_SOFT_STRONG@;
+}
+
+QPushButton[pigulka="true"]:checked {
+    background-color: @PRIMARY_BG@;
+    color: @PRIMARY_TEXT@;
+}
+
+QPushButton[pigulka="true"]:checked:hover,
+QPushButton[pigulka="true"]:checked:pressed {
+    background-color: @PRIMARY_HOVER@;
+    color: @PRIMARY_TEXT@;
+}
+
+QPushButton[pigulka="true"]:focus {
+    border: @FOCUS_W@ solid @BORDER_FOCUS@;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0 16px;
+}
+
+QPushButton[pigulka="true"]:disabled {
+    background-color: @DISABLED_BG@;
+    color: @FG_MUTED@;
+    border: none;
+}
+
+/* Pigułka „Inne” (rozwija rzadkie rozszerzenia): nie jest wartością, więc bez zieleni — kontur 1 px zamiast wypełnienia;
+   obrys wlicza się w wysokość (38 + 2 = 40). */
+QPushButton[pigulka="true"][pillMore="true"] {
+    background-color: transparent;
+    color: @FG_TEXT@;
+    border: 1px solid @FIELD_BORDER@;
+    min-height: 38px;
+    max-height: 38px;
+    padding: 0 17px;
+}
+
+QPushButton[pigulka="true"][pillMore="true"]:hover,
+QPushButton[pigulka="true"][pillMore="true"]:checked:hover {
+    background-color: @BRAND_SOFT@;
+    color: @FG_TEXT@;
+}
+
+QPushButton[pigulka="true"][pillMore="true"]:checked {
+    background-color: @ICON_BG@;
+    color: @FG_TEXT@;
+    border: 1px solid @FIELD_BORDER@;
+}
+
+QPushButton[pigulka="true"][pillMore="true"]:focus {
+    border: @FOCUS_W@ solid @BORDER_FOCUS@;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0 16px;
+}
+
+/* Panel kart (L1, szary) i karta sekcji (L2, biała) — prawa kolumna trybu zaawansowanego i okno Opcje zaawansowane.
+   Karta: bez obrysu (granicę robi kontrast z panelem, S30 „bez ramki w ramce”). */
+QFrame#cardPanel,
+QScrollArea#settingsScroll > QWidget > QFrame#cardPanel {
+    background-color: @BG_PANEL@;
+    border: none;
+    border-radius: @RADIUS_CARD@;
+}
+
+QFrame#sectionCard {
+    background-color: @BG_PANEL_ALT@;
+    border: none;
+    border-radius: @RADIUS_CARD@;
+}
+
+QFrame#sectionCard QLabel,
+QWidget#sectionCardHeader,
+QWidget#sectionCardBody {
+    background: transparent;
+}
+
+QLabel#sectionCardTitle,
+QLabel#settingsSectionTitle {
+    font-family: @FONT_DISPLAY@;
+    font-size: 22px;
+    font-weight: 400;
+    color: @FG_TITLE@;
+    background: transparent;
+    padding: 0;
+}
+
+QLabel#settingsSectionTitle {
+    font-size: 26px;
+    color: @FG_HEADING_ACCENT@;
+}
+
+QLabel#sectionCardSummary {
+    font-size: 14px;
+    color: @FG_MUTED@;
+    background: transparent;
+}
+
+QLabel#simpleLabel {
+    font-size: 14px;
+    font-weight: 700;
+    color: @FG_LABEL@;
+    background: transparent;
+}
+
+QPushButton#cardChevron {
+    background-color: transparent;
+    border: none;
+    border-radius: @RADIUS_BTN@;
+    padding: 0;
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+}
+
+QPushButton#cardChevron:hover {
+    background-color: @ICON_BG@;
+}
+
+QPushButton#cardChevron:pressed {
+    background-color: @BRAND_SOFT@;
+}
+
+/* Przycisk drugorzędny (obrys) tej samej wysokości co Konwertuj (S48): 44 + dopełnienie i obrys = 48 px */
+QPushButton#footerOutline {
+    min-height: 44px;
+    max-height: 44px;
+    min-width: 112px;
+    padding: @BTN2_PAD_V@ 24px;
+    font-size: 15px;
+    border-radius: @RADIUS_BTN@;
+}
+
+/* Anuluj w dolnym rzędzie okien ustawień (DS 26.5): drugorzędny z obrysem, 36 + dopełnienie i obrys = 40 px jak „OK” */
+QPushButton#dialogOutline {
+    min-height: 36px;
+    max-height: 36px;
+    min-width: 96px;
+    padding: @BTN2_PAD_V@ 20px;
+    font-size: 15px;
+    border-radius: @RADIUS_BTN@;
+}
+
+/* Kotwice okna Ustawienia (pod-zakładki 25.5): Lato, aktywna z zieloną kreską 2 px; klik przewija do sekcji */
+QPushButton#anchorTab {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: @FG_LABEL@;
+    padding: 8px 14px 6px 14px;
+    min-width: 0;
+    min-height: 20px;
+    max-height: 20px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QPushButton#anchorTab:hover {
+    background-color: transparent;
+    color: @FG_HEADING_ACCENT@;
+}
+
+QPushButton#anchorTab:checked {
+    background-color: transparent;
+    color: @FG_HEADING_ACCENT@;
+    border-bottom: 2px solid @PRIMARY_BG@;
+}
+
+QFrame#anchorBar {
+    background: transparent;
+    border: none;
+    border-bottom: @LINE@;
 }
 
 /* Fokus pola (S15): obrys @FOCUS_W@ w kolorze focus = ta sama grubość co obrys pola (@FIELD_BORDER_W@), więc ramka

@@ -19,6 +19,24 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.7",
+        "2026-10-20",
+        [
+            "Nowy wygląd czterech części programu, w stylu Dobra Kaloria (jak sklep i program „Stwórz prezentację”): tryb prosty, tryb zaawansowany, okno „Ustawienia…” i okno „Opcje zaawansowane”.",
+            "Tryb prosty: format wybierasz PRZED konwersją. Zamiast kolorowych kafli PNG, JPG i AVIF, które od razu konwertowały, są pigułki „Jak oryginał”, PNG, JPG, AVIF i WebP, a potem jeden żółty przycisk „Konwertuj”. Film nadal zapisuje się jako GIF.",
+            "Tryb prosty: suwak jakości ma własny rząd z podpisem i liczbą, a „Wybierz folder…” to zwykły, mały przycisk obok pola z folderem — także w wąskim oknie. Części ekranu (pliki, folder, format i jakość, Konwertuj) dzieli większy odstęp.",
+            "Tryb zaawansowany: ustawienia leżą w białych kartach na szarym panelu (Format i jakość, Tło i warianty, Wymiary, Zapis plików), nazwy po lewej, pola po prawej. „Ustawienia…” jest w nagłówku karty, cztery przyciski nad listą plików układają się po dwa, a „Zamknij” i „Konwertuj” stoją w jednym rzędzie.",
+            "Każdą kartę zwiniesz kliknięciem w jej nagłówek: zostaje tytuł i jedna linia podsumowania, np. „Tło zostaje · bez segregowania”. Program pamięta, które karty zwinąłeś.",
+            "Rozszerzenia (PNG, JPG, WebP, AVIF, GIF) wybierasz pigułkami, po kilka naraz; rzadsze (TIFF, HEIC, BMP, JPEG 2000, PDF) są pod przyciskiem „Inne”. Wybór nie zwija się po każdym kliknięciu. Przy usuwaniu tła nadal można wybrać tylko formaty z przezroczystością.",
+            "Okno „Ustawienia…”: jedna przewijana strona z sekcjami JPEG, PNG, WebP, AVIF, GIF i Zaawansowane oraz skrótami u góry, zamiast zakładek nad dużym pustym polem. Opis formatu stoi na górze sekcji.",
+            "Okno „Opcje zaawansowane”: białe karty na szarym tle; „Włącz…” to przełącznik w nagłówku karty, a wyłączona treść jest przygaszona.",
+            "Przyciski z ramką mają jaśniejszy, szary obrys zamiast prawie czarnego.",
+            "Okno można zwęzić do około 900 px: siatki układają się węziej (nazwa nad polem), nic na siebie nie nachodzi i nic nie jest ucięte.",
+            "Ciemne style: lista plików nie ma już pasów, wiersze oddziela cienka linia — tak samo jak w jasnych.",
+            "Funkcje programu się nie zmieniły. Jedyna różnica w obsłudze: w trybie prostym najpierw wybierasz format, potem klikasz „Konwertuj”.",
+        ],
+    ),
+    (
         "2.6.6",
         "2026-10-06",
         [

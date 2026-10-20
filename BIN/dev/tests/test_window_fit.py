@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QMargins, QPoint, QRect, QSettings, QSize, Qt
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QWidget
 
 from inyfinn_resizer.app import user_settings
 from inyfinn_resizer.app.widgets.layout_helpers import CARD_GAP
@@ -188,25 +188,28 @@ def test_workflow_hint_removed(make_window):
     assert not [lbl for lbl in w.findChildren(QLabel) if lbl.text().startswith("Krok po kroku")]
 
 
+# 2.6.7: układ w jednej kolumnie kart jest wyższy niż dawny bento (PNG ≈ 1213 px na poziomie 0) — testy poziomu 0
+# potrzebują ekranu 1920×1300 (przy 1920×1152 okno schodzi na poziom 1).
+TALL = QRect(0, 0, 1920, 1300)
+
+
 def test_one_card_gap_everywhere(make_window):
     make, _app, _ = make_window
-    w = make(QRect(0, 0, 1920, 1152))
+    w = make(TALL)
     assert CARD_GAP == 16
     assert w._density.level == 0
     assert w._main_splitter.handleWidth() == CARD_GAP
-    grid = w._bento_grid
-    assert grid.horizontalSpacing() == CARD_GAP and grid.verticalSpacing() == CARD_GAP
     assert w._left_column.layout().spacing() == CARD_GAP
-    assert w._bento_left_lay.spacing() == CARD_GAP and w._bento_right_lay.spacing() == CARD_GAP
+    assert w._card_panel_layout.spacing() == CARD_GAP  # karty prawej kolumny: jedna kolumna, odstęp kart
     assert w._settings_body.layout().spacing() == CARD_GAP
     assert w._simple_inner.layout().spacing() == CARD_GAP
 
 
 def test_right_cards_start_level_with_list_card_and_columns_have_gap(make_window):
     make, _app, _ = make_window
-    w = make(QRect(0, 0, 1920, 1152))
+    w = make(TALL)
     list_tile = w._left_column.layout().itemAt(0).widget()
-    first_right = w._bento_grid.itemAtPosition(0, 0).widget()
+    first_right = w._settings_body  # szary panel kart
     top_list = list_tile.mapTo(w, QPoint(0, 0)).y()
     top_right = first_right.mapTo(w, QPoint(0, 0)).y()
     assert abs(top_list - top_right) <= 2, (top_list, top_right)
@@ -246,9 +249,9 @@ def test_footer_visible_and_no_horizontal_scroll_when_panel_scrolls(make_window)
     assert simple.rect().contains(r)  # „Konwertuj” w trybie prostym stoi pod obszarem przewijania
 
 
-def test_no_vertical_scrollbar_needed_at_1920x1152_png(make_window):
+def test_no_vertical_scrollbar_needed_at_1920x1300_png(make_window):
     make, app, _ = make_window
-    win = make(QRect(0, 0, 1920, 1152), mode="advanced", fmt="png")
+    win = make(TALL, mode="advanced", fmt="png")
     sa = win._settings_scroll
     assert win._density.level == 0 and not win._density_scroll
     assert sa.verticalScrollBar().maximum() == 0
@@ -257,15 +260,16 @@ def test_no_vertical_scrollbar_needed_at_1920x1152_png(make_window):
 
 def test_measured_need_matches_real_scrollbar_threshold(make_window):
     make, app, _ = make_window
-    win = make(QRect(0, 0, 1920, 1152), mode="advanced", fmt="png", show=True)
+    win = make(TALL, mode="advanced", fmt="png", show=True)
     need = win._measure_needed(0)
     win._fitting = True
     win.setMinimumSize(300, 300)
-    win.resize(need.width() + 100, need.height())
+    # szerokość „zwykła” (siatki kart w układzie szerokim): w węższym oknie etykiety stoją nad polami i panel jest wyższy
+    win.resize(1400, need.height())
     for _ in range(4):
         app.processEvents()
     assert win._settings_scroll.verticalScrollBar().maximum() == 0
-    win.resize(need.width() + 100, need.height() - 12)
+    win.resize(1400, need.height() - 12)
     for _ in range(4):
         app.processEvents()
     assert win._settings_scroll.verticalScrollBar().maximum() > 0
@@ -273,20 +277,20 @@ def test_measured_need_matches_real_scrollbar_threshold(make_window):
 
 def test_format_change_refits_window_when_screen_has_room(make_window):
     make, app, _ = make_window
-    avail = QRect(0, 0, 1920, 1152)
-    win = make(avail, mode="advanced", fmt="png")
+    avail = TALL
+    win = make(avail, mode="advanced", fmt="avif")
     assert win._density.level == 0
     before = win.height()
-    win.format_combo.set_selected(["avif"])  # bez kafelka Kolory: wyższy układ (prawdziwa potrzeba ~1192 > 1113)
+    win.format_combo.set_selected(["png"])  # PNG dokłada wiersz „Liczba kolorów”: wyższy układ
     for _ in range(6):
         app.processEvents()
     assert win.height() > before  # okno urosło, zamiast zostawić przewijanie
     assert win._settings_scroll.verticalScrollBar().maximum() == 0 or win._density_scroll
     assert avail.contains(_outer(win))
-    win.format_combo.set_selected(["png"])
+    win.format_combo.set_selected(["avif"])
     for _ in range(6):
         app.processEvents()
-    assert win._density.level == 0  # powrót do PNG przywraca odstępy domyślne (okno nie kurczy się samo)
+    assert win._density.level == 0  # powrót do AVIF przywraca odstępy domyślne (okno nie kurczy się samo)
     assert avail.contains(_outer(win))
 
 
@@ -302,14 +306,14 @@ def test_saved_splitter_does_not_disable_fit(make_window):
 def test_saved_user_size_honoured_only_when_it_fits(make_window):
     make, app, path = make_window
     s = QSettings(str(path), QSettings.Format.IniFormat)
-    s.setValue("ui/window_size_advanced", [1500, 1100])
+    s.setValue("ui/window_size_advanced", [1500, 1110])
     s.sync()
     big = make(QRect(0, 0, 1920, 1152), mode="advanced", show=False)
-    assert big._last_fit.client == QSize(1500, 1100)
+    assert big._last_fit.client == QSize(1500, 1110)
     small = make(QRect(0, 0, 1366, 720), mode="advanced", show=False)
     assert small._last_fit.client.width() <= 1366 - 16
     assert small._last_fit.client.height() <= 720 - 39
-    assert small._last_fit.client != QSize(1500, 1100)
+    assert small._last_fit.client != QSize(1500, 1110)
 
 
 def test_manual_size_saved_on_close_but_not_auto_size(make_window):
@@ -330,12 +334,12 @@ def test_manual_size_saved_on_close_but_not_auto_size(make_window):
 def test_tool_buttons_keep_labels_until_even_two_per_row_does_not_fit(make_window):
     make, app, _ = make_window
     wide = make(QRect(0, 0, 1920, 1152))
-    assert wide._tool_state == "row"
+    assert wide._tool_state == "grid"  # 2.6.7 (wariant B): zawsze siatka 2×2, jeden rząd zniknął
     assert all(b.text() == t and t for b, t in wide._left_tool_btns)
     narrow = make(QRect(0, 0, 1093, 566))
     one, two = narrow._tool_row_widths()
     width = narrow._left_tool_box.width()
-    expected = "row" if width >= one else ("grid" if width >= two else "icons")
+    expected = "grid" if width >= two else "icons"
     assert narrow._tool_state == expected
     if expected != "icons":
         assert all(b.text() == t and t for b, t in narrow._left_tool_btns)
@@ -404,17 +408,17 @@ def test_tool_row_state_follows_final_geometry_not_a_stale_width(make_window):
     win = make(QRect(0, 0, 1920, 1152), mode="advanced")
     one, two = win._tool_row_widths()
     total = sum(win._main_splitter.sizes())
-    for left in (total - 700, one + 60, two + 40, two - 40, one + 60):
+    for left in (total - 700, two + 100, two + 40, two - 40, two + 100):
         win._main_splitter.setSizes([left, total - left])
         for _ in range(3):
             app.processEvents()
         width = win._left_tool_box.width()
-        expected = "row" if width >= one else ("grid" if width >= two else "icons")
+        expected = "grid" if width >= two else "icons"
         assert win._tool_state == expected, (left, width, one, two, win._tool_state)
         assert all(bool(b.text()) == (expected != "icons") for b, _t in win._left_tool_btns)
 
 
-def test_tool_row_wraps_to_two_rows_instead_of_dropping_labels(make_window):
+def test_tool_buttons_are_a_two_by_two_grid_instead_of_dropping_labels(make_window):
     make, app, _ = make_window
     win = make(QRect(0, 0, 1920, 1152), mode="advanced")
     _uppercase_all_buttons(win)
@@ -424,9 +428,13 @@ def test_tool_row_wraps_to_two_rows_instead_of_dropping_labels(make_window):
     one, two = win._tool_row_widths()
     assert two < one
     box = win._left_tool_box
-    assert win._tool_state == ("row" if box.width() >= one else "grid")
+    assert win._tool_state == ("grid" if box.width() >= two else "icons")
     ys = {b.geometry().top() for b, _t in win._left_tool_btns}
-    assert len(ys) == (1 if win._tool_state == "row" else 2)
+    xs = {b.geometry().left() for b, _t in win._left_tool_btns}
+    widths = {b.width() for b, _t in win._left_tool_btns}
+    if win._tool_state == "grid":
+        assert len(ys) == 2 and len(xs) == 2  # 2×2
+        assert max(widths) - min(widths) <= 1  # równe kolumny (S48; przy nieparzystej szerokości różnica 1 px)
 
 
 def test_preset_delete_button_is_square_like_the_field_next_to_it(make_window):
@@ -557,20 +565,19 @@ def test_icon_only_buttons_are_named_iconbtn_and_square(make_window):
         assert all(b.objectName() == "toolBtn" for b, _t in win._left_tool_btns)
 
 
-def test_advanced_options_sections_are_dialog_panels():
-    from PySide6.QtWidgets import QFrame
-
+def test_advanced_options_sections_are_white_cards_on_a_grey_panel():
     from inyfinn_resizer.app.dialogs.advanced_options import AdvancedSettingsPanel
+    from inyfinn_resizer.app.widgets.section_card import SectionCard
     from inyfinn_resizer.core.job import ResizeOptions, TransformOptions
 
     app = QApplication.instance() or QApplication([])
     panel = AdvancedSettingsPanel(ResizeOptions(), TransformOptions())
-    frames = [f for f in panel.findChildren(QFrame, "dialogPanel")]
-    assert len(frames) == 4
-    for f in frames:
-        m = f.layout().contentsMargins()
-        assert (m.left(), m.top(), m.right(), m.bottom()) == (20, 20, 20, 20)
-        assert f.findChild(QLabel, "sectionTitle") is not None  # tytuł zostaje w środku
+    cards = panel.findChildren(SectionCard)
+    assert [c.title_label.text() for c in cards] == ["Zmiana rozmiaru", "Kadrowanie", "Obrót i odbicia", "Korekcje kolorów"]
+    assert panel.findChild(QFrame, "cardPanel") is not None  # szary panel, a w nim białe karty (B)
+    for c in cards:
+        assert c.objectName() == "sectionCard" and not c.collapsible  # w oknie opcji karty się nie zwijają
+    assert cards[0].isAncestorOf(panel.resize_enable) and cards[1].isAncestorOf(panel.crop_enable)  # przełączniki w nagłówkach
     panel.deleteLater()
     app.processEvents()
 
@@ -641,8 +648,10 @@ def _outlined_secondaries(root) -> dict:
         name = b.objectName()
         if name in _PRIMARY_NAMES or name in _LINK_NAMES or name in _QUIET_NAMES or name in _NOT_BUTTONS_IN_GROUP:
             continue
-        if b.property("quiet") is True:
-            continue
+        if b.property("quiet") is True or b.property("pigulka") is True:
+            continue  # ciche i pigułki wyboru (2.6.7) nie mają obrysu
+        if name == "anchorTab":
+            continue  # kotwice okna Ustawienia to pod-zakładki, nie przyciski akcji
         groups.setdefault(b.parentWidget(), []).append(b.text())
     return {p: texts for p, texts in groups.items() if len(texts) > 1}
 
@@ -792,8 +801,10 @@ def test_every_bento_tile_has_a_variant_and_only_one_grey_block_per_screen(make_
     assert len(grey) == 1, [(t.property("variant"), t.findChild(QLabel).text()) for t in grey]
 
 
-def test_advanced_right_column_is_plain_with_eyebrow_titles_and_one_px_lines(make_window):
+def test_advanced_right_column_is_a_grey_panel_of_white_cards(make_window):
     from PySide6.QtWidgets import QFrame
+
+    from inyfinn_resizer.app.widgets.section_card import SectionCard
 
     make, app, _ = make_window
     win = make(QRect(0, 0, 1920, 1152), mode="advanced", fmt="png")
@@ -802,28 +813,30 @@ def test_advanced_right_column_is_plain_with_eyebrow_titles_and_one_px_lines(mak
     assert win._left_column.layout().count() == 1  # podgląd leży w panelu listy, nie w drugim szarym bloku
     assert list_tile.findChild(QFrame, "groupSep") is not None  # linia nad podglądem, wewnątrz tego samego panelu
     assert list_tile.findChild(QWidget, "previewBlock") is not None
-    for tile in (win._bento_grid.itemAtPosition(0, 0).widget(), win._bento_tile_bg, win._bento_tile_dims):
-        assert tile.property("variant") == "plain"
-        titles = [lbl for lbl in tile.findChildren(QLabel, "sectionTitle") if lbl.isVisible()]
+    panel = win._settings_body
+    assert panel.objectName() == "cardPanel" and panel.layout().contentsMargins().left() >= 6
+    cards = panel.findChildren(SectionCard)
+    assert [c.key for c in cards] == ["format", "background", "dimensions", "save"]
+    for card in cards:
+        titles = [lbl for lbl in card.findChildren(QLabel, "sectionCardTitle") if lbl.isVisible()]
         assert len(titles) == 1 and titles[0].text()
-        assert tile.layout().contentsMargins() == QMargins(0, 0, 0, 0)  # treść równo z krawędzią kolumny
+        assert not card.findChildren(QFrame, "groupSep")  # S30: bez linii i ramek w karcie — odstępy robią swoje
     seps = [s for s in win.findChildren(QFrame, "groupSep") if s.isVisible()]
-    assert len(seps) >= 3  # między grupami: pod „Format i jakość”, nad „Zapis plików”, w kolumnie, przed podglądem
+    assert len(seps) == 1  # tylko linia nad podglądem w lewym panelu
     for s in seps:
         assert s.height() == 1 and s.width() > 100
 
 
-def test_simple_steps_are_numbered_in_separate_labels_and_keep_full_text_accessible(make_window):
+def test_simple_has_four_parts_without_numbered_steps(make_window):
+    from PySide6.QtWidgets import QFrame
+
     make, app, _ = make_window
     win = make(QRect(0, 0, 1920, 1152), mode="simple")
-    numbers = [lbl.text() for lbl in win.findChildren(QLabel, "stepNumber") if lbl.isVisible()]
-    assert numbers == ["1.", "2.", "3."]
-    titles = {lbl.accessibleName() for lbl in win.findChildren(QLabel, "sectionStepTitle") if lbl.accessibleName()}
-    assert {"1. Wrzuć zdjęcia albo filmy", "2. Wybierz jakość", "3. Zapisz do folderu"} <= titles
+    assert [lbl.text() for lbl in win.findChildren(QLabel, "stepNumber") if lbl.isVisible()] == []  # bez „1. 2. 3.”
+    assert not win._simple_inner.findChildren(QFrame, "groupSep")  # części rozdziela odstęp (~70 px), nie linie
     variants = {t.findChild(QLabel, "sectionStepTitle").text(): t.property("variant")
                 for t in _tiles(win) if t.findChild(QLabel, "sectionStepTitle") and t.isVisibleTo(win)}
     assert variants["Wrzuć zdjęcia albo filmy"] == "drop"
-    assert variants["Wybierz jakość"] == variants["Zapisz do folderu"] == "plain"
 
 
 def test_simple_empty_state_shown_only_for_empty_queue_and_drops_still_reach_the_window(make_window, tmp_path):

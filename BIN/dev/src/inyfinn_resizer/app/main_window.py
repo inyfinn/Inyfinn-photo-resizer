@@ -62,7 +62,9 @@ from inyfinn_resizer.app.dialogs.results_dialog import ResultsDialog, WizResults
 from inyfinn_resizer.core.wiz_sequence import discover_wiz_folders
 from inyfinn_resizer.app.widgets.conversion_overlay import ConversionOverlay
 from inyfinn_resizer.app.widgets.progress_simulator import FileProgressSimulator
-from inyfinn_resizer.app.widgets.format_multi_combo import FormatMultiCombo
+from inyfinn_resizer.app.widgets.form_grid import FORM_VGAP, ActionRow, FormGrid
+from inyfinn_resizer.app.widgets.pills import FormatPills, PillGroup
+from inyfinn_resizer.app.widgets.section_card import SectionCard
 from inyfinn_resizer.app.widgets.input_file_tree import InputFileTree
 from inyfinn_resizer.app.themes import (
     MODE_DARK,
@@ -71,7 +73,6 @@ from inyfinn_resizer.app.themes import (
     MODES,
     STYLE_LABELS,
     STYLES,
-    format_tag,
     is_dark_theme,
     split_theme,
     theme_id,
@@ -85,7 +86,6 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     BTN_H,
     CARD_GAP,
     CONTROL_H,
-    COMPACT_CONTROL_ROW_H,
     COMPACT_LABEL_W,
     LIST_MIN_H,
     LIST_MIN_H_TIGHT,
@@ -98,15 +98,10 @@ from inyfinn_resizer.app.widgets.layout_helpers import (
     set_themed_icon,
     mark_large,
     mark_quiet,
-    compact_row,
     field_label,
     footer_button,
-    h_separator,
-    make_bento_column,
     make_tile,
-    set_tile_fill,
     slider_control,
-    stacked_field,
     style_dropdown,
     arrange_tool_grid,
     breakable_path,
@@ -130,11 +125,13 @@ from inyfinn_resizer.app.widgets.tool_icons import (
     icon_plus_green,
 )
 from inyfinn_resizer.app.user_settings import (
+    load_collapsed_sections,
     load_session,
     load_theme,
     load_window_size,
     persist_all,
     restore_geometry,
+    save_collapsed_sections,
     save_theme,
     save_window_size,
     snapshot_from_window,
@@ -194,15 +191,18 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 DEFAULT_WINDOW_WIDTH = 1280  # preferowana szerokość startowa (przycinana do ekranu)
 DEFAULT_WINDOW_HEIGHT = 920  # tymczasowa wysokość z konstruktora i skryptów zrzutów; prawdziwą wylicza _fit_window
-MIN_WINDOW_WIDTH = 1180  # preferowane minimum; na węższym ekranie przycinane do dostępnego obszaru
+MIN_WINDOW_WIDTH = 900  # 2.6.7: okno da się zwęzić do ~900 px (siatki się przestawiają); minimum wynika z treści
 MIN_WINDOW_HEIGHT = 700  # j.w. (2.6.5: nigdy większe niż dostępna wysokość ekranu)
-RIGHT_PANEL_MIN_WIDTH = 700  # 2.6.4: większe kontrolki — dwa kafelki obok siebie bez ucinania
+RIGHT_PANEL_MIN_WIDTH = 700  # start przed pomiarem; 2.6.7: prawdziwe minimum liczy się z treści kart (siatki się zwężają)
 # Najmniej, na ile prawy panel można zwęzić, gdy ekran jest węższy niż układ z 700 px (2.6.5).
 RIGHT_PANEL_ABS_MIN_WIDTH = 480
 VERTICAL_SCROLLBAR_W = 12
 ROW_ICON_PX = 20  # ikony wierszy plików (drzewo i lista trybu prostego); wzorzec ma większe ikony niż 16 px
-RETAIL_COMBO_MIN_W = 160  # najmniej, do ilu pasek u góry zwęża listę sieci (przyciski obok się nie ściskają)
+RETAIL_COMBO_MIN_W = 200  # najmniej, do ilu pasek u góry zwęża listę sieci: napis „— wybierz sieć —” mieści się w całości (S37)
 DEFAULT_SPLITTER_SIZES = (560, 720)
+SIMPLE_MAX_WIDTH = 1040  # 2.6.7: kolumna trybu prostego (makieta D); wcześniej 860
+SIMPLE_LABEL_W = 110  # kolumna etykiet trybu prostego (Folder, Format, Jakość, Film → GIF)
+SIMPLE_FORMAT_ORIGINAL = "original"  # pigułka „Jak oryginał” (format zostaje taki jak w pliku)
 
 
 class MainWindow(QMainWindow):
@@ -225,6 +225,8 @@ class MainWindow(QMainWindow):
         self._density_scroll = False  # prawy panel przewija się, bo nawet poziom 2 się nie mieści
         self._gap_layouts: list = []  # układy, których odstęp = odstęp między kartami
         self._gap_grids: list = []
+        self._section_layouts: list = []  # tryb prosty (S60): układy, których odstęp = odstęp między częściami ekranu (~70 px)
+        self._cards: dict[str, SectionCard] = {}  # karty sekcji trybu zaawansowanego (zwijane)
         self._fit_ready = False  # po konstruktorze; wcześniej tryb/format nie zmieniają okna
         self._fitting = False
         self._refit_pending = False
@@ -296,6 +298,7 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._update_preset_label()
         if hasattr(self, "_conversion_overlay") and self.centralWidget():
             self._conversion_overlay.setGeometry(self.centralWidget().rect())
         if hasattr(self, "_update_manager"):
@@ -362,6 +365,11 @@ class MainWindow(QMainWindow):
         scope = self._layout_scope()
         pin_button_min_widths(self, skip=getattr(self, "_left_tool_box", None), only=scope)
         fit_title_heights(scope)  # tytuły Mindset: wysokość z metryk po nałożeniu stylu (akcenty wersalików)
+        # Lista modelu usuwania tła stoi w wierszu obok pola wyboru: jej minimum = napis w całości (S37), inaczej przy
+        # wąskim oknie „Najlepsza jakość” bywało ucięte.
+        bg_hint = self.bg_model_combo.sizeHint().width()
+        if self.bg_model_combo.minimumWidth() < bg_hint:
+            self.bg_model_combo.setMinimumWidth(bg_hint)
         # Lista sieci to pole z uciętym tekstem — ona ustępuje pierwsza, gdy pasek u góry jest za wąski
         # (styl ustawia jej min-width na ~244 px; ustawiamy po każdym nałożeniu stylu).
         self.retail_preset_combo.setMinimumWidth(RETAIL_COMBO_MIN_W)
@@ -381,17 +389,25 @@ class MainWindow(QMainWindow):
         self._density = d
         for lay in self._gap_layouts:
             lay.setSpacing(d.card_gap)
+        for lay in self._section_layouts:
+            lay.setSpacing(d.section_gap)  # tryb prosty: ~70 px między częściami (S60), na niskim ekranie mniej
         for grid in self._gap_grids:
             grid.setHorizontalSpacing(d.col_gap)  # kolumny: nie mniej niż 12 px (2.6.6), pion = odstęp kart
             grid.setVerticalSpacing(d.card_gap)
         if self._main_splitter is not None:
             self._main_splitter.setHandleWidth(d.col_gap)  # jawna szerokość wygrywa z metryką stylu
         self._central_layout.setContentsMargins(20, d.view_margin_v, 20, d.view_margin_v)
-        # Kafelki Kolory i Kadr bywają poza układem (nie mają wtedy rodzica) — dołączamy je jawnie.
-        tiles = set(self.findChildren(QFrame, "bentoTile"))
-        tiles.update(t for t in (getattr(self, "_bento_tile_colors", None), getattr(self, "_bento_tile_crop", None)) if t)
-        for tile in tiles:
+        for tile in self.findChildren(QFrame, "bentoTile"):
             apply_tile_density(tile, d)
+        # Karty sekcji (tryb zaawansowany): wypełnienie panelu i kart oraz odstęp wierszy siatki wg gęstości
+        panel_pad = d.tile_pad - 4
+        if getattr(self, "_card_panel_layout", None) is not None:
+            self._card_panel_layout.setContentsMargins(panel_pad, panel_pad, panel_pad, panel_pad)
+        for card in self._cards.values():
+            card.apply_padding(d.tile_pad + 4, d.tile_pad_top + 2, d.tile_pad, d.tile_header_gap)
+            card.body_layout.setSpacing(d.tile_inner_gap + 2)
+            for grid in card.findChildren(FormGrid):
+                grid.set_gaps(vgap=d.tile_inner_gap + (2 if d.level == 0 else 0))
 
     def _right_min_width(self) -> int:
         return self._right_column.minimumWidth()
@@ -442,8 +458,10 @@ class MainWindow(QMainWindow):
                 + self._simple_page_lay.spacing()
                 + self._simple_footer.sizeHint().height()
             )
+        # Pasek menu u góry też ma minimum szerokości (tytuł, menu, preset, przyciski): okno nie może być węższe.
+        strip_w = self._strip_min_width()
         return QSize(
-            margins.left() + view_w + margins.right(),
+            max(margins.left() + view_w + margins.right(), strip_w),
             chrome_h + margins.top() + view_h + margins.bottom(),
         )
 
@@ -496,7 +514,7 @@ class MainWindow(QMainWindow):
         return one, two
 
     def _update_tool_buttons_for_width(self) -> None:
-        """Przyciski nad listą plików: jeden rząd → dwa rzędy po dwa → same ikony (ostateczność), wg szerokości.
+        """Przyciski nad listą plików: siatka 2×2 (od 2.6.7 zawsze, wariant B) → same ikony (ostateczność), wg szerokości.
 
         Napisy nigdy nie są skracane ani ucinane. Kontener ma poziomy rozmiar ``Ignored``, więc rząd nie
         wymusza szerszej kolumny — minimum lewej kolumny wynika z reszty jej treści.
@@ -504,15 +522,15 @@ class MainWindow(QMainWindow):
         box = getattr(self, "_left_tool_box", None)
         if box is None or not box.isVisible():
             return
-        one, two = self._tool_row_widths()
+        _one, two = self._tool_row_widths()
         width = box.width()
-        state = "row" if width >= one else ("grid" if width >= two else "icons")
+        state = "grid" if width >= two else "icons"
         if state == self._tool_state:
             return
         self._tool_state = state
         btns = self._left_tool_btns
         self._set_tool_mode(state == "icons")
-        arrange_tool_grid(box, [b for b, _ in btns], len(btns) if state == "row" else 2)
+        arrange_tool_grid(box, [b for b, _ in btns], 2, equal=state == "grid")
         box.updateGeometry()
 
     def _apply_splitter_sizes(self, client_w: int) -> None:
@@ -528,9 +546,9 @@ class MainWindow(QMainWindow):
             splitter.setSizes(list(saved))
             return
         right = max(right_min, int(total * 0.56))
-        # Lewa kolumna ma dostać tyle, żeby przyciski nad listą zmieściły się w jednym rzędzie (z napisami),
+        # Lewa kolumna ma dostać tyle, żeby przyciski nad listą zmieściły się w siatce 2×2 (z napisami),
         # o ile prawy panel nadal ma swoje minimum.
-        left_pref = self._tool_row_widths()[0] + 2 * self._density.tile_pad
+        left_pref = self._tool_row_widths()[1] + 2 * self._density.tile_pad
         if total - right < left_pref <= total - right_min:
             right = total - left_pref
         splitter.setSizes([max(0, total - right), right])
@@ -704,7 +722,7 @@ class MainWindow(QMainWindow):
         strip_lay.addWidget(self._app_title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
         strip_lay.addWidget(menubar)
         strip_lay.addStretch(1)
-        strip_lay.addSpacing(24)
+        strip_lay.addSpacing(12)
         preset_lbl = QLabel("Presety")
         preset_lbl.setObjectName("menuPresetLabel")
         preset_lbl.setToolTip("Preset sieci handlowej — ustawia format, wymiary i tło")
@@ -795,7 +813,12 @@ class MainWindow(QMainWindow):
     #  Tryb prosty (Simple mode)
     # ————————————————————————————————————————————————————————————————
     def _build_simple_view(self) -> QWidget:
-        """Prosty widok: wrzuć pliki → wybierz jakość → wybierz folder → konwertuj."""
+        """Prosty widok (wariant D, 2.6.7): pliki → folder → format i jakość → Konwertuj.
+
+        Cztery części oddziela ~70 px (S60; na niskim ekranie 48 → 28 px). Format wybierasz pigułkami PRZED „Konwertuj”
+        (dawne pastelowe kafle PNG / JPG / AVIF konwertowały od razu). Jakość ma własny rząd (etykieta, suwak, liczba),
+        „Wybierz folder…” to zwykły przycisk drugorzędny obok pola, także w wąskim oknie.
+        """
         outer = QWidget()
         outer.setObjectName("simpleView")
         outer_lay = QVBoxLayout(outer)
@@ -806,29 +829,29 @@ class MainWindow(QMainWindow):
 
         center = QWidget()
         # Bez stałego minimum szerokości: minimum wynika z zawartości (napisy przycisków wersalikami są szersze).
-        center.setMaximumWidth(860)
+        center.setMaximumWidth(SIMPLE_MAX_WIDTH)
         self._simple_center = center
         center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         col = QVBoxLayout(center)
         col.setContentsMargins(0, 0, 0, 0)
-        col.setSpacing(CARD_GAP)
-        self._gap_layouts.append(col)
+        col.setSpacing(DENSITIES[0].section_gap)
+        self._section_layouts.append(col)
 
-        # 1 — pliki
-        # Krok 1: sam kafelek jest strefą upuszczania (``variant="drop"``: szary, przerywany obrys). Upuszczanie plików
+        # 1 — pliki. Sam kafelek jest strefą upuszczania (``variant="drop"``: szary, przerywany obrys). Upuszczanie plików
         # obsługuje okno (``dropEvent``) — etykiety i przyciski w kafelku nie przechwytują zdarzeń, lista też nie.
+        files_tools = QWidget()
+        files_tools.setLayout(tool_button_row([
+            ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
+            ("Dodaj folder", self._add_folder_dialog, icon_folder_green),
+            ("Wyczyść", self._clear_queue, icon_clear_gray),
+        ], large=True))
         files_tile, files_lay = make_tile(
             "Wrzuć zdjęcia albo filmy",
             "Przeciągnij pliki tutaj lub dodaj z dysku. Film (MP4, MOV, WebM) zamieni się w GIF-a.",
             fill=True,
             variant="drop",
-            number="1.",
+            header_right=files_tools,
         )
-        files_lay.addLayout(tool_button_row([
-            ("Dodaj pliki", self._add_files_dialog, icon_plus_green),
-            ("Dodaj folder", self._add_folder_dialog, icon_folder_green),
-            ("Wyczyść", self._clear_queue, icon_clear_gray),
-        ], large=True))
         self.simple_queue_label = QLabel("0 plików")
         self.simple_queue_label.setObjectName("queueCount")
         files_lay.addWidget(self.simple_queue_label)
@@ -856,42 +879,19 @@ class MainWindow(QMainWindow):
         self.simple_file_list.setVisible(False)
         self.simple_queue_label.setVisible(False)
         col.addWidget(files_tile, stretch=1)
-        col.addWidget(group_separator())
 
-        # 2 — jakość
-        q_tile, q_lay = make_tile(
-            "Wybierz jakość",
-            "Im niżej, tym mniejszy plik. Poniżej 70% PNG schodzi na PNG-8. Przezroczystość zostaje.",
-            variant="plain",
-            number="2.",
-        )
-        self.simple_quality_slider = WheelSlider(Qt.Horizontal)
-        self.simple_quality_slider.setRange(1, 100)
-        start_q = self.quality_slider.value() if hasattr(self, "quality_slider") else DEFAULT_QUALITY
-        self.simple_quality_slider.setValue(start_q)
-        self.simple_quality_label = QLabel(str(start_q))
-        self.simple_quality_slider.valueChanged.connect(self._on_simple_quality_changed)
-        q_lay.addWidget(slider_control(
-            self.simple_quality_slider, self.simple_quality_label,
-            tooltip="Jakość kompresji (1–100)",
-        ))
-        col.addWidget(q_tile)
-        col.addWidget(group_separator())
-
-        # 3 — folder zapisu
-        out_tile, out_lay = make_tile(
-            "Zapisz do folderu",
-            "Opcjonalnie. Bez folderu program zapyta: nadpisać, czy zapisać jako nowe (_conv).",
-            variant="plain",
-            number="3.",
-        )
-        out_row = QHBoxLayout()
-        out_row.setContentsMargins(0, 0, 0, 0)
-        out_row.setSpacing(8)
+        # 2 — folder zapisu: etykieta | pole + zwykły przycisk drugorzędny (szerokość napisu)
+        folder_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        self._simple_folder_grid = folder_grid
+        out_row = QWidget()
+        out_lay = QHBoxLayout(out_row)
+        out_lay.setContentsMargins(0, 0, 0, 0)
+        out_lay.setSpacing(8)
         self.simple_output_edit = QLineEdit()
         self.simple_output_edit.setObjectName("outputDirEdit")
         self.simple_output_edit.setReadOnly(True)
         self.simple_output_edit.setPlaceholderText("Nie wybrano — zapis obok oryginałów")
+        self.simple_output_edit.setMinimumWidth(120)
         self.simple_output_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         mark_large(self.simple_output_edit)
         self.simple_output_clear = QPushButton()  # krzyżyk rysowany (glif ✕ nie ma we wszystkich czcionkach)
@@ -903,29 +903,51 @@ class MainWindow(QMainWindow):
         self.simple_output_clear.setFixedWidth(CONTROL_H)
         simple_browse = browse_button(
             "Wybierz folder…",
-            tooltip="Wybierz folder na gotowe zdjęcia",
+            tooltip="Wybierz folder na gotowe zdjęcia. Bez folderu program zapyta: nadpisać, czy zapisać jako nowe (_conv).",
             slot=self._browse_output_simple,
         )
         set_themed_icon(simple_browse, action_icon_folder_orange)
         mark_large(simple_browse)
-        out_row.addWidget(self.simple_output_edit, stretch=1)
-        out_row.addWidget(self.simple_output_clear)
-        out_row.addWidget(simple_browse)
-        out_lay.addLayout(out_row)
-        col.addWidget(out_tile)
+        out_lay.addWidget(self.simple_output_edit, stretch=1)
+        out_lay.addWidget(self.simple_output_clear)
+        out_lay.addWidget(simple_browse)
+        folder_grid.add_row("Folder", out_row)
+        col.addWidget(folder_grid)
 
-        # Film → GIF — kafelek pojawia się dopiero, gdy na liście jest film (wraz z linią nad nim)
-        self._simple_video_sep = group_separator()
-        self._simple_video_sep.setVisible(False)
-        col.addWidget(self._simple_video_sep)
-        self.simple_video_tile, video_lay = make_tile(
-            "Film → GIF",
-            "Zdjęcia zostają bez zmian. To ustawienie dotyczy tylko filmów z listy.",
-            variant="plain",
-        )
-        video_row = QHBoxLayout()
-        video_row.setContentsMargins(0, 0, 0, 0)
-        video_row.setSpacing(8)
+        # 3 — format i jakość: pigułki (jeden wybór), suwak jakości w SWOIM rzędzie, ustawienia filmu tylko przy filmie
+        fmt_part = QWidget()
+        fmt_lay = QVBoxLayout(fmt_part)
+        fmt_lay.setContentsMargins(0, 0, 0, 0)
+        fmt_lay.setSpacing(FORM_VGAP)
+        fmt_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        self._simple_format_grid = fmt_grid
+        video_note = "\nFilm z listy i tak zapisze się jako GIF."
+        self.simple_format_pills = PillGroup([[
+            (SIMPLE_FORMAT_ORIGINAL, "Jak oryginał", "Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła." + video_note),
+            ("png", "PNG", "Zapisz jako PNG — przezroczystość zostaje." + video_note),
+            ("jpeg", "JPG", "Zapisz jako JPG. JPG nie zachowuje przezroczystości (białe tło)." + video_note),
+            ("avif", "AVIF", "Zapisz jako AVIF — mniejszy plik, przezroczystość zostaje." + video_note),
+            ("webp", "WebP", "Zapisz jako WebP — mały plik, przezroczystość zostaje." + video_note),
+        ]], multi=False)
+        self.simple_format_pills.set_value(SIMPLE_FORMAT_ORIGINAL)
+        fmt_grid.add_row("Format", self.simple_format_pills)
+        self.simple_quality_slider = WheelSlider(Qt.Horizontal)
+        self.simple_quality_slider.setRange(1, 100)
+        start_q = self.quality_slider.value() if hasattr(self, "quality_slider") else DEFAULT_QUALITY
+        self.simple_quality_slider.setValue(start_q)
+        self.simple_quality_label = QLabel(str(start_q))
+        self.simple_quality_slider.valueChanged.connect(self._on_simple_quality_changed)
+        fmt_grid.add_row("Jakość", slider_control(
+            self.simple_quality_slider, self.simple_quality_label,
+            value_width=44,
+            tooltip="Jakość kompresji (1–100). Im niżej, tym mniejszy plik. Poniżej 70% PNG schodzi na PNG-8, "
+                    "przezroczystość zostaje.",
+        ))
+        fmt_lay.addWidget(fmt_grid)
+
+        # Film → GIF — rząd pojawia się dopiero, gdy na liście jest film
+        video_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel")
+        self.simple_video_tile = video_grid
         self.simple_video_mode = style_dropdown(QComboBox())
         self.simple_video_mode.addItem("Płynnie — klatki co równy odstęp", "smooth")
         self.simple_video_mode.addItem("ULTRA — zatrzymania jako jedna klatka", "ultra")
@@ -934,77 +956,39 @@ class MainWindow(QMainWindow):
             "GIF trwa tyle co film, a plik jest wielokrotnie mniejszy."
         )
         self.simple_video_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.simple_video_mode.setMinimumWidth(180)
         mark_large(self.simple_video_mode)
         self.simple_video_fps = QSpinBox()
         self.simple_video_fps.setRange(1, 30)
         self.simple_video_fps.setValue(int(round(self._format_opts.video_fps)))
         self.simple_video_fps.setToolTip("Tempo gotowego GIF-a. Mniej klatek na sekundę = mniejszy plik.")
-        self.simple_video_fps.setFixedWidth(84)
+        self.simple_video_fps.setFixedWidth(104)
         mark_large(self.simple_video_fps)
         self.simple_video_frames = QSpinBox()
         self.simple_video_frames.setRange(2, 300)
         self.simple_video_frames.setValue(self._format_opts.video_ultra_frames)
         self.simple_video_frames.setToolTip("Ile zatrzymań zostanie w gotowym GIF-ie.")
-        self.simple_video_frames.setFixedWidth(84)
+        self.simple_video_frames.setFixedWidth(104)
         mark_large(self.simple_video_frames)
         self.simple_video_num_label = QLabel()
         self.simple_video_num_label.setObjectName("fieldLabel")
-        video_row.addWidget(self.simple_video_mode, stretch=1)
-        video_row.addWidget(self.simple_video_num_label)
-        video_row.addWidget(self.simple_video_fps)
-        video_row.addWidget(self.simple_video_frames)
+        video_row = QWidget()
+        video_lay = QHBoxLayout(video_row)
+        video_lay.setContentsMargins(0, 0, 0, 0)
+        video_lay.setSpacing(8)
+        video_lay.addWidget(self.simple_video_mode, stretch=1)
+        video_lay.addWidget(self.simple_video_num_label)
+        video_lay.addWidget(self.simple_video_fps)
+        video_lay.addWidget(self.simple_video_frames)
+        video_grid.add_row(
+            "Film → GIF", video_row,
+            tooltip="Zdjęcia zostają bez zmian. To ustawienie dotyczy tylko filmów z listy.",
+        )
         self.simple_video_mode.currentIndexChanged.connect(self._refresh_simple_video_controls)
         self._refresh_simple_video_controls()
-        video_lay.addLayout(video_row)
-        self.simple_video_tile.setVisible(False)
-        col.addWidget(self.simple_video_tile)
-
-        # Konwertuj + chipy formatu
-        action_row = QHBoxLayout()
-        action_row.setContentsMargins(0, 0, 0, 0)
-        action_row.setSpacing(10)
-        action_row.addStretch(1)
-        self.simple_convert_btn = footer_button(
-            "Konwertuj", primary=True, slot=lambda: self._start_simple_convert(),
-        )
-        self.simple_convert_btn.setObjectName("footerConvert")
-        self.simple_convert_btn.setMinimumWidth(168)
-        # footer_button daje 32 px; Konwertuj stoi w jednym rzędzie z formatami (ACTION_H = 44 px).
-        self.simple_convert_btn.setFixedHeight(ACTION_H)
-        self.simple_convert_btn.setToolTip(
-            "Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła. Film zamienia się w GIF-a."
-        )
-        # Nad formatami jest podpis — dolne krawędzie mają być w jednej linii, nie środki.
-        action_row.addWidget(self.simple_convert_btn, 0, Qt.AlignmentFlag.AlignBottom)
-
-        fmt_col = QVBoxLayout()
-        fmt_col.setContentsMargins(0, 0, 0, 0)
-        fmt_col.setSpacing(4)
-        fmt_lbl = QLabel("Do innego formatu")
-        fmt_lbl.setObjectName("formatChipCaption")
-        fmt_col.addWidget(fmt_lbl)
-        chips = QHBoxLayout()
-        chips.setContentsMargins(0, 0, 0, 0)
-        chips.setSpacing(6)
-        self._simple_format_btns: list[QPushButton] = []
-        video_note = "\nFilm z listy i tak zapisze się jako GIF."
-        for fmt, label, tip in (
-            ("png", "PNG", "Konwertuj do PNG — przezroczystość zostaje." + video_note),
-            ("jpeg", "JPG", "Konwertuj do JPG. JPG nie zachowuje przezroczystości (białe tło)." + video_note),
-            ("avif", "AVIF", "Konwertuj do AVIF — mniejszy plik, przezroczystość zostaje." + video_note),
-        ):
-            chip = QPushButton(label)
-            chip.setObjectName("formatChip")
-            chip.setProperty("tag", str(format_tag(fmt)))  # kolor tagu formatu (app.qss)
-            chip.setFixedHeight(ACTION_H)
-            chip.setCursor(Qt.CursorShape.PointingHandCursor)
-            chip.setToolTip(tip)
-            chip.clicked.connect(lambda _checked=False, f=fmt: self._start_simple_convert(f))
-            chips.addWidget(chip)
-            self._simple_format_btns.append(chip)
-        fmt_col.addLayout(chips)
-        action_row.addLayout(fmt_col)
-        action_row.addStretch(1)
+        video_grid.setVisible(False)
+        fmt_lay.addWidget(video_grid)
+        col.addWidget(fmt_part)
 
         h = QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
@@ -1022,11 +1006,18 @@ class MainWindow(QMainWindow):
         scroll.setWidget(outer)
         self._simple_scroll = scroll
 
-        # 2.6.5: „Konwertuj” + formaty stoją pod obszarem przewijania i są zawsze widoczne (jak stopka prawego
-        # panelu w trybie zaawansowanym) — przy niskim ekranie przewijają się tylko karty.
-        footer = QWidget()
-        footer.setLayout(action_row)
-        footer.setMaximumWidth(860)
+        # 4 — Konwertuj: jeden żółty przycisk, pod obszarem przewijania, zawsze widoczny (jak stopka prawego panelu
+        # w trybie zaawansowanym); przy niskim ekranie przewijają się tylko części powyżej.
+        self.simple_convert_btn = footer_button(
+            "Konwertuj", primary=True, slot=lambda: self._start_simple_convert(),
+        )
+        self.simple_convert_btn.setObjectName("footerConvert")
+        self.simple_convert_btn.setFixedHeight(ACTION_H)
+        self.simple_convert_btn.setToolTip(
+            "Zapisuje zdjęcia w formacie wybranym wyżej („Jak oryginał” = ten sam format). Film zamienia się w GIF-a."
+        )
+        footer = ActionRow(self.simple_convert_btn)
+        footer.setMaximumWidth(SIMPLE_MAX_WIDTH)
         self._simple_footer = footer
         footer_row = QHBoxLayout()
         footer_row.setContentsMargins(0, 0, 0, 0)
@@ -1037,10 +1028,10 @@ class MainWindow(QMainWindow):
         page.setObjectName("simplePage")
         page_lay = QVBoxLayout(page)
         page_lay.setContentsMargins(0, 0, 0, 0)
-        page_lay.setSpacing(CARD_GAP)
+        page_lay.setSpacing(DENSITIES[0].section_gap)  # i Konwertuj jest oddzielony od reszty o ~70 px
         page_lay.addWidget(scroll, 1)
         page_lay.addLayout(footer_row)
-        self._gap_layouts.append(page_lay)
+        self._section_layouts.append(page_lay)
         self._simple_page_lay = page_lay
         return page
 
@@ -1048,7 +1039,6 @@ class MainWindow(QMainWindow):
         """Widoczność elementów paska górnego zależnie od trybu."""
         simple = self._ui_mode == "simple"
         for w in (
-            getattr(self, "_preset_lbl", None),
             getattr(self, "retail_preset_combo", None),
             getattr(self, "restore_retail_btn", None),
         ):
@@ -1060,6 +1050,28 @@ class MainWindow(QMainWindow):
             self._mode_btn.setText("Zaawansowany tryb" if simple else "Tryb prosty")
             if self._fit_ready:
                 pin_button_min_widths(self.menuWidget())
+        self._update_preset_label()  # etykieta „Presety”: tylko tryb zaawansowany i tylko gdy jest miejsce
+
+    def _strip_min_width(self) -> int:
+        """Minimum szerokości paska u góry BEZ etykiety „Presety” (ta ustępuje pierwsza, gdy brakuje miejsca)."""
+        strip = self.menuWidget()
+        width = strip.minimumSizeHint().width()
+        lbl = getattr(self, "_preset_lbl", None)
+        if lbl is not None and not lbl.isHidden():
+            width -= lbl.minimumSizeHint().width() + strip.layout().spacing()
+        return width
+
+    def _update_preset_label(self) -> None:
+        """Etykieta „Presety” jest tylko podpisem listy sieci (lista ma swój napis) — przy wąskim oknie znika,
+        żeby pasek nie wymuszał szerszego okna i nic się w nim nie ucinało."""
+        lbl = getattr(self, "_preset_lbl", None)
+        if lbl is None:
+            return
+        if self._ui_mode != "advanced":
+            lbl.setVisible(False)
+            return
+        full = self._strip_min_width() + lbl.minimumSizeHint().width() + self.menuWidget().layout().spacing()
+        lbl.setVisible(self.width() >= full)
 
     def _toggle_ui_mode(self) -> None:
         self._set_ui_mode("advanced" if self._ui_mode == "simple" else "simple")
@@ -1167,9 +1179,6 @@ class MainWindow(QMainWindow):
         if tile is None:
             return
         show = any(is_video_file(p) for p in self._queue)
-        sep = getattr(self, "_simple_video_sep", None)
-        if sep is not None:
-            sep.setVisible(show)
         if tile.isHidden() == show:  # zmiana widoczności → wysokość widoku prostego się zmienia
             tile.setVisible(show)
             self._schedule_refit()
@@ -1256,7 +1265,13 @@ class MainWindow(QMainWindow):
             return unique_conv_path(target)
         return target
 
-    def _start_simple_convert(self, output_format: str | None = None) -> None:
+    def _simple_target_format(self) -> str | None:
+        """Format wybrany pigułkami trybu prostego; ``None`` = „Jak oryginał” (format wg pliku wejściowego)."""
+        value = self.simple_format_pills.value()
+        return None if value == SIMPLE_FORMAT_ORIGINAL else value
+
+    def _start_simple_convert(self) -> None:
+        output_format = self._simple_target_format()
         if not self._queue:
             show_warning(self, "Konwersja", "Najpierw dodaj zdjęcia.")
             return
@@ -1285,7 +1300,7 @@ class MainWindow(QMainWindow):
         for inp in self._queue:
             fmt = output_format or output_format_for_input(inp)
             if is_video_file(inp):
-                fmt = "gif"  # film zapisujemy jako animację, niezależnie od wybranego kafelka
+                fmt = "gif"  # film zapisujemy jako animację, niezależnie od wybranej pigułki
             out = self._simple_output_path(inp, fmt, dest_dir, save_mode)
             jobs.append(JobSpec(
                 input_path=inp,
@@ -1304,8 +1319,8 @@ class MainWindow(QMainWindow):
             self.convert_btn.setEnabled(enabled)
         if hasattr(self, "simple_convert_btn"):
             self.simple_convert_btn.setEnabled(enabled)
-        for btn in getattr(self, "_simple_format_btns", []):
-            btn.setEnabled(enabled)
+        if hasattr(self, "simple_format_pills"):
+            self.simple_format_pills.setEnabled(enabled)
 
     def _set_progress_visible(self, visible: bool) -> None:
         self._progress_wrap.setVisible(visible)
@@ -1402,7 +1417,9 @@ class MainWindow(QMainWindow):
         list_layout.addWidget(tool_box)
         self._left_tool_box = tool_box
         self._left_tool_btns = [(b, b.text()) for b in tool_btns]
-        self._tool_state = "row"
+        # 2.6.7 (wariant B): cztery przyciski w siatce 2×2, równe kolumny (S48); same ikony tylko w ostateczności.
+        arrange_tool_grid(tool_box, tool_btns, 2, equal=True)
+        self._tool_state = "grid"
         self._tool_hint_key: tuple | None = None
         self._tool_hints: list[int] = []
         tool_box.installEventFilter(self)
@@ -1494,14 +1511,17 @@ class MainWindow(QMainWindow):
         action_row.addStretch(1)
         self.convert_btn = footer_button("Konwertuj", primary=True, slot=self._start_convert)
         self.convert_btn.setObjectName("footerConvert")
-        self.convert_btn.setMinimumWidth(140)
+        self.convert_btn.setMinimumWidth(200)
         self.convert_btn.setFixedHeight(ACTION_H)
+        # 2.6.7 (wariant B): „Zamknij” i „Konwertuj” w jednym rzędzie, ta sama wysokość (S48); Zamknij = przycisk
+        # drugorzędny z obrysem (nie link), jedyny z obrysem w tej grupie.
         close_btn = footer_button("Zamknij", primary=False, slot=self.close)
-        close_btn.setObjectName("footerClose")
+        close_btn.setObjectName("footerOutline")
         close_btn.setMinimumWidth(112)
         close_btn.setFixedHeight(ACTION_H)
-        action_row.addWidget(self.convert_btn)
+        self.close_btn = close_btn
         action_row.addWidget(close_btn)
+        action_row.addWidget(self.convert_btn)
         right_layout.addLayout(action_row)
 
         _splash_pulse()
@@ -1571,46 +1591,44 @@ class MainWindow(QMainWindow):
             self.size_info.setText("Podgląd wyłączony")
 
     def _build_settings_panel(self) -> QWidget:
-        body = QWidget()
+        """Prawa kolumna trybu zaawansowanego (warianty B + C, 2.6.7): szary panel z białymi kartami sekcji.
+
+        Karty: Format i jakość | Tło i warianty | Wymiary | Zapis plików. Każda ma siatkę etykieta | pole (przy wąskiej
+        szerokości etykieta nad polem) i da się ją zwinąć do tytułu i jednej linii podsumowania; stan zwinięcia jest
+        zapamiętany w ustawieniach (``ui/collapsed_sections``). Kolory (liczba kolorów PNG/GIF) i Kadr to wiersze
+        w kartach Format i jakość / Wymiary, widoczne tylko wtedy, gdy mają sens (jak dawne kafelki).
+        """
+        body = QFrame()
+        body.setObjectName("cardPanel")
         self._settings_body = body
-        body.setObjectName("settingsBody")
         body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(body)
         root.setSpacing(CARD_GAP)
-        root.setContentsMargins(0, 0, 0, 0)
+        root.setContentsMargins(16, 16, 16, 16)
         self._gap_layouts.append(root)
-        # 2.6.5: bez podpisu „Krok po kroku: format i jakość → wymiary → zapis plików.” — pierwsza karta
-        # prawej kolumny stoi na tej samej wysokości co „Lista plików”.
+        self._card_panel_layout = root
+        collapsed = load_collapsed_sections()
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(CARD_GAP)
-        grid.setVerticalSpacing(CARD_GAP)
-        grid.setContentsMargins(0, 0, 0, 0)
-        self._gap_grids.append(grid)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        # Wiersze: 0 Format i jakość | 1 linia | 2 kolumny (Tło, Kolory | Wymiary, Kadr) | 3 linia | 4 Zapis plików.
-        # Grupy są „plain” (na białym) rozdzielone linią 1 px i odstępem 16 px po obu jej stronach.
-        for row, stretch in enumerate((0, 0, 1, 0, 0)):
-            grid.setRowStretch(row, stretch)
-        self._bento_grid = grid
-        self._bento_seps = [group_separator(), group_separator()]  # linie w kolumnach (między kartami jednej kolumny)
+        def make_card(key: str, title: str, tooltip: str) -> tuple[SectionCard, FormGrid]:
+            card = SectionCard(key, title, tooltip=tooltip)
+            card.set_collapsed(key in collapsed, emit=False)
+            card.collapsedChanged.connect(self._on_card_collapsed)
+            grid = FormGrid()
+            card.body_layout.addWidget(grid)
+            self._cards[key] = card
+            root.addWidget(card)
+            return card, grid
 
-        # Wiersz 0: Format i jakość (span 2)
-        tile_fmt, lay_fmt = make_tile(
-            "Format i jakość",
-            tooltip="Rozszerzenie, tło, sekwencja wizek i suwaki jakości",
-            variant="plain",
-            eyebrow=True,
+        # —— Format i jakość ——
+        card_fmt, self._format_grid = make_card(
+            "format", "Format i jakość", "Rozszerzenie, jakość i — dla PNG / GIF — liczba kolorów",
         )
-        fmt_row = QHBoxLayout()
-        fmt_row.setSpacing(8)
-        fmt_row.setContentsMargins(0, 0, 0, 0)
-        self.format_combo = FormatMultiCombo()
-        style_dropdown(self.format_combo)
-        self.format_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.format_combo = FormatPills()
         self.format_combo.selectionChanged.connect(self._on_formats_changed)
-        fmt_row.addWidget(self.format_combo, stretch=1)
+        self.fmt_wrap = self.format_combo  # wyłączany razem z ustawieniami przy trybie wizek
+        self._format_grid.add_row(
+            "Rozszerzenie", self.format_combo, tooltip=UI_TOOLTIPS["extension"], top_pad=11,  # równo ze środkiem 1. rzędu pigułek
+        )
         self.settings_btn = QPushButton("Ustawienia…")
         self.settings_btn.setObjectName("btnSecondary")
         self.settings_btn.setMinimumHeight(BTN_H)
@@ -1619,65 +1637,19 @@ class MainWindow(QMainWindow):
             "Szczegóły rozszerzenia: PNG-8/24, tło JPG, kompresja GIF, kadrowanie i opcje zaawansowane."
         )
         self.settings_btn.clicked.connect(self._open_format_settings)
-        fmt_row.addWidget(self.settings_btn, 0, Qt.AlignRight)
-        fmt_controls = QWidget()
-        fmt_controls.setLayout(fmt_row)
-        self.fmt_wrap = fmt_controls
-        lay_fmt.addWidget(compact_row(
-            "Rozszerzenie",
-            fmt_controls,
-            tooltip=UI_TOOLTIPS["extension"],
-            height=COMPACT_CONTROL_ROW_H,
-        ))
+        card_fmt.add_header_action(self.settings_btn)
 
         self.quality_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.quality_slider.setRange(0, 100)
         self.quality_slider.setValue(DEFAULT_QUALITY)
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         self.quality_label = QLabel(str(DEFAULT_QUALITY))
-        lay_fmt.addWidget(compact_row(
+        self._format_grid.add_row(
             "Jakość",
-            slider_control(
-                self.quality_slider,
-                self.quality_label,
-                tooltip=UI_TOOLTIPS["quality"],
-            ),
+            slider_control(self.quality_slider, self.quality_label, value_width=44, tooltip=UI_TOOLTIPS["quality"]),
             tooltip=UI_TOOLTIPS["quality"],
-            tight=True,
-        ))
-        grid.addWidget(tile_fmt, 0, 0, 1, 2)
-        grid.addWidget(group_separator(), 1, 0, 1, 2)
+        )
 
-        # Wiersz 1: Tło i warianty | Kolory
-        tile_bg, lay_bg = make_tile("Tło i warianty", variant="plain", eyebrow=True)
-        self._bento_tile_bg = tile_bg
-        self.remove_bg_cb = QCheckBox("Usuń tło")
-        self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
-        self.remove_bg_cb.toggled.connect(self._on_remove_bg_toggled)
-        lay_bg.addWidget(self.remove_bg_cb)
-        self.bg_model_combo = QComboBox()
-        self.bg_model_combo.setObjectName("bgModelCombo")
-        self.bg_model_combo.setMinimumWidth(120)
-        self.bg_model_combo.addItem("Najlepsza jakość", "birefnet-general")
-        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_general"], Qt.ItemDataRole.ToolTipRole)
-        self.bg_model_combo.addItem("Szybko", "birefnet-general-lite")
-        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_lite"], Qt.ItemDataRole.ToolTipRole)
-        self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_combo"])
-        self.bg_model_combo.setCurrentIndex(0)
-        self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
-        style_dropdown(self.bg_model_combo)
-        lay_bg.addWidget(self.bg_model_combo)
-        self.segregate_cb = QCheckBox("Segreguj do podfolderów")
-        self.segregate_cb.setChecked(False)
-        self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
-        lay_bg.addWidget(self.segregate_cb)
-        self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
-        self.wiz_sequence_cb.setToolTip(UI_TOOLTIPS["wiz"])
-        self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
-        lay_bg.addWidget(self.wiz_sequence_cb)
-
-        tile_colors, lay_colors = make_tile("Kolory", variant="plain", eyebrow=True)
-        self._bento_tile_colors = tile_colors
         self.png_colors_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.png_colors_slider.setRange(24, 256)
         self.png_colors_slider.setValue(256)
@@ -1686,11 +1658,12 @@ class MainWindow(QMainWindow):
         colors_slider_row = slider_control(
             self.png_colors_slider,
             self.png_colors_label,
+            value_width=44,
             tooltip=UI_TOOLTIPS["color_count"],
         )
         colors_extras = QHBoxLayout()
         colors_extras.setContentsMargins(0, 0, 0, 0)
-        colors_extras.setSpacing(4)
+        colors_extras.setSpacing(8)
         colors_extras.addWidget(colors_slider_row, stretch=1)
         self.png_colors_auto_cb = QCheckBox("Z jakości")
         self.png_colors_auto_cb.setToolTip(UI_TOOLTIPS["color_count"])
@@ -1699,30 +1672,48 @@ class MainWindow(QMainWindow):
         colors_extras.addWidget(self.png_colors_auto_cb)
         colors_wrap = QWidget()
         colors_wrap.setLayout(colors_extras)
-        self._colors_row = stacked_field(
-            "Liczba kolorów",
-            colors_wrap,
-            tooltip=UI_TOOLTIPS["color_count"],
-        )
-        lay_colors.addWidget(self._colors_row)
-        # Treść tuż pod nagłówkiem — wolne miejsce (gdy kafelek wypełnia kolumnę) idzie pod spód.
-        lay_colors.addStretch(1)
+        self._colors_row = colors_wrap
+        self._format_grid.add_row("Liczba kolorów", colors_wrap, tooltip=UI_TOOLTIPS["color_count"])
 
-        self._bento_left_col, self._bento_left_lay = make_bento_column()
-        self._bento_right_col, self._bento_right_lay = make_bento_column()
-        self._gap_layouts += [self._bento_left_lay, self._bento_right_lay]
-        # Rozmieszczenie kafelków w kolumnach ustala _relayout_bento().
+        # —— Tło i warianty ——
+        _card_bg, bg_grid = make_card("background", "Tło i warianty", "Usuwanie tła, segregowanie i sekwencja wizek")
+        self.remove_bg_cb = QCheckBox("Usuń tło")
+        self.remove_bg_cb.setToolTip(UI_TOOLTIPS["remove_background"])
+        self.remove_bg_cb.toggled.connect(self._on_remove_bg_toggled)
+        self.bg_model_combo = QComboBox()
+        self.bg_model_combo.setObjectName("bgModelCombo")
+        self.bg_model_combo.setMinimumWidth(150)
+        self.bg_model_combo.addItem("Najlepsza jakość", "birefnet-general")
+        self.bg_model_combo.setItemData(0, UI_TOOLTIPS["bg_model_general"], Qt.ItemDataRole.ToolTipRole)
+        self.bg_model_combo.addItem("Szybko", "birefnet-general-lite")
+        self.bg_model_combo.setItemData(1, UI_TOOLTIPS["bg_model_lite"], Qt.ItemDataRole.ToolTipRole)
+        self.bg_model_combo.setToolTip(UI_TOOLTIPS["bg_model_combo"])
+        self.bg_model_combo.setCurrentIndex(0)
+        self.bg_model_combo.currentIndexChanged.connect(self._on_bg_model_changed)
+        style_dropdown(self.bg_model_combo)
+        remove_row = QWidget()
+        remove_lay = QHBoxLayout(remove_row)
+        remove_lay.setContentsMargins(0, 0, 0, 0)
+        remove_lay.setSpacing(12)
+        remove_lay.addWidget(self.remove_bg_cb)
+        remove_lay.addWidget(self.bg_model_combo, stretch=1)
+        bg_grid.add_row("Usuwanie tła", remove_row, tooltip=UI_TOOLTIPS["remove_background"])
+        self.segregate_cb = QCheckBox("Segreguj do podfolderów")
+        self.segregate_cb.setChecked(False)
+        self.segregate_cb.setToolTip(UI_TOOLTIPS["segregate"])
+        self.wiz_sequence_cb = QCheckBox("Sekwencja wizek (XL/L/S/SKLEP)")
+        self.wiz_sequence_cb.setToolTip(UI_TOOLTIPS["wiz"])
+        self.wiz_sequence_cb.toggled.connect(self._on_wiz_mode_changed)
+        variants = QWidget()
+        variants_lay = QVBoxLayout(variants)
+        variants_lay.setContentsMargins(0, 0, 0, 0)
+        variants_lay.setSpacing(6)
+        variants_lay.addWidget(self.segregate_cb)
+        variants_lay.addWidget(self.wiz_sequence_cb)
+        bg_grid.add_row("Warianty", variants)
 
-        # Wymiary (lewa kolumna, pod Tło)
-        tile_dims, lay_dims = make_tile(
-            "Wymiary",
-            tooltip="Skala, własny format i kadr przycięcia",
-            fill=True,
-            variant="plain",
-            eyebrow=True,
-        )
-        self._bento_tile_dims = tile_dims
-
+        # —— Wymiary ——
+        _card_dims, self._dims_grid = make_card("dimensions", "Wymiary", "Skala, własny format i kadr przycięcia")
         self.size_combo = style_dropdown(QComboBox())
         self.size_combo.setToolTip(UI_TOOLTIPS["dimension_format"])
         self.size_combo.currentIndexChanged.connect(self._on_size_preset_changed)
@@ -1739,22 +1730,18 @@ class MainWindow(QMainWindow):
         format_row_layout.setSpacing(6)
         format_row_layout.addWidget(self.size_combo, stretch=1)
         format_row_layout.addWidget(self.delete_preset_btn)
-        lay_dims.addWidget(stacked_field("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"]))
+        self._dims_grid.add_row("Format", format_row, tooltip=UI_TOOLTIPS["dimension_format"])
 
         self.scale_slider = WheelSlider(Qt.Orientation.Horizontal)
         self.scale_slider.setRange(1, 100)
         self.scale_slider.setValue(100)
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         self.scale_label = QLabel("100%")
-        lay_dims.addWidget(stacked_field(
+        self._dims_grid.add_row(
             "Skala",
-            slider_control(
-                self.scale_slider,
-                self.scale_label,
-                tooltip=UI_TOOLTIPS["scale"],
-            ),
+            slider_control(self.scale_slider, self.scale_label, value_width=52, tooltip=UI_TOOLTIPS["scale"]),
             tooltip=UI_TOOLTIPS["scale"],
-        ))
+        )
 
         min_control = QWidget()
         min_row = QHBoxLayout(min_control)
@@ -1808,44 +1795,26 @@ class MainWindow(QMainWindow):
         custom_row.addWidget(QLabel("px"))
         custom_row.addStretch(1)
 
-        dims_opts_wrap = QWidget()
-        dims_opts_col = QVBoxLayout(dims_opts_wrap)
-        dims_opts_col.setContentsMargins(0, 0, 0, 0)
-        dims_opts_col.setSpacing(6)
-        dims_opts_col.addWidget(min_control)
-        dims_opts_col.addWidget(custom_control)
-        lay_dims.addWidget(dims_opts_wrap)
-        lay_dims.addStretch(1)
+        limits = QWidget()
+        limits_col = QVBoxLayout(limits)
+        limits_col.setContentsMargins(0, 0, 0, 0)
+        limits_col.setSpacing(6)
+        limits_col.addWidget(min_control)
+        limits_col.addWidget(custom_control)
+        self._dims_grid.add_row("Ograniczenia", limits)
 
-        tile_crop, lay_crop = make_tile("Kadr", fill=True, variant="plain", eyebrow=True)
-        self._bento_tile_crop = tile_crop
         self.crop_anchor_picker = CropAnchorPicker()
         self.crop_anchor_picker.setToolTip(UI_TOOLTIPS["crop_anchor"])
         self.crop_anchor_picker.anchorChanged.connect(self._on_crop_anchor_changed)
-        crop_row = QHBoxLayout()
-        crop_row.setContentsMargins(0, 0, 0, 0)
-        crop_row.setSpacing(0)
-        crop_row.addStretch(1)
-        crop_row.addWidget(self.crop_anchor_picker)
-        crop_row.addStretch(1)
-        lay_crop.addStretch(1)
-        lay_crop.addLayout(crop_row)
-        lay_crop.addStretch(1)
+        self._dims_grid.add_row("Kadr", self.crop_anchor_picker, tooltip=UI_TOOLTIPS["crop_anchor"])
 
-        # Wiersz 2: Zapis plików (span 2)
-        tile_save, lay_save = make_tile(
-            "Zapis plików",
-            tooltip="Folder wyjściowy i opcje wsadowe",
-            variant="plain",
-            eyebrow=True,
-        )
-        self._bento_tile_save = tile_save
-
+        # —— Zapis plików ——
+        _card_save, save_grid = make_card("save", "Zapis plików", "Folder wyjściowy i opcje wsadowe")
         out_section = QWidget()
         out_section.setToolTip(UI_TOOLTIPS["output_dir"])
         out_section_layout = QVBoxLayout(out_section)
         out_section_layout.setContentsMargins(0, 0, 0, 0)
-        out_section_layout.setSpacing(6)
+        out_section_layout.setSpacing(8)
 
         self.output_enabled_cb = QCheckBox("Zapisz do folderu wyjściowego")
         self.output_enabled_cb.setChecked(False)
@@ -1868,7 +1837,7 @@ class MainWindow(QMainWindow):
 
         path_btn_row = QHBoxLayout()
         path_btn_row.setContentsMargins(0, 0, 0, 0)
-        path_btn_row.setSpacing(6)
+        path_btn_row.setSpacing(8)
         self.update_output_btn = QPushButton("Aktualizuj ścieżkę")
         self.update_output_btn.setObjectName("btnUpdatePath")
         set_themed_icon(self.update_output_btn, action_icon_refresh_path)
@@ -1891,15 +1860,17 @@ class MainWindow(QMainWindow):
 
         self._out_row = out_section
         self._out_control = out_section
-        lay_save.addWidget(out_section)
+        save_grid.add_row("Folder", out_section, tooltip=UI_TOOLTIPS["output_dir"])
         self.output_dir_edit.textChanged.connect(self._sync_output_tooltip)
         self._sync_output_tooltip()
 
-        lay_save.addWidget(h_separator())
-
-        cb_grid = QGridLayout()
-        cb_grid.setSpacing(8)
-        cb_grid.setContentsMargins(0, 6, 0, 0)
+        options = QWidget()
+        cb_grid = QGridLayout(options)
+        cb_grid.setHorizontalSpacing(16)
+        cb_grid.setVerticalSpacing(8)
+        cb_grid.setContentsMargins(0, 0, 0, 0)
+        cb_grid.setColumnStretch(0, 1)
+        cb_grid.setColumnStretch(1, 1)
         for i, (text, attr, tip_key, checked) in enumerate([
             ("Zachowaj strukturę folderów", "preserve_cb", "preserve_structure", True),
             ("Zachowaj datę i godzinę", "keep_dates_cb", "keep_dates", True),
@@ -1912,16 +1883,14 @@ class MainWindow(QMainWindow):
             cb.toggled.connect(lambda _v: self._mark_dirty())
             setattr(self, attr, cb)
             cb_grid.addWidget(cb, i // 2, i % 2)
-        lay_save.addLayout(cb_grid)
-
-        grid.addWidget(group_separator(), 3, 0, 1, 2)
-        grid.addWidget(tile_save, 4, 0, 1, 2)
-        root.addLayout(grid, 1)
+        save_grid.add_row("Opcje", options)
+        root.addStretch(1)
 
         self._reload_size_combo(select_id=PRESET_ORIGINAL)
         self._sync_dimensions_ui()
         self._update_palette_controls_visibility()
-        self._relayout_bento()
+        self._connect_card_summaries()
+        self._refresh_card_summaries()
 
         self.segregate_cb.toggled.connect(lambda _v: self._mark_dirty())
         self.wiz_sequence_cb.toggled.connect(lambda _v: self._mark_dirty())
@@ -1930,6 +1899,71 @@ class MainWindow(QMainWindow):
         self._finalize_checkbox_indicators()
 
         return body
+
+    # ——— karty sekcji: zwijanie i podsumowania ———
+    def _on_card_collapsed(self, _collapsed: bool) -> None:
+        """Stan zwinięcia kart zapisujemy od razu (nie dopiero przy zamknięciu — wyłączenie programu nie gubi wyboru)."""
+        save_collapsed_sections([k for k, c in self._cards.items() if c.is_collapsed()])
+        self._schedule_refit()
+
+    def _connect_card_summaries(self) -> None:
+        """Podsumowanie zwiniętej karty odświeża się przy każdej zmianie kontrolek, które opisuje."""
+        refresh = self._refresh_card_summaries
+        self.format_combo.selectionChanged.connect(refresh)
+        self.quality_slider.valueChanged.connect(refresh)
+        self.png_colors_slider.valueChanged.connect(refresh)
+        self.png_colors_auto_cb.toggled.connect(refresh)
+        for cb in (self.remove_bg_cb, self.segregate_cb, self.wiz_sequence_cb, self.min_longest_cb,
+                   self.custom_format_cb, self.output_enabled_cb, self.preserve_cb, self.keep_dates_cb,
+                   self.overwrite_cb, self.parallel_cb):
+            cb.toggled.connect(refresh)
+        self.bg_model_combo.currentIndexChanged.connect(refresh)
+        self.size_combo.currentIndexChanged.connect(refresh)
+        self.scale_slider.valueChanged.connect(refresh)
+        self.min_longest_edit.textChanged.connect(refresh)
+        self.custom_w_edit.textChanged.connect(refresh)
+        self.custom_h_edit.textChanged.connect(refresh)
+        self.output_dir_edit.textChanged.connect(refresh)
+
+    def _refresh_card_summaries(self, *_args) -> None:
+        """Jedna linia podsumowania na kartę (widoczna tylko po zwinięciu karty)."""
+        if not self._cards:
+            return
+        from inyfinn_resizer.app.widgets.pills import FORMAT_PILL_LABELS
+
+        fmts = " + ".join(FORMAT_PILL_LABELS.get(f, f.upper()) for f in self._selected_formats())
+        parts = [fmts, f"jakość {self.quality_slider.value()}"]
+        if self._show_colors_tile and not self.png_colors_auto_cb.isChecked():
+            parts.append(f"{self.png_colors_slider.value()} kolorów")
+        self._cards["format"].set_summary(" · ".join(parts))
+
+        bg = ["Usuwanie tła: " + str(self.bg_model_combo.currentText()).lower()] if self.remove_bg_cb.isChecked() \
+            else ["Tło zostaje"]
+        bg.append("segreguj do podfolderów" if self.segregate_cb.isChecked() else "bez segregowania")
+        bg.append("sekwencja wizek" if self.wiz_sequence_cb.isChecked() else "bez sekwencji wizek")
+        self._cards["background"].set_summary(" · ".join(bg))
+
+        if self.custom_format_cb.isChecked():
+            dims = [f"własny format {self._custom_format_w()} × {self._custom_format_h()} px"]
+        else:
+            dims = [str(self.size_combo.currentText() or "Oryginalny")]
+        dims.append(f"skala {self.scale_slider.value()}%")
+        if self.min_longest_cb.isChecked() and self.min_longest_cb.isEnabled():
+            dims.append(f"min. {self._min_longest_px_value()} px")
+        self._cards["dimensions"].set_summary(" · ".join(dims))
+
+        out = ["Do folderu wyjściowego" if self.output_enabled_cb.isChecked() else "Obok oryginałów"]
+        flags = [
+            text for cb, text in (
+                (self.preserve_cb, "struktura folderów"),
+                (self.keep_dates_cb, "data i godzina"),
+                (self.overwrite_cb, "pytanie przed nadpisaniem"),
+                (self.parallel_cb, "wiele plików naraz"),
+            ) if cb.isChecked()
+        ]
+        if flags:
+            out.append(", ".join(flags))
+        self._cards["save"].set_summary(" · ".join(out))
 
     def _finalize_checkbox_indicators(self) -> None:
         """Odśwież styl wskaźników QCheckBox po zbudowaniu layoutu i nałożeniu motywu."""
@@ -1951,66 +1985,16 @@ class MainWindow(QMainWindow):
             style.polish(cb)
             cb.update()
 
-    def _relayout_bento(self) -> None:
-        """Kolumny Bento tej samej wysokości — kafelki wypełniają dziury, nie tło okna.
+    def _sync_conditional_rows(self) -> None:
+        """Wiersze warunkowe kart: „Liczba kolorów” (PNG / GIF) w karcie Format i jakość, „Kadr” w karcie Wymiary.
 
-        Sam kafelek „Kolory” (jeden wiersz treści) obok kolumny Tło + Wymiary rozciągał się na ~400 px
-        i zostawiał pustą płytę nad suwakiem (2.6.2). Od 2.6.3 w tym układzie „Kolory” stoi pod
-        „Tło i warianty”, a „Wymiary” przechodzą do prawej kolumny — obie kolumny mają podobną
-        wysokość treści, więc żaden kafelek nie jest pusty.
+        Do 2.6.6 były to osobne kafelki przestawiane między dwiema kolumnami (Bento); od 2.6.7 karty stoją w jednej
+        kolumnie, a te dwie rzeczy są wierszami siatki — pokazujemy je tylko wtedy, gdy mają sens.
         """
-        show_colors = self._show_colors_tile
-        show_crop = self._show_crop_tile
-        colors_beside_bg = show_colors and not show_crop
-        has_right = show_colors or show_crop
-
-        for lay in (self._bento_left_lay, self._bento_right_lay):
-            while lay.count():
-                item = lay.takeAt(0)
-                if item.widget() is None:
-                    del item
-
-        self._bento_tile_colors.setVisible(show_colors)
-        self._bento_tile_crop.setVisible(show_crop)
-        set_tile_fill(self._bento_tile_dims, True)
-        left: list[tuple[QWidget, int]] = [(self._bento_tile_bg, 0)]
-        right: list[tuple[QWidget, int]] = []
-        if colors_beside_bg:
-            set_tile_fill(self._bento_tile_colors, True)
-            left.append((self._bento_tile_colors, 1))
-            right.append((self._bento_tile_dims, 1))
-        else:
-            left.append((self._bento_tile_dims, 1))
-            if show_colors and show_crop:
-                set_tile_fill(self._bento_tile_colors, False)
-                set_tile_fill(self._bento_tile_crop, True)
-                right += [(self._bento_tile_colors, 0), (self._bento_tile_crop, 1)]
-            elif show_crop:
-                set_tile_fill(self._bento_tile_crop, True)
-                right.append((self._bento_tile_crop, 1))
-        # Między kartami jednej kolumny — linia (wzorzec: grupy na białym rozdziela linia, nie kolejne szare pudełka).
-        seps = iter(self._bento_seps)
-        for lay, tiles in ((self._bento_left_lay, left), (self._bento_right_lay, right)):
-            for i, (widget, stretch) in enumerate(tiles):
-                if i:
-                    line = next(seps)
-                    lay.addWidget(line)
-                    line.setVisible(True)
-                lay.addWidget(widget, stretch)
-        for unused in seps:
-            unused.setVisible(False)
-
-        self._bento_right_col.setVisible(has_right)
-
-        grid = self._bento_grid
-        grid.removeWidget(self._bento_left_col)
-        grid.removeWidget(self._bento_right_col)
-        if has_right:
-            grid.addWidget(self._bento_left_col, 2, 0, 1, 1)
-            grid.addWidget(self._bento_right_col, 2, 1, 1, 1)
-        else:
-            grid.addWidget(self._bento_left_col, 2, 0, 1, 2)
-        self._schedule_refit()  # układ kafelków zmienia wysokość panelu (np. PNG ↔ AVIF)
+        self._format_grid.set_row_visible(self._colors_row, self._show_colors_tile)
+        self._dims_grid.set_row_visible(self.crop_anchor_picker, self._show_crop_tile)
+        self._refresh_card_summaries()
+        self._schedule_refit()  # liczba wierszy zmienia wysokość panelu (np. PNG ↔ AVIF)
 
     def _open_rename_dialog(self) -> None:
         dlg = RenameDialog(self._rename, self._queue, self)
@@ -2438,8 +2422,7 @@ class MainWindow(QMainWindow):
     def _update_palette_controls_visibility(self) -> None:
         fmts = self._selected_formats()
         self._show_colors_tile = any(fmt in ("png", "gif") for fmt in fmts)
-        self._colors_row.setVisible(self._show_colors_tile)
-        self._relayout_bento()
+        self._sync_conditional_rows()
 
     def _resize_uses_crop_anchor(self, resize: ResizeOptions | None = None) -> bool:
         opts = resize or self._effective_resize_options()
@@ -2494,7 +2477,7 @@ class MainWindow(QMainWindow):
 
         uses_crop = self._resize_uses_crop_anchor()
         self._show_crop_tile = uses_crop
-        self._relayout_bento()
+        self._sync_conditional_rows()
         if uses_crop:
             anchor = self.crop_anchor_picker.value()
             if self.custom_format_cb.isChecked():

@@ -131,6 +131,26 @@ def load_window_size(mode: str):
     return QSize(w, h)
 
 
+COLLAPSED_SECTIONS_KEY = "ui/collapsed_sections"
+
+
+def load_collapsed_sections() -> set[str]:
+    """Klucze kart sekcji zwiniętych w trybie zaawansowanym (2.6.7). Brak wpisu = wszystkie rozwinięte."""
+    raw = _settings().value(COLLAPSED_SECTIONS_KEY, [])
+    if raw is None:
+        return set()
+    if isinstance(raw, str):  # QSettings (INI) zwraca jeden element jako zwykły napis, pustą listę jako ""
+        raw = [raw]
+    try:
+        return {str(k) for k in raw if str(k)}
+    except TypeError:
+        return set()
+
+
+def save_collapsed_sections(keys) -> None:
+    _settings().setValue(COLLAPSED_SECTIONS_KEY, sorted(str(k) for k in keys))
+
+
 def save_geometry(window: MainWindow) -> None:
     s = _settings()
     if splitter := window._main_splitter:
@@ -144,7 +164,7 @@ def restore_geometry(window: MainWindow) -> bool:
     Zwraca, czy podział był zapisany — to NIE wyłącza dopasowania okna do ekranu (do 2.6.4 wyłączało:
     po pierwszym uruchomieniu okno zawsze miało 1280×920, niezależnie od ekranu).
     """
-    from inyfinn_resizer.app.main_window import RIGHT_PANEL_MIN_WIDTH
+    from inyfinn_resizer.app.main_window import RIGHT_PANEL_ABS_MIN_WIDTH
 
     sizes = _settings().value("ui/splitter")
     window._saved_splitter = None
@@ -154,7 +174,7 @@ def restore_geometry(window: MainWindow) -> bool:
         except (TypeError, ValueError):
             parsed = []
         # Prawa kolumna węższa niż minimum albo nie dwie liczby = zapis nieprawidłowy → podział domyślny.
-        if len(parsed) == 2 and parsed[0] > 0 and parsed[1] >= RIGHT_PANEL_MIN_WIDTH:
+        if len(parsed) == 2 and parsed[0] > 0 and parsed[1] >= RIGHT_PANEL_ABS_MIN_WIDTH:
             window._saved_splitter = parsed
     return bool(sizes)
 

@@ -25,9 +25,11 @@ DISPLAY_OBJECTS = frozenset(
         "updateToastTitle",
         "stepNumber",
         "dropEmptyTitle",
+        "sectionCardTitle",  # 2.6.7: tytuł karty sekcji (tryb zaawansowany, Opcje zaawansowane)
+        "settingsSectionTitle",  # 2.6.7: tytuł sekcji formatu w oknie Ustawienia
     }
 )
-EYEBROW_OBJECTS = frozenset({"sectionTitle", "formatChipCaption"})
+EYEBROW_OBJECTS = frozenset({"sectionTitle", "formatChipCaption", "simpleLabel"})
 EYEBROW_LETTER_SPACING_EM = 0.09  # wzorzec (program „Stwórz prezentację”): ok. 0,08–0,1 em
 EYEBROW_FALLBACK_PX = 14  # rozmiar, gdy czcionka nie ma jeszcze pikseli (QSS nadaje 14 px)
 # DS 2.0.6 (S18): WERSALIKI tylko na przycisku głównym (zielonym) i na jednym drugorzędnym z obrysem w grupie.
@@ -49,6 +51,7 @@ BUTTON_NO_UPPERCASE = frozenset(
     }
 )
 QUIET_PROPERTY = "quiet"
+PILL_PROPERTY = "pigulka"  # 2.6.7: pigułki wyboru (widgets/pills.py) — Lato 700 zwykłą wielkością liter
 
 
 def _is_quiet(btn: QPushButton) -> bool:
@@ -56,9 +59,14 @@ def _is_quiet(btn: QPushButton) -> bool:
     return value is True or str(value).lower() == "true"
 
 
+def _is_pill(btn: QPushButton) -> bool:
+    value = btn.property(PILL_PROPERTY)
+    return value is True or str(value).lower() == "true"
+
+
 def wants_uppercase(btn: QPushButton) -> bool:
-    """Czy napis przycisku ma być wersalikami — z jego BIEŻĄCEGO stanu (nazwa obiektu, właściwość ``quiet``)."""
-    return btn.objectName() not in BUTTON_NO_UPPERCASE and not _is_quiet(btn)
+    """Czy napis przycisku ma być wersalikami — z jego BIEŻĄCEGO stanu (nazwa obiektu, właściwości ``quiet``, ``pigulka``)."""
+    return btn.objectName() not in BUTTON_NO_UPPERCASE and not _is_quiet(btn) and not _is_pill(btn)
 
 
 class _TypographyFilter(QObject):
@@ -78,7 +86,7 @@ class _TypographyFilter(QObject):
             elif isinstance(obj, QPushButton):
                 self._apply_button(obj)
         elif kind == QEvent.Type.DynamicPropertyChange and isinstance(obj, QPushButton):
-            if bytes(event.propertyName()).decode("utf-8", "ignore") == QUIET_PROPERTY:
+            if bytes(event.propertyName()).decode("utf-8", "ignore") in (QUIET_PROPERTY, PILL_PROPERTY):
                 self._apply_button(obj)
         return False
 

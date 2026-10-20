@@ -1,4 +1,10 @@
-"""Opcje zaawansowane — panel do zakładki w ustawieniach formatu."""
+"""Opcje zaawansowane — panel kart (wariant B, 2.6.7): białe karty na szarym tle, „Włącz…” jako przełącznik DS w nagłówku.
+
+Panel jest wspólny dla okna „Opcje zaawansowane”, sekcji „Zaawansowane” w oknie Ustawienia i okna zapisu własnego
+presetu wymiarów. Karta „Zmiana rozmiaru” i część „kadr według współrzędnych” karty „Kadrowanie” mają przełącznik
+(dawny checkbox „Włącz…” — ten sam stan: ``resize_enable``, ``crop_enable``); wyłączona treść jest przygaszona i
+nieaktywna. Reszta opcji kadrowania (przezroczyste marginesy, proporcje) działa niezależnie, jak dotąd.
+"""
 
 from __future__ import annotations
 
@@ -6,12 +12,11 @@ from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QCheckBox,
     QComboBox,
-    QDialogButtonBox,
     QFrame,
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -19,16 +24,17 @@ from PySide6.QtWidgets import (
 )
 
 from inyfinn_resizer.app.dialogs.base_dialog import (
-    DIALOG_MARGIN,
     DIALOG_ROW_GAP,
     DIALOG_SECTION_GAP,
-    DIALOG_STACK_GAP,
 )
-from inyfinn_resizer.app.widgets.layout_helpers import field_group, h_separator, mark_quiet, style_dropdown
+from inyfinn_resizer.app.widgets.layout_helpers import field_group, h_separator, style_dropdown
+from inyfinn_resizer.app.widgets.section_card import SectionCard
+from inyfinn_resizer.app.widgets.switch import SwitchBox
 from inyfinn_resizer.core.job import ResizeMode, ResizeOptions, TransformOptions
 
 BRAND_GRADIENT_1 = "#76b82a"
 BRAND_GRADIENT_2 = "#008834"
+DIM_OPACITY = 0.5  # przygaszona treść wyłączonej karty
 
 
 def _plain_spin() -> QSpinBox:
@@ -38,25 +44,30 @@ def _plain_spin() -> QSpinBox:
     return spin
 
 
-def _flat_section(title: str, tooltip: str = "") -> tuple[QWidget, QVBoxLayout]:
-    """Sekcja = panel L1 (``QFrame#dialogPanel``, DS 2.0 S2) z wypełnieniem 20 px; pola w środku są białe (L2)."""
-    wrap = QFrame()
-    wrap.setObjectName("dialogPanel")
-    lay = QVBoxLayout(wrap)
-    lay.setContentsMargins(DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN)
-    lay.setSpacing(DIALOG_STACK_GAP)
-    hdr = QLabel(title)
-    hdr.setObjectName("sectionTitle")
-    if tooltip:
-        hdr.setToolTip(tooltip)
-        wrap.setToolTip(tooltip)
-    lay.addWidget(hdr)
-    lay.addWidget(h_separator())
-    return wrap, lay
+def _card(key: str, title: str, tooltip: str = "") -> tuple[SectionCard, QVBoxLayout]:
+    """Biała karta sekcji (L2) z tytułem Mindset; bez zwijania (``collapsible=False``)."""
+    card = SectionCard(key, title, tooltip=tooltip, collapsible=False)
+    return card, card.body_layout
+
+
+def _dim_when_off(switch: QCheckBox, target: QWidget) -> None:
+    """Wyłączony przełącznik: treść nieaktywna i przygaszona (DS 26.4); włączony: wraca do normy."""
+
+    def apply(on: bool) -> None:
+        target.setEnabled(on)
+        if on:
+            target.setGraphicsEffect(None)
+        else:
+            effect = QGraphicsOpacityEffect(target)
+            effect.setOpacity(DIM_OPACITY)
+            target.setGraphicsEffect(effect)
+
+    switch.toggled.connect(apply)
+    apply(switch.isChecked())
 
 
 class AdvancedSettingsPanel(QWidget):
-    """Zakładka Zaawansowane: resize, crop, obrót, korekcje."""
+    """Zakładka / sekcja Zaawansowane: resize, crop, obrót, korekcje."""
 
     def __init__(
         self,
@@ -65,6 +76,7 @@ class AdvancedSettingsPanel(QWidget):
         parent: QWidget | None = None,
         *,
         scroll: bool = True,
+        title: str | None = None,
     ) -> None:
         super().__init__(parent)
         self._resize = resize
@@ -73,18 +85,38 @@ class AdvancedSettingsPanel(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
+        # Szary panel (L1) z białymi kartami (L2) w środku; przewijanie (jeśli jest) leży WEWNĄTRZ panelu,
+        # więc zaokrąglone rogi panelu zostają na miejscu.
+        panel = QFrame()
+        panel.setObjectName("cardPanel")
+        panel_lay = QVBoxLayout(panel)
+        panel_lay.setContentsMargins(DIALOG_SECTION_GAP, DIALOG_SECTION_GAP, DIALOG_SECTION_GAP, DIALOG_SECTION_GAP)
+        panel_lay.setSpacing(DIALOG_SECTION_GAP)
+        if title:
+            heading = QLabel(title)
+            heading.setObjectName("settingsSectionTitle")
+            panel_lay.addWidget(heading)
+
         body = QWidget()
         body_lay = QVBoxLayout(body)
-        body_lay.setSpacing(DIALOG_SECTION_GAP)  # między panelami 16 px
-        body_lay.setContentsMargins(0, 0, 4, 0)
+        body_lay.setSpacing(DIALOG_SECTION_GAP)  # między kartami 16 px
+        body_lay.setContentsMargins(0, 0, 0, 0)
 
-        resize_box, resize_lay = _flat_section(
+        resize_card, resize_lay = _card(
+            "resize",
             "Zmiana rozmiaru",
             "Włącz, gdy preset w głównym oknie nie wystarcza. Proporcje są zawsze zachowane.",
         )
-        self.resize_enable = QCheckBox("Włącz własną zmianę rozmiaru")
+        self.resize_enable = SwitchBox()
+        self.resize_enable.setToolTip("Własna zmiana rozmiaru zamiast presetu z głównego okna")
         self.resize_enable.setChecked(self._resize.mode != ResizeMode.NONE)
-        resize_lay.addWidget(self.resize_enable)
+        resize_card.add_header_action(self.resize_enable)
+        resize_body = QWidget()
+        resize_body_lay = QVBoxLayout(resize_body)
+        resize_body_lay.setContentsMargins(0, 0, 0, 0)
+        resize_body_lay.setSpacing(DIALOG_ROW_GAP)
+        resize_lay.addWidget(resize_body)
+        self._resize_body = resize_body  # treść gaszona przełącznikiem (testy, zrzuty)
 
         row1 = QHBoxLayout()
         row1.setSpacing(DIALOG_ROW_GAP)
@@ -95,29 +127,33 @@ class AdvancedSettingsPanel(QWidget):
         self.dim_spin.setRange(1, 32000)
         self.dim_spin.setValue(self._resize.dimension or 1800)
         row1.addWidget(field_group("Wymiar (px)", self.dim_spin), stretch=1)
-        resize_lay.addLayout(row1)
+        resize_body_lay.addLayout(row1)
 
         row2 = QHBoxLayout()
         self.filter_combo = style_dropdown(QComboBox())
         self.filter_combo.addItems(["Lanczos3 (domyślny)", "Lanczos2", "Cubic", "Linear"])
         row2.addWidget(field_group("Filtr skalowania", self.filter_combo), stretch=1)
-        resize_lay.addLayout(row2)
+        resize_body_lay.addLayout(row2)
 
         self.skip_smaller = QCheckBox("Nie powiększaj, gdy zdjęcie jest już mniejsze")
         self.skip_smaller.setChecked(self._resize.skip_if_smaller)
-        resize_lay.addWidget(self.skip_smaller)
-        body_lay.addWidget(resize_box)
+        resize_body_lay.addWidget(self.skip_smaller)
+        body_lay.addWidget(resize_card)
+        _dim_when_off(self.resize_enable, resize_body)
 
-        crop_box, crop_lay = _flat_section(
+        crop_card, crop_lay = _card(
+            "crop",
             "Kadrowanie",
             "Przytnij obraz do wybranego prostokąta lub do przezroczystych pikseli.",
         )
-        crop_grid = QGridLayout()
+        self.crop_enable = SwitchBox()
+        self.crop_enable.setToolTip("Kadrowanie do prostokąta: X, Y, szerokość i wysokość w pikselach")
+        crop_card.add_header_action(self.crop_enable)
+        crop_rect = QWidget()
+        crop_grid = QGridLayout(crop_rect)
+        crop_grid.setContentsMargins(0, 0, 0, 0)
         crop_grid.setHorizontalSpacing(DIALOG_ROW_GAP)
         crop_grid.setVerticalSpacing(DIALOG_ROW_GAP)
-
-        self.crop_enable = QCheckBox("Włącz kadrowanie (piksele)")
-        crop_grid.addWidget(self.crop_enable, 0, 0, 1, 2)
 
         self.crop_x = _plain_spin()
         self.crop_x.setRange(0, 32000)
@@ -128,12 +164,16 @@ class AdvancedSettingsPanel(QWidget):
         self.crop_h = _plain_spin()
         self.crop_h.setRange(0, 32000)
 
-        crop_grid.addWidget(field_group("X (lewy)", self.crop_x), 1, 0)
-        crop_grid.addWidget(field_group("Y (górny)", self.crop_y), 1, 1)
-        crop_grid.addWidget(field_group("Szerokość", self.crop_w), 2, 0)
-        crop_grid.addWidget(field_group("Wysokość", self.crop_h), 2, 1)
-        crop_lay.addLayout(crop_grid)
+        crop_grid.addWidget(field_group("X (lewy)", self.crop_x), 0, 0)
+        crop_grid.addWidget(field_group("Y (górny)", self.crop_y), 0, 1)
+        crop_grid.addWidget(field_group("Szerokość", self.crop_w), 1, 0)
+        crop_grid.addWidget(field_group("Wysokość", self.crop_h), 1, 1)
+        crop_lay.addWidget(crop_rect)
+        self._crop_rect = crop_rect
+        _dim_when_off(self.crop_enable, crop_rect)
 
+        # Poniżej: opcje kadrowania niezależne od prostokąta (działały i działają bez „Włącz kadrowanie”)
+        crop_lay.addWidget(h_separator())
         self.trim_transparent = QCheckBox("Kadruj do przezroczystych pikseli")
         self.trim_transparent.setToolTip(
             "Automatycznie usuwa puste (przezroczyste) marginesy — jak Trim w Photoshop."
@@ -150,9 +190,9 @@ class AdvancedSettingsPanel(QWidget):
         self.preserve_aspect = QCheckBox("Zachowaj proporcje obrazka")
         self.preserve_aspect.setChecked(self._resize.preserve_aspect)
         crop_lay.addWidget(self.preserve_aspect)
-        body_lay.addWidget(crop_box)
+        body_lay.addWidget(crop_card)
 
-        rotate_box, rotate_lay = _flat_section("Obrót i odbicia", "Korekta orientacji przed zapisem.")
+        rotate_card, rotate_lay = _card("rotate", "Obrót i odbicia", "Korekta orientacji przed zapisem.")
         self.flip_h = QCheckBox("Odbicie poziome")
         self.flip_v = QCheckBox("Odbicie pionowe")
         self.auto_exif = QCheckBox("Autoobrót według EXIF")
@@ -163,14 +203,15 @@ class AdvancedSettingsPanel(QWidget):
         self.rotate_combo = style_dropdown(QComboBox())
         self.rotate_combo.addItems(["0°", "90°", "180°", "270°"])
         rotate_lay.addWidget(field_group("Stały obrót", self.rotate_combo))
-        body_lay.addWidget(rotate_box)
+        body_lay.addWidget(rotate_card)
 
-        adjust_box, adjust_lay = _flat_section("Korekcje kolorów", "Proste filtry nakładane na cały obraz.")
+        adjust_card, adjust_lay = _card("adjust", "Korekcje kolorów", "Proste filtry nakładane na cały obraz.")
         self.grayscale = QCheckBox("Czarno-biały")
         self.sepia = QCheckBox("Sepia")
         adjust_lay.addWidget(self.grayscale)
         adjust_lay.addWidget(self.sepia)
-        body_lay.addWidget(adjust_box)
+        body_lay.addWidget(adjust_card)
+        self.cards = [resize_card, crop_card, rotate_card, adjust_card]
         if scroll:
             body_lay.addStretch()
             scroll_area = QScrollArea()
@@ -178,9 +219,10 @@ class AdvancedSettingsPanel(QWidget):
             scroll_area.setWidgetResizable(True)
             scroll_area.setFrameShape(QFrame.NoFrame)
             scroll_area.setWidget(body)
-            outer.addWidget(scroll_area)
+            panel_lay.addWidget(scroll_area, stretch=1)
         else:
-            outer.addWidget(body)
+            panel_lay.addWidget(body)
+        outer.addWidget(panel)
         self._load_state()
 
     def _load_state(self) -> None:
@@ -265,10 +307,12 @@ class AdvancedSettingsPanel(QWidget):
 
 
 # Zachowaj dialog dla kompatybilności wstecznej (import z innych modułów).
-from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, polish_dialog_buttons
+from inyfinn_resizer.app.dialogs.base_dialog import AppDialog, apply_dialog_layout, build_dialog_footer
 
 
 class AdvancedOptionsDialog(AppDialog):
+    """Okno „Opcje zaawansowane”: szary panel z białymi kartami; dół: Resetuj wszystko | Anuluj, OK (DS 26.5)."""
+
     def __init__(self, resize: ResizeOptions, transforms: TransformOptions, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Opcje zaawansowane")
@@ -278,22 +322,8 @@ class AdvancedOptionsDialog(AppDialog):
         layout = QVBoxLayout(self)
         apply_dialog_layout(layout)
         layout.addWidget(self._panel, stretch=1)
-
-        bottom = QHBoxLayout()
-        reset_btn = QPushButton("Resetuj wszystko")
-        reset_btn.setObjectName("btnSecondary")
-        reset_btn.setFixedHeight(36)
-        mark_quiet(reset_btn)  # S13: „Resetuj wszystko” obok OK/Anuluj — cichy
-        reset_btn.clicked.connect(self._panel.reset_all)
-        bottom.addWidget(reset_btn)
-        bottom.addStretch()
-        layout.addLayout(bottom)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        polish_dialog_buttons(buttons)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        footer, *_buttons = build_dialog_footer(self, "Resetuj wszystko", self._panel.reset_all)
+        layout.addLayout(footer)
 
     def get_resize(self) -> ResizeOptions:
         return self._panel.get_resize()

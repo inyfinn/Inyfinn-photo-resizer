@@ -282,7 +282,9 @@ def test_selected_rows_are_distinct_from_list_and_hover(theme):
     r, lad = palettes.ROLES[key], palettes.LADDER[key]
     list_bg = t["@BG_PANEL_ALT@"]
     assert _contrast(t["@ROW_SELECTED_FG@"], t["@ROW_SELECTED_BG@"]) >= 4.5
-    assert len({t["@ROW_SELECTED_BG@"], list_bg, t["@ROW_HOVER@"], t["@BG_ZEBRA@"]}) == 4  # zaznaczony ≠ lista ≠ najechanie ≠ pas
+    assert len({t["@ROW_SELECTED_BG@"], list_bg, t["@ROW_HOVER@"]}) == 3  # zaznaczony ≠ lista ≠ najechanie
+    # DS 2.0.10: w ciemnych zebra = tło listy (pasów nie ma, wiersze rozdziela linia), w jasnych to osobny odcień
+    assert (t["@BG_ZEBRA@"] == list_bg) == themes.is_dark_theme(theme)
     assert t["@ROW_SELECTED_BG@"] != t["@SELECT_BG@"]  # nie pełna zieleń kroku (SELECT_* tylko dla przełącznika-segmentu)
     if themes.is_dark_theme(theme):
         assert t["@ROW_SELECTED_BG@"] == lad["surface_4"] and t["@ROW_HOVER@"] == lad["surface_3"]

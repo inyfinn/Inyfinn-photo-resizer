@@ -801,3 +801,29 @@
 - Zrzuty własnych okien: `BIN\dev\logs\v2.6.6\p0\`, `po\` (w tym po kliknięciu prawdziwego przełącznika motywu), `final\` (40 plików po synchronizacji 2.0.7). Plansze: `PREZENTACJE\— SZABLON AI - skrypt\WORK\logs\resizer-2.6.6-tryb-zaawansowany.png`, `-tryb-prosty.png`, `-okna-dialogowe.png`, `-okno.png`.
 
 **Źródła:** `ds-dobra-kaloria/tokens/READY-2.0.0.txt` (S13, S14, S18), `tokens_qt.py` 2.0.7, wzorzec `assets/wzorzec-program-2026-10-06/program-1.1.5-05-opcje-gora.png`, `-11-wynik.png`.
+
+---
+
+## 2026-10-20 — v2.6.7: nowy wygląd czterech części (kod, testy, zrzuty, wydanie)
+
+**Komenda/Akcja:** Wybór usera z rundy `/design` 20.10.2026: tryb prosty = wariant D z poprawkami („ta jakość ginie”, „przycisk Wybierz folder nie musi być taki wielki”, 70 px między sekcjami), tryb zaawansowany = B + C (białe karty na szarym panelu + zwijanie), okno Ustawienia… = D (jedna strona z kotwicami), okno Opcje zaawansowane = B (przełącznik w nagłówku karty), obrys przycisków drugorzędnych lżejszy (S59). Etap 1 (kod, testy, zrzuty) przyjęty przez kierownika; etap 2 = wydanie na polecenie usera („push na gita, zbuduj instalatory, wypuść nowy release”).
+
+**Log/Status:**
+1. Tokeny: `sync_design_tokens.py` z DS 2.0.10 (obrys `btn2-border` #868E96 w jasnych; zebra ciemnych = L2), generatory ikon bez zmian plików.
+2. Nowe widżety: `widgets/pills.py` (PillGroup, FormatPills), `section_card.py`, `form_grid.py` (FormGrid, SplitRow, ActionRow), `switch.py` (SwitchBox). `FormatMultiCombo` zostaje w kodzie (poprawka z 20.10 i test), ale okno główne używa `FormatPills` pod tą samą nazwą `format_combo`.
+3. Tryb prosty: pigułki formatu przed „Konwertuj”, własny rząd jakości, zwykły przycisk folderu obok pola, `Density.section_gap` 70/48/28 px, kolumna do 1040 px.
+4. Tryb zaawansowany: karty Format i jakość / Tło i warianty / Wymiary / Zapis plików, zwijanie z podsumowaniem i zapamiętaniem (`ui/collapsed_sections`), siatka 2×2 przycisków listy, „Zamknij” (obrys) + „Konwertuj” w jednym rzędzie, rzadkie rozszerzenia pod „Inne”.
+5. Okna: Ustawienia… (jedna strona + kotwice), Opcje zaawansowane (karty + `SwitchBox`, wyłączona treść przygaszona), wspólny dolny rząd `build_dialog_footer`.
+6. Responsywność: minimum okna ~900 px (było 1180), siatki przestawiają się przy wąskiej szerokości, etykieta „Presety” ustępuje pierwsza.
+7. Wersja 2.6.7 w `__init__.py`, `pyproject.toml`, `installer/inyfinn_resizer.iss` (2×); wpis w `changelog.py`; README, `design-system/MASTER.md`, `memory.md`.
+8. Usterki znalezione po drodze: (a) lista modelu tła ucinana przy wąskim oknie → minimum z sizeHint w `_flush_layouts`; (b) `capture_ui.py` dziedziczył zwinięte karty z poprzedniego zrzutu → zerowanie stanu przed oknem; (c) stary kod: „Tylko bezstratny (oxipng)” (PNG) nadpisuje „Bezstratny WebP” w `FormatSettingsDialog.get_options` — niezmienione, do decyzji.
+
+**Test/Ewaluacja:**
+- Pełny zestaw bez `test_rmbg_models.py` i `test_background_removal.py` (ciężkie, pominięte): 472 passed, 0 failed (przed zmianami w kopii kodu: 420 passed; 13 błędów `test_convert` tylko w kopii bez `tools/pngquant`). Nowe: `tests/test_look_267.py` (31), przepisane `test_bento_colors_tile.py`, poprawione `test_window_fit.py`, `test_polish_266.py`, `test_theme_roles.py`.
+- Zrzuty własnych okien (zielony jasny i zielony ciemny): tryb prosty (pusty, 3 pliki, 960 px), zaawansowany (rozwinięty, dwie karty zwinięte, 960 px), Ustawienia (góra, przewinięte), Opcje zaawansowane — `scripts/capture_ui.py <iteracja> <folder> <motywy> v267`.
+**Wydanie (etap 2):**
+- `package_release.ps1` i `build_installer.ps1` kasują rekurencyjnie (`_internal`, `%TEMP%`) — zakazane dla agenta, więc zbudowane skryptem `scripts/package_release_safe.ps1` (nowy w repo): ta sama sekwencja, stare `dist`, `work`, `BIN\_internal`, stary EXE przeniesione do `BIN\dev\build\_old-20261020-build\`, PyInstaller z nowym katalogiem cache zamiast `--clean`, podpis na kopii na C: (`sign_file.ps1`) i zwykła kopia na D:, ISCC do nowego katalogu w `%TEMP%`, staging ZIP-a w `%TEMP%` (zostaje). Launcher w korzeniu bez zmian od 2.6.6 (kod `launcher\` nietknięty), podpis sprawdzony.
+- Start zbudowanego `BIN\InyfinnPhotoResizer.exe`: okno „Inyfinn Photo Resizer 2.6.7” po ok. 10 s (zwykłe środowisko, proces zabity bez zamykania okna, żeby nie zapisać sesji usera). Niesprawdzone: instalacja z instalatora, start na czystym środowisku.
+- Hash commita, SHA256 assetów i link do wydania: odpowiedź workera dla kierownika oraz opis wydania na GitHubie.
+
+**Źródła:** `ds-dobra-kaloria/components.md` rozdz. 26 (26.1, 26.3, 26.4, 26.5, 26.8), `ZALECENIA-USERA.md` S20, S30, S37, S48, S59, S60, makiety rundy `/design` (1D, 2B+C, 3D, 4B).

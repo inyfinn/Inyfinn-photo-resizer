@@ -1,4 +1,8 @@
-"""Kafelek „Kolory” (2.6.3): treść tuż pod nagłówkiem, bez pustej płyty nad suwakiem; kolumny równe."""
+"""Wiersze warunkowe kart trybu zaawansowanego (2.6.7): „Liczba kolorów” (PNG / GIF) i „Kadr” (przycięcie).
+
+Do 2.6.6 były to kafelki Bento przestawiane między dwiema kolumnami (test pilnował ich kolejności). Od 2.6.7 karty stoją
+w jednej kolumnie, a te dwie rzeczy to wiersze siatki kart Format i jakość / Wymiary — widoczne tylko wtedy, gdy mają sens.
+"""
 
 from __future__ import annotations
 
@@ -19,46 +23,47 @@ def window(tmp_path, monkeypatch):
     w = MainWindow()
     w.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
     w._set_ui_mode("advanced", mark_dirty=False)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)  # układ bez okna na ekranie
+    w.show()
+    app.processEvents()
     yield w, app
     w.hide()
     w.deleteLater()
 
 
-def _layout_of(window, tile):
-    for lay in (window._bento_left_lay, window._bento_right_lay):
-        if lay.indexOf(tile) >= 0:
-            return lay
-    return None
+def _label_of(grid, field):
+    return next(lbl for lbl, f in grid._rows if f is field)
 
 
-def test_colors_only_sits_under_background_tile(window):
+@pytest.mark.parametrize("fmt,visible", [("png", True), ("gif", True), ("avif", False), ("jpeg", False), ("webp", False)])
+def test_colors_row_only_for_png_and_gif(window, fmt, visible):
+    w, app = window
+    w.format_combo.set_selected([fmt])
+    app.processEvents()
+    assert w._show_colors_tile is visible
+    assert w._colors_row.isVisibleTo(w) is visible
+    assert _label_of(w._format_grid, w._colors_row).isVisibleTo(w) is visible  # etykieta znika razem z polem
+
+
+def test_colors_row_sits_in_the_format_card_under_quality(window):
     w, app = window
     w.format_combo.set_selected(["png"])
     app.processEvents()
-    if not w._show_colors_tile or w._show_crop_tile:
-        pytest.skip("PNG bez kafelka Kolory albo z Kadrem w tej konfiguracji")
-    assert _layout_of(w, w._bento_tile_colors) is w._bento_left_lay
-    assert _layout_of(w, w._bento_tile_dims) is w._bento_right_lay
-    left = w._bento_left_lay
-    assert left.indexOf(w._bento_tile_bg) < left.indexOf(w._bento_tile_colors)
+    card = w._cards["format"]
+    assert card.isAncestorOf(w._colors_row)
+    assert w._colors_row.mapTo(w, w._colors_row.rect().topLeft()).y() > w.quality_slider.mapTo(w, w.quality_slider.rect().topLeft()).y()
 
 
-def test_colors_content_right_under_heading(window):
+def test_crop_row_follows_resize_mode(window):
     w, app = window
-    w.format_combo.set_selected(["png"])
-    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)  # układ bez okna na ekranie
-    w.show()
+    # preset z przycinaniem do ramki pokazuje „Kadr”, zwykła skala go chowa
+    w.custom_format_cb.setChecked(True)
     app.processEvents()
-    tile = w._bento_tile_colors
-    header = tile.findChild(type(tile.layout().itemAt(0).widget()), "sectionStepHeader")
-    row_top = w._colors_row.mapTo(tile, w._colors_row.rect().topLeft()).y()
-    header_bottom = header.geometry().bottom()
-    assert row_top - header_bottom <= 16, (row_top, header_bottom)
-
-
-def test_formats_without_palette_keep_262_layout(window):
-    w, app = window
-    w.format_combo.set_selected(["avif"])
+    assert w._show_crop_tile and w.crop_anchor_picker.isVisibleTo(w)
+    assert _label_of(w._dims_grid, w.crop_anchor_picker).isVisibleTo(w)
+    assert w._cards["dimensions"].isAncestorOf(w.crop_anchor_picker)
+    w.custom_format_cb.setChecked(False)
     app.processEvents()
-    assert not w._bento_tile_colors.isVisibleTo(w)
-    assert _layout_of(w, w._bento_tile_dims) is w._bento_left_lay
+    if not w._show_crop_tile:
+        assert not w.crop_anchor_picker.isVisibleTo(w)
+        assert not _label_of(w._dims_grid, w.crop_anchor_picker).isVisibleTo(w)

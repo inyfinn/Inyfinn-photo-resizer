@@ -140,3 +140,29 @@ def icon_clear_gray() -> QIcon:
     painter.drawLine(size - margin, margin, margin, size - margin)
     painter.end()
     return QIcon(px)
+
+
+def _chevron_icon(*, up: bool, size: int = 16) -> QIcon:
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(px)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(_fg(), 2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    mid, half, rise = size / 2, 4.5, 2.5
+    y0, y1 = (mid + rise, mid - rise) if up else (mid - rise, mid + rise)
+    painter.drawPolyline([QPoint(int(mid - half), int(y0)), QPoint(int(mid), int(y1)), QPoint(int(mid + half), int(y0))])
+    painter.end()
+    return QIcon(px)
+
+
+def icon_chevron_down() -> QIcon:
+    """Strzałka w dół (sekcja zwinięta — kliknięcie rozwija)."""
+    return _chevron_icon(up=False)
+
+
+def icon_chevron_up() -> QIcon:
+    """Strzałka w górę (sekcja rozwinięta — kliknięcie zwija)."""
+    return _chevron_icon(up=True)

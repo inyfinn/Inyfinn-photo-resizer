@@ -189,6 +189,7 @@ def make_tile(
     variant: str = "panel",
     eyebrow: bool = False,
     number: str = "",
+    header_right: QWidget | None = None,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Kafelek Bento. ``variant`` (właściwość QSS ``variant``, każdy kafelek ją ma):
 
@@ -197,7 +198,9 @@ def make_tile(
     - ``drop`` — szare tło z przerywanym obrysem 1 px = strefa upuszczania plików.
 
     ``eyebrow`` — tytuł jako nadtytuł sekcji (``sectionTitle``: Lato, wersaliki, zielony) zamiast Mindset;
-    ``number`` — numer kroku (``stepNumber``, np. „1.”) w osobnej etykiecie przed tytułem.
+    ``number`` — numer kroku (``stepNumber``, np. „1.”) w osobnej etykiecie przed tytułem;
+    ``header_right`` — widżet po prawej stronie nagłówka (np. przyciski dodawania plików); przy wąskiej szerokości
+    schodzi pod tytuł (``form_grid.SplitRow``).
     """
     from inyfinn_resizer.app.widgets.section_icons import step_pixmap
 
@@ -259,7 +262,14 @@ def make_tile(
         sub_lbl.setObjectName("sectionStepHint")
         sub_lbl.setWordWrap(True)
         text_col.addWidget(sub_lbl)
-    header_row.addLayout(text_col, stretch=1)
+    if header_right is None:
+        header_row.addLayout(text_col, stretch=1)
+    else:
+        from inyfinn_resizer.app.widgets.form_grid import SplitRow
+
+        text_wrap = QWidget()
+        text_wrap.setLayout(text_col)
+        header_row.addWidget(SplitRow(text_wrap, header_right), 1)
     outer.addWidget(header, 0, Qt.AlignmentFlag.AlignTop)
 
     content = QWidget()
@@ -484,15 +494,21 @@ def tool_button_grid(
     return box, buttons
 
 
-def arrange_tool_grid(box: QWidget, buttons: list[QPushButton], cols: int) -> None:
-    """Ustawia przyciski po ``cols`` w rzędzie (reszta rzędu to rozciągliwy odstęp po prawej)."""
+def arrange_tool_grid(box: QWidget, buttons: list[QPushButton], cols: int, *, equal: bool = False) -> None:
+    """Ustawia przyciski po ``cols`` w rzędzie (reszta rzędu to rozciągliwy odstęp po prawej).
+
+    ``equal`` (2.6.7, wariant B): kolumny równej szerokości wypełniają cały rząd (siatka 2×2, równe przyciski, S48).
+    """
     grid = box.layout()
     for btn in buttons:
         grid.removeWidget(btn)
     for i, btn in enumerate(buttons):
         grid.addWidget(btn, i // cols, i % cols)
+        if equal:
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     for c in range(len(buttons) + 1):
-        grid.setColumnStretch(c, 1 if c == cols else 0)
+        grid.setColumnStretch(c, 1 if (c < cols if equal else c == cols) else 0)
+        grid.setColumnMinimumWidth(c, 0)
     grid.invalidate()
 
 

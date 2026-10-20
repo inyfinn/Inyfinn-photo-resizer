@@ -34,8 +34,8 @@ def canonical_format_key(fmt: str) -> str:
 PRIMARY_FORMATS = ("webp", "jpeg", "png", "avif", "gif", "tiff", "heic", "bmp", "jp2", "pdf")
 
 _MULTI_SELECT_TOOLTIP = (
-    "Kliknij nazwę formatu, aby wybrać tylko ten format.\n"
-    "Możesz zaznaczyć więcej, jeśli chcesz — użyj Ctrl, Shift lub kliknij checkbox."
+    "Kliknij format, aby go zaznaczyć albo odznaczyć - lista zostaje otwarta.\n"
+    "Shift zaznacza zakres. Lista zamyka się po kliknięciu obok albo klawiszem Esc."
 )
 
 _ALPHA_NO_TRANSPARENCY_TIP = "To rozszerzenie nie obsługuje przezroczystości."
@@ -151,6 +151,10 @@ class FormatMultiCombo(QComboBox):
         list_view.setUniformItemSizes(True)
         list_view.setSpacing(0)
         self.setView(list_view)
+        # Nasz filtr na viewport listy działa PRZED filtrem kontenera popupu Qt (instalowany później = wołany pierwszy).
+        self._press_in_popup = False
+        self._swallow_release = False
+        list_view.viewport().installEventFilter(self)
 
         self._list_model.itemChanged.connect(self._on_item_changed)
         self.setModel(self._list_model)
@@ -225,6 +229,19 @@ class FormatMultiCombo(QComboBox):
             self._block_item_changed = False
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        view = self.view()
+        if view is not None and watched is view.viewport():
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self._press_in_popup = True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                # Puszczenie po kliknięciu, które OTWORZYŁO listę (bez wciśnięcia w liście), albo po wyborze wielu
+                # (Ctrl / Shift / checkbox) nie zamyka listy - wcześniej Qt brał je za wybór wiersza i zwijał listę.
+                stray = not self._press_in_popup or self._swallow_release
+                self._press_in_popup = False
+                self._swallow_release = False
+                if stray:
+                    event.accept()
+                    return True
         line = self.lineEdit()
         if watched is line and event.type() == QEvent.Type.MouseButtonPress:
             mouse = event
@@ -301,21 +318,6 @@ class FormatMultiCombo(QComboBox):
             return
         self.setCurrentText(f"{len(selected)} formatów")
 
-    def _click_on_checkbox(self, view: QListView, pos: QPoint) -> bool:
-        opt = QStyleOptionViewItem()
-        idx = view.indexAt(pos)
-        if not idx.isValid():
-            return False
-        opt.rect = view.visualRect(idx)
-        indicator = view.style().subElementRect(
-            QStyle.SubElement.SE_ItemViewItemCheckIndicator,
-            opt,
-            view,
-        )
-        if indicator.isValid():
-            return indicator.adjusted(-4, -4, 4, 4).contains(pos)
-        return pos.x() - opt.rect.x() <= 24
-
     def _handle_row_click(self, index: QModelIndex, pos: QPoint, modifiers: Qt.KeyboardModifier) -> None:
         row = index.row()
         item = self._list_model.item(row)
@@ -326,9 +328,6 @@ class FormatMultiCombo(QComboBox):
         if self._alpha_only_mode and key not in ALPHA_OUTPUT_FORMATS:
             self._keep_popup_open = False
             return
-        view = self.view()
-        on_checkbox = isinstance(view, QListView) and self._click_on_checkbox(view, pos)
-
         self.blockSignals(True)
         try:
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
@@ -339,14 +338,15 @@ class FormatMultiCombo(QComboBox):
                     for r in range(start, end + 1)
                 ]
                 self.set_selected(keys)
-            elif modifiers & Qt.KeyboardModifier.ControlModifier or on_checkbox:
+                self._swallow_release = True
+            else:
+                # 20.10.2026: każdy klik przełącza format i NIE zamyka listy (wcześniej zwykły klik wybierał jeden
+                # format i zwijał listę, więc kilka rozszerzeń dało się wybrać tylko z Ctrl - user: „zwija się od razu”).
+                self._swallow_release = True
                 self._toggle_row(row)
                 self._anchor_row = row
                 self._update_summary()
                 self.selectionChanged.emit()
-            else:
-                self.set_selected([key])
-                self._anchor_row = row
         finally:
             self.blockSignals(False)
             QTimer.singleShot(0, self._release_keep_popup)
@@ -394,6 +394,8 @@ class FormatMultiCombo(QComboBox):
         return sel[0] if sel else "jpeg"
 
     def showPopup(self) -> None:
+        self._press_in_popup = False
+        self._swallow_release = False
         super().showPopup()
         view = self.view()
         if isinstance(view, QListView):

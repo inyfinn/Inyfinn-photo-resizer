@@ -1,20 +1,24 @@
-"""Opcje formatu wyjściowego — po polsku."""
+"""Opcje formatu wyjściowego — po polsku.
+
+2.6.7 (wariant D): jedna przewijana strona z sekcjami JPEG / PNG / WebP / AVIF / GIF / Zaawansowane i rzędem
+skrótów-kotwic u góry (klik przewija do sekcji) zamiast zakładek nad pustym polem. Opis formatu stoi na górze sekcji,
+opcje w siatce etykieta | pole, dół okna: Resetuj | Anuluj, OK.
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
-    QDialogButtonBox,
-    QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
     QSpinBox,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -25,13 +29,17 @@ from inyfinn_resizer.app.dialogs.advanced_options import (
     AdvancedSettingsPanel,
 )
 from inyfinn_resizer.app.dialogs.base_dialog import (
+    DIALOG_MARGIN,
     DIALOG_ROW_GAP,
+    DIALOG_SECTION_GAP,
+    DIALOG_STACK_GAP,
     AppDialog,
     apply_dialog_layout,
-    polish_dialog_buttons,
+    build_dialog_footer,
 )
 from inyfinn_resizer.app.i18n_tooltips import FORMAT_EXTENSION_TIPS, UI_TOOLTIPS
-from inyfinn_resizer.app.widgets.layout_helpers import mark_quiet, style_dropdown
+from inyfinn_resizer.app.widgets.form_grid import FormGrid
+from inyfinn_resizer.app.widgets.layout_helpers import h_separator, mark_quiet, style_dropdown
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.quality_map import gif_lossy_for_quality, palette_colors_for_quality
 
@@ -71,10 +79,12 @@ class _PageScroll(QScrollArea):
     """Obszar przewijania, który „chce” wysokości swojej strony (okno otwiera się tak wysokie, jak ekran pozwala),
     ale może być dowolnie niższy — wtedy strona się przewija."""
 
+    PREFERRED_MAX_H = 620  # okno nie rośnie do wysokości całej strony (6 sekcji) — reszta się przewija
+
     def sizeHint(self) -> QSize:  # noqa: N802 (Qt API)
         page = self.widget()
         hint = page.sizeHint() if page is not None else QSize(300, 200)
-        return QSize(max(hint.width(), 300), hint.height() + 2 * self.frameWidth())
+        return QSize(max(hint.width(), 300), min(hint.height(), self.PREFERRED_MAX_H) + 2 * self.frameWidth())
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt API)
         """Najmniejsza szerokość = szerokość treści strony (+ pasek przewijania): strona nie jest ucinana z boku."""
@@ -82,6 +92,28 @@ class _PageScroll(QScrollArea):
         width = page.minimumSizeHint().width() if page is not None else 100
         bar = self.verticalScrollBar().sizeHint().width()
         return QSize(width + bar + 2 * self.frameWidth(), 120)
+
+
+class _SectionForm(FormGrid):
+    """Siatka opcji jednej sekcji; ``addRow`` ma ten sam kształt co dawny ``QFormLayout`` (etykieta, pole / samo pole)."""
+
+    def addRow(self, first, second=None) -> None:  # noqa: N802 (nazwa jak w QFormLayout)
+        if second is None:
+            self.add_row("", first)  # pole wyboru, opis: w kolumnie pól, bez etykiety
+        else:
+            self.add_row(str(first).rstrip(":"), second)
+
+
+SCROLL_TOP_GAP = 8  # odstęp nad sekcją po kliknięciu kotwicy
+# kotwice u góry okna: (klucz sekcji, napis)
+_ANCHORS = (
+    ("jpeg", "JPEG"),
+    ("png", "PNG"),
+    ("webp", "WebP"),
+    ("avif", "AVIF"),
+    ("gif", "GIF"),
+    ("advanced", "Zaawansowane"),
+)
 
 
 class FormatSettingsDialog(AppDialog):
@@ -139,83 +171,124 @@ class FormatSettingsDialog(AppDialog):
 
         layout = QVBoxLayout(self)
         apply_dialog_layout(layout)
-        tabs = QTabWidget()
-        tabs.setObjectName("dialogTabs")
 
-        # 2.6.5: strony kart przewijają się wewnątrz okna (wcześniej przy niskim ekranie treść się nakładała).
-        tabs.addTab(self._scrolling_page(self._jpeg_tab()), "JPEG")
-        tabs.addTab(self._scrolling_page(self._png_tab()), "PNG")
-        tabs.addTab(self._scrolling_page(self._webp_tab()), "WebP")
-        tabs.addTab(self._scrolling_page(self._avif_tab()), "AVIF")
-        tabs.addTab(self._scrolling_page(self._gif_tab()), "GIF")
-        self._advanced_panel = AdvancedSettingsPanel(self._resize, self._transforms)
-        tabs.addTab(self._advanced_panel, "Zaawansowane")
+        # Kotwice (jak pod-zakładki DS 25.5): aktywna z zieloną kreską; klik przewija do sekcji, przewijanie je przełącza.
+        self._sections: dict[str, QWidget] = {}
+        self._anchor_btns: dict[str, QPushButton] = {}
+        self._anchor_group = QButtonGroup(self)
+        self._anchor_group.setExclusive(True)
+        self._syncing_anchor = False
+        anchor_bar = QFrame()
+        anchor_bar.setObjectName("anchorBar")
+        anchor_lay = QHBoxLayout(anchor_bar)
+        anchor_lay.setContentsMargins(0, 0, 0, 0)
+        anchor_lay.setSpacing(0)
+        for key, text in _ANCHORS:
+            btn = QPushButton(text)
+            btn.setObjectName("anchorTab")
+            btn.setCheckable(True)
+            btn.setAutoDefault(False)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setToolTip(f"Przejdź do sekcji: {text}")
+            self._anchor_group.addButton(btn)
+            self._anchor_btns[key] = btn
+            btn.clicked.connect(lambda _c=False, k=key: self._scroll_to(k))
+            anchor_lay.addWidget(btn)
+        anchor_lay.addStretch(1)
+        layout.addWidget(anchor_bar)
 
-        idx = {"jpeg": 0, "png": 1, "webp": 2, "avif": 3, "gif": 4}.get(fmt, 2)
-        tabs.setCurrentIndex(idx)
-        layout.addWidget(tabs)
-        self._tabs = tabs
-        self._page_width_checked = False
+        # Jedna przewijana strona: sekcja na format, szary panel (L1) z siatką etykieta | pole.
+        page = QWidget()
+        page_lay = QVBoxLayout(page)
+        page_lay.setContentsMargins(0, DIALOG_STACK_GAP, 4, 0)
+        page_lay.setSpacing(DIALOG_SECTION_GAP)
+        for key, title, form in (
+            ("jpeg", "JPEG", self._jpeg_tab()),
+            ("png", "PNG", self._png_tab()),
+            ("webp", "WebP", self._webp_tab()),
+            ("avif", "AVIF", self._avif_tab()),
+            ("gif", "GIF", self._gif_tab()),
+        ):
+            section = self._format_section(title, FORMAT_EXTENSION_TIPS.get(key, ""), form)
+            self._sections[key] = section
+            page_lay.addWidget(section)
+        self._advanced_panel = AdvancedSettingsPanel(self._resize, self._transforms, scroll=False, title="Zaawansowane")
+        self._sections["advanced"] = self._advanced_panel
+        page_lay.addWidget(self._advanced_panel)
+        page_lay.addStretch(1)
+        self._scroll = self._scrolling_page(page)
+        self._scroll.verticalScrollBar().valueChanged.connect(self._on_scrolled)
+        layout.addWidget(self._scroll, stretch=1)
 
-        hint = QLabel(FORMAT_EXTENSION_TIPS.get(fmt, ""))
-        hint.setObjectName("hintLabel")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        self._initial_key = fmt if fmt in ("jpeg", "png", "webp", "avif", "gif") else "webp"
+        self._anchor_btns[self._initial_key].setChecked(True)
+        self._initial_scrolled = False
 
-        reset_row = QHBoxLayout()
-        reset_btn = QPushButton("Resetuj")
-        reset_btn.setObjectName("btnSecondary")
-        reset_btn.setFixedHeight(36)
-        mark_quiet(reset_btn)  # S13: w tym rzędzie dialogu jest tylko „Resetuj” — cichy; obrys zostaje polom
-        reset_btn.clicked.connect(self._reset)
-        reset_row.addWidget(reset_btn)
-        reset_row.addStretch()
-        layout.addLayout(reset_row)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        polish_dialog_buttons(buttons)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        footer, *_buttons = build_dialog_footer(self, "Resetuj", self._reset)
+        layout.addLayout(footer)
 
         self._load_from_opts()
 
     def showEvent(self, event) -> None:  # noqa: N802 (Qt API)
         super().showEvent(event)
-        if not self._page_width_checked:
-            self._page_width_checked = True
-            QTimer.singleShot(0, self._ensure_page_width)
+        if not self._initial_scrolled:
+            self._initial_scrolled = True
+            # sekcja formatu wybranego w oknie głównym od razu na górze (po policzeniu geometrii strony)
+            QTimer.singleShot(0, lambda: self._scroll_to(self._initial_key))
 
-    def _ensure_page_width(self) -> None:
-        """Strony kart nie mogą być węższe niż ich treść (inaczej prawy brzeg pól jest ucięty, a poziomego paska nie ma).
+    @staticmethod
+    def _format_section(title: str, description: str, form: QWidget) -> QFrame:
+        """Szary panel (L1) jednego formatu: tytuł, opis u góry (nie na dole okna), siatka opcji."""
+        box = QFrame()
+        box.setObjectName("dialogPanel")
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN)
+        lay.setSpacing(DIALOG_STACK_GAP)
+        heading = QLabel(title)
+        heading.setObjectName("settingsSectionTitle")
+        lay.addWidget(heading)
+        if description:
+            hint = QLabel(description)
+            hint.setObjectName("hintLabel")
+            hint.setWordWrap(True)
+            lay.addWidget(hint)
+        lay.addWidget(form)
+        return box
 
-        Układ nie zna wypełnienia panelu kart ze stylu, więc różnicę mierzymy po pokazaniu i poszerzamy okno
-        (i jego minimum) o brakujące piksele — nie więcej niż pozwala ekran.
-        """
-        pages = [
-            self._tabs.widget(i)
-            for i in range(self._tabs.count())
-            if isinstance(self._tabs.widget(i), _PageScroll) and self._tabs.widget(i).widget() is not None
-        ]
-        if not pages:
+    def _scroll_to(self, key: str) -> None:
+        """Przewija stronę tak, by sekcja ``key`` zaczynała się u góry (kotwica)."""
+        section = self._sections.get(key)
+        if section is None:
             return
-        visible = self._tabs.currentWidget()
-        if not isinstance(visible, _PageScroll):
-            visible = pages[0]
-        deficit = max(p.widget().minimumSizeHint().width() for p in pages) - visible.viewport().width()
-        if deficit <= 0:
+        self._syncing_anchor = True
+        try:
+            self._anchor_btns[key].setChecked(True)
+            # 8 px powietrza nad sekcją (poprzednia sekcja kończy się 16 px wyżej, więc nie wystaje)
+            self._scroll.verticalScrollBar().setValue(max(0, section.y() - SCROLL_TOP_GAP))
+        finally:
+            self._syncing_anchor = False
+
+    def _on_scrolled(self, value: int) -> None:
+        """Aktywna kotwica = ostatnia sekcja, której początek już minął górną krawędź (na dole strony: ostatnia)."""
+        if self._syncing_anchor:
             return
-        screen = self.screen()
-        room = (screen.availableGeometry().width() - 16 - self.width()) if screen is not None else deficit
-        grow = max(0, min(deficit, room))
-        if grow:
-            before = self.width()
-            self.setMinimumWidth(self.minimumWidth() + grow)  # Qt może już tu poszerzyć okno do nowego minimum
-            self.resize(max(self.width(), before + grow), self.height())
+        bar = self._scroll.verticalScrollBar()
+        if bar.maximum() > 0 and value >= bar.maximum():
+            current = _ANCHORS[-1][0]
+        else:
+            current = _ANCHORS[0][0]
+            for key, _text in _ANCHORS:
+                if self._sections[key].y() <= value + DIALOG_STACK_GAP + 8:
+                    current = key
+        self._syncing_anchor = True
+        try:
+            self._anchor_btns[current].setChecked(True)
+        finally:
+            self._syncing_anchor = False
 
     @staticmethod
     def _scrolling_page(page: QWidget) -> QScrollArea:
-        """Strona karty w obszarze przewijania (styl jak prawy panel: przezroczysty, bez ramki)."""
+        """Strona sekcji w obszarze przewijania (styl jak prawy panel: przezroczysty, bez ramki)."""
         scroll = _PageScroll()
         scroll.setObjectName("settingsScroll")
         scroll.setWidgetResizable(True)
@@ -225,9 +298,7 @@ class FormatSettingsDialog(AppDialog):
         return scroll
 
     def _jpeg_tab(self) -> QWidget:
-        w = QWidget()
-        fl = QFormLayout(w)
-        fl.setSpacing(DIALOG_ROW_GAP)
+        w = fl = _SectionForm()
 
         self._jpeg_matte_mode = style_dropdown(QComboBox())
         self._jpeg_matte_mode.addItems([
@@ -307,9 +378,7 @@ class FormatSettingsDialog(AppDialog):
         return w
 
     def _png_tab(self) -> QWidget:
-        w = QWidget()
-        fl = QFormLayout(w)
-        fl.setSpacing(DIALOG_ROW_GAP)
+        w = fl = _SectionForm()
         self._png_mode = style_dropdown(QComboBox())
         self._png_mode.addItems([
             "Auto (z suwaka jakości)",
@@ -331,9 +400,7 @@ class FormatSettingsDialog(AppDialog):
         return w
 
     def _webp_tab(self) -> QWidget:
-        w = QWidget()
-        fl = QFormLayout(w)
-        fl.setSpacing(DIALOG_ROW_GAP)
+        w = fl = _SectionForm()
         self._webp_lossless = QCheckBox("Bezstratny WebP")
         self._webp_lossless.setToolTip("Większy plik, zero strat — jak archiwum.")
         fl.addRow(self._webp_lossless)
@@ -343,9 +410,7 @@ class FormatSettingsDialog(AppDialog):
         return w
 
     def _gif_tab(self) -> QWidget:
-        w = QWidget()
-        fl = QFormLayout(w)
-        fl.setSpacing(DIALOG_ROW_GAP)
+        w = fl = _SectionForm()
 
         self._gif_mode = style_dropdown(QComboBox())
         self._gif_mode.addItem("Jakość (2 z 3 klatek + lossy)", "quality")
@@ -399,10 +464,10 @@ class FormatSettingsDialog(AppDialog):
         self._gif_colors_label.setObjectName("hintLabel")
         fl.addRow("Liczba kolorów:", self._gif_colors_label)
 
-        fl.addRow(QLabel(" "))
+        fl.add_span(h_separator())
         video_title = QLabel("Film → GIF (MP4, MOV, WebM…)")
-        video_title.setObjectName("sectionStepTitle")
-        fl.addRow(video_title)
+        video_title.setObjectName("fieldLabel")
+        fl.add_span(video_title)
 
         self._video_mode = style_dropdown(QComboBox())
         self._video_mode.addItem("Równomiernie — płynny ruch", "smooth")
@@ -455,8 +520,7 @@ class FormatSettingsDialog(AppDialog):
         return w
 
     def _avif_tab(self) -> QWidget:
-        w = QWidget()
-        fl = QFormLayout(w)
+        w = fl = _SectionForm()
         self._avif_rgb_only = QCheckBox("Tylko bitmapa RGB (bez warstw, CMYK i Pantone)")
         self._avif_rgb_only.setToolTip(
             "Spłaszcza warstwy, konwertuje CMYK→RGB, usuwa kanały spot/Pantone. "

@@ -80,6 +80,9 @@ def _shown_button(app, name: str, text: str = "Napis", *, quiet: bool = False) -
         ("updateStatusCancel", False, False),
         ("formatChip", False, False),
         ("cropAnchorBtn", False, False),
+        ("footerOutline", False, True),  # 2.6.7: „Zamknij” w trybie zaawansowanym (obrys, wysokość jak Konwertuj)
+        ("dialogOutline", False, True),  # 2.6.7: „Anuluj” w oknach ustawień
+        ("anchorTab", False, True),  # 2.6.7: kotwice okna Ustawienia (JPEG, PNG… wersalikami)
     ],
 )
 def test_wants_uppercase_per_button_class(app, name, quiet, expected):
@@ -138,10 +141,12 @@ def _real_window_texts(win) -> dict[str, tuple[bool, bool]]:
             if b.isVisible() and b.text()}
 
 
+# 2.6.7: „Zamknij” to przycisk drugorzędny z obrysem (jedyny w swojej grupie obok żółtego „Konwertuj”) → wersaliki (S18);
+# pigułki formatu („PNG”, „Inne”…) mają Lato 700 zwykłą wielkością liter (właściwość pigulka).
 _LOWER_ADVANCED = {"Przywróć preset", "Aktualizuj ścieżkę", "Przeglądaj", "Konwertuj", "Dodaj pliki", "Dodaj folder",
-                   "Usuń", "Wyczyść", "Zamknij"}
-_UPPER_ADVANCED = {"Tryb prosty", "Ustawienia…"}
-_LOWER_SIMPLE = {"Dodaj pliki", "Dodaj folder", "Wyczyść", "Konwertuj"}
+                   "Usuń", "Wyczyść", "PNG", "JPG", "WebP", "AVIF", "GIF", "Inne"}
+_UPPER_ADVANCED = {"Tryb prosty", "Ustawienia…", "Zamknij"}
+_LOWER_SIMPLE = {"Dodaj pliki", "Dodaj folder", "Wyczyść", "Konwertuj", "Jak oryginał", "PNG", "JPG", "AVIF", "WebP"}
 _UPPER_SIMPLE = {"Zaawansowany tryb", "Wybierz folder…"}
 
 
@@ -186,15 +191,15 @@ def test_real_window_casing_matches_the_rule_also_after_real_theme_toggles(make_
 
 
 @pytest.mark.parametrize("theme", ALL)
-def test_file_list_alternate_matches_list_background_in_light_only(theme):
+def test_file_list_alternate_matches_list_background_in_every_theme(theme):
+    """2.6.7 (DS 2.0.10, S19): geometria jasnego i ciemnego identyczna. Zebra w ciemnych = L2 (tło listy), więc pasów
+    nie ma w żadnym motywie, a wiersze rozdziela linia 1 px (do 2.6.6 ciemne miały pasy bez linii)."""
     t = themes._THEME_TOKENS[theme]
     list_bg = t["@BG_PANEL_ALT@"]
-    if theme in LIGHT:
-        assert t["@LIST_ALT_BG@"] == list_bg  # jeden poziom tła w panelu: białe wiersze, bez pasów
-        assert t["@LIST_ROW_LINE@"] == f"1px solid {t['@SEP@']}"
-    else:
-        assert t["@LIST_ALT_BG@"] == t["@BG_ZEBRA@"] != list_bg  # ciemne zostają przy pasach zebra
-        assert t["@LIST_ROW_LINE@"] == "none"
+    assert t["@LIST_ALT_BG@"] == list_bg  # jeden poziom tła w panelu: wiersze jak tło listy, bez pasów
+    assert t["@LIST_ROW_LINE@"] == f"1px solid {t['@SEP@']}"
+    if theme not in LIGHT:
+        assert t["@BG_ZEBRA@"] == list_bg  # DS 2.0.10: zebra ciemnych = surface-2
     assert t["@ROW_HOVER@"] != list_bg and t["@ROW_SELECTED_BG@"] != list_bg  # najechanie i zaznaczenie widać
 
 
@@ -207,7 +212,7 @@ def _row_color(tree, index: int):
 
 
 @pytest.mark.parametrize("theme", (ZJ, KJ, ZC, KC))
-def test_file_list_rows_are_plain_in_light_and_striped_in_dark(make_window, theme):  # noqa: F811
+def test_file_list_rows_are_plain_in_every_theme(make_window, theme):  # noqa: F811
     make, qapp, _ = make_window
     themes.apply_theme(qapp, theme)
     win = make(QRect(0, 0, 1920, 1152), mode="advanced")
@@ -225,11 +230,8 @@ def test_file_list_rows_are_plain_in_light_and_striped_in_dark(make_window, them
     t = themes._THEME_TOKENS[theme]
     c1, c2 = _row_color(tree, 1), _row_color(tree, 2)
     try:
-        if theme in LIGHT:
-            assert c1 == c2  # brak pasów
-            assert c1.name().lower() == t["@BG_PANEL_ALT@"].lower()
-        else:
-            assert c1 != c2  # pasy zebra w ciemnych
+        assert c1 == c2  # brak pasów (również w ciemnych — DS 2.0.10)
+        assert c1.name().lower() == t["@BG_PANEL_ALT@"].lower()
     finally:
         themes.apply_theme(qapp, ZJ)
 
@@ -302,9 +304,8 @@ def test_main_window_column_gap_at_every_density(make_window, level):  # noqa: F
         qapp.processEvents()
     d = DENSITIES[level]
     assert win._main_splitter.handleWidth() == d.col_gap >= 12
-    grid = win._bento_grid
-    assert grid.horizontalSpacing() == d.col_gap >= 12
-    assert grid.verticalSpacing() == d.card_gap  # pion = odstęp kart (8 na poziomie 2)
+    # 2.6.7: karty prawej kolumny stoją w jednej kolumnie — odstęp między nimi = odstęp kart (8 na poziomie 2)
+    assert win._card_panel_layout.spacing() == d.card_gap
     assert win._left_column.layout().spacing() == d.card_gap
 
 

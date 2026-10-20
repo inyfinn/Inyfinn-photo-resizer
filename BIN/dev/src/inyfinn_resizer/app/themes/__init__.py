@@ -327,11 +327,12 @@ def _theme_tokens(key: str) -> dict[str, str]:
     if dark:
         tokens["@ROW_SELECTED_BG@"] = lad["surface_4"]
         tokens["@ROW_HOVER@"] = lad["surface_3"]
-    # LISTA PLIKÓW (2.6.6, S14 „jeden poziom tła w panelu”): w jasnych motywach wiersze są BIAŁE (= tło listy, bez
-    # pasów zebra) i rozdziela je cienka linia 1 px (S10); w ciemnych zostają pasy zebra jak dotąd, bez linii.
-    # Tabela wyników (na białym oknie dialogu) ma swoje pasy z @BG_ZEBRA@ w obu trybach.
-    tokens["@LIST_ALT_BG@"] = tokens["@BG_ZEBRA@"] if dark else tokens["@BG_PANEL_ALT@"]
-    tokens["@LIST_ROW_LINE@"] = "none" if dark else tokens["@LINE@"]
+    # LISTA PLIKÓW (2.6.6, S14 „jeden poziom tła w panelu”): wiersze są BIAŁE (= tło listy, bez pasów zebra), rozdziela je
+    # cienka linia 1 px (S10). 2.6.7 (DS 2.0.10, S19 „geometria jasnego i ciemnego identyczna”): zebra w ciemnych
+    # motywach = L2 (czyli tło listy), więc pasów nie ma i tu — wiersze w ciemnych też rozdziela linia 1 px.
+    # Tabela wyników (na białym oknie dialogu) ma `alternate-background-color` z @BG_ZEBRA@ w obu trybach.
+    tokens["@LIST_ALT_BG@"] = tokens["@BG_PANEL_ALT@"]
+    tokens["@LIST_ROW_LINE@"] = tokens["@LINE@"]
     return tokens
 
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QCursor, QGuiApplication
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QPushButton, QWidget
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QPushButton, QWidget
 
-from inyfinn_resizer.app.widgets.layout_helpers import fit_title_heights, pin_button_min_widths
+from inyfinn_resizer.app.widgets.layout_helpers import fit_title_heights, mark_quiet, pin_button_min_widths
 from inyfinn_resizer.app.window_fit import frame_margins, inside
 
 # Odstępy okien dialogowych wg design systemu Dobra Kaloria 2.0 (qt.*): margines okna 20 px,
@@ -15,6 +15,7 @@ DIALOG_MARGIN = 20
 DIALOG_SECTION_GAP = 16
 DIALOG_STACK_GAP = 12
 DIALOG_ROW_GAP = 10
+DIALOG_BTN_H = 40  # wysokość przycisków dolnego rzędu okna ustawień (Anuluj i OK równe, S48)
 
 
 def apply_dialog_layout(layout, *, spacing: int = DIALOG_SECTION_GAP) -> None:
@@ -45,6 +46,32 @@ def polish_dialog_buttons(box: QDialogButtonBox) -> None:
                 btn.setObjectName("btnSecondary")
     if box.layout() is not None:
         box.layout().setSpacing(DIALOG_ROW_GAP)  # przyciski obok siebie: odstęp ≥ 8 px (styl dawał 6)
+
+
+def build_dialog_footer(dialog: QDialog, reset_text: str, on_reset) -> tuple[QHBoxLayout, QPushButton, QPushButton, QPushButton]:
+    """Dolny rząd okna ustawień (DS 26.5, S48): cichy „Resetuj” z lewej; „Anuluj” (drugorzędny z obrysem) i „OK” (główny)
+    z prawej — jeden rząd, ta sama wysokość 40 px. Zwraca (układ, resetuj, anuluj, ok)."""
+    row = QHBoxLayout()
+    row.setSpacing(DIALOG_ROW_GAP)
+    reset_btn = QPushButton(reset_text)
+    reset_btn.setObjectName("btnSecondary")
+    mark_quiet(reset_btn)  # S13: cichy; obrys zostaje przyciskowi „Anuluj”
+    reset_btn.setFixedHeight(DIALOG_BTN_H)
+    reset_btn.clicked.connect(on_reset)
+    cancel_btn = QPushButton("Anuluj")
+    cancel_btn.setObjectName("dialogOutline")
+    cancel_btn.setFixedHeight(DIALOG_BTN_H)
+    cancel_btn.clicked.connect(dialog.reject)
+    ok_btn = QPushButton("OK")
+    ok_btn.setObjectName("primaryBtn")
+    ok_btn.setFixedHeight(DIALOG_BTN_H)
+    ok_btn.setDefault(True)
+    ok_btn.clicked.connect(dialog.accept)
+    row.addWidget(reset_btn)
+    row.addStretch(1)
+    row.addWidget(cancel_btn)
+    row.addWidget(ok_btn)
+    return row, reset_btn, cancel_btn, ok_btn
 
 
 class AppDialog(QDialog):
