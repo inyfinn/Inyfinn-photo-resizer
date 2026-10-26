@@ -688,15 +688,6 @@ QPushButton#themeToggle {
     padding: 0 16px;
 }
 
-QWidget#themeToggleWidget {
-    background: transparent;
-    min-width: 72px;
-    max-width: 72px;
-    min-height: 32px;
-    max-height: 32px;
-    margin: 4px 12px 0 0;
-}
-
 /* Lista plików (S10, S14): biała rubryka L2 na szarym panelu, bez obrysu (granicę robi sam kontrast). Jasne motywy:
    białe wiersze rozdzielone linią 1 px (@LIST_ROW_LINE@), bez pasów; ciemne: pasy zebra bez linii (tokeny w
    themes/__init__.py). Bez linii pionowych. */

@@ -86,7 +86,7 @@ from inyfinn_resizer.app.themes import (
     theme_id,
 )
 from inyfinn_resizer.app.widgets.startup_splash import pulse as _splash_pulse
-from inyfinn_resizer.app.widgets.theme_toggle import TOGGLE_TOOLTIP, ThemeToggle
+from inyfinn_resizer.app.widgets.theme_toggle import ThemeToggle
 from inyfinn_resizer.app.widgets.removable_items import install_remove_support
 from inyfinn_resizer.utils.reveal import reveal_in_explorer
 from inyfinn_resizer.app.widgets.layout_helpers import (
@@ -780,13 +780,8 @@ class MainWindow(QMainWindow):
         self._mode_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._mode_btn.clicked.connect(self._toggle_ui_mode)
         strip_lay.addWidget(self._mode_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
-        theme_lbl = QLabel("Motyw")
-        theme_lbl.setObjectName("themeToggleLabel")
-        theme_lbl.setToolTip(TOGGLE_TOOLTIP)
-        strip_lay.addWidget(theme_lbl, 0, Qt.AlignRight | Qt.AlignVCenter)
-        self._theme_toggle.setMinimumSize(72, 32)
-        self._theme_toggle.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self._theme_toggle.setVisible(True)
+        # 2.6.10: napis „Ciemny motyw” rysuje sam przełącznik (SwitchBox), bez osobnej etykiety „Motyw”.
+        strip_lay.addSpacing(8)
         strip_lay.addWidget(self._theme_toggle, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.setMenuWidget(menu_strip)
         self._apply_header_for_mode()

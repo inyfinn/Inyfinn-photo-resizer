@@ -19,6 +19,13 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.10",
+        "2026-10-26",
+        [
+            "Przełącznik motywu w prawym górnym rogu jest prostszy: zwykły przełącznik z napisem „Ciemny motyw”, taki sam jak w „Opcjach zaawansowanych”. Włączony = ciemny motyw. Zniknęło słońce i księżyc na gałce.",
+        ],
+    ),
+    (
         "2.6.9",
         "2026-10-26",
         [

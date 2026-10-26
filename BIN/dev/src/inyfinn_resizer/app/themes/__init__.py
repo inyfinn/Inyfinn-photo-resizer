@@ -142,24 +142,6 @@ def _tag_tokens(tags: list[tuple[str, str, str]]) -> dict[str, str]:
     return out
 
 
-def _luminance(hex_color: str) -> float:
-    h = hex_color.lstrip("#")
-    rgb = [int(h[i : i + 2], 16) / 255 for i in (0, 2, 4)]
-    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
-    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
-
-
-def _readable_on(background: str, *candidates: str) -> str:
-    """Z kandydatów ten o największym kontraście względem tła (księżyc na gałce przełącznika)."""
-    lb = _luminance(background)
-
-    def ratio(c: str) -> float:
-        lc = _luminance(c)
-        return (max(lb, lc) + 0.05) / (min(lb, lc) + 0.05)
-
-    return max(candidates, key=ratio)
-
-
 # Obrazy pola wyboru (icons/cb-<klucz>-<stan>.png, rb-… dla radio): stan → (najechanie, fokus, zaznaczone, wyłączone).
 CHECK_STATES: dict[str, tuple[bool, bool, bool, bool]] = {
     "off": (False, False, False, False),
@@ -243,8 +225,6 @@ def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field
         "@SWITCH_OFF_BORDER@": r["color_switch_off_border"],
         "@SWITCH_ON@": r["color_switch_on"],
         "@SWITCH_KNOB@": r["color_switch_knob"],
-        "@SWITCH_SUN@": r["color_switch_on"],  # słońce na gałce w jasnym trybie
-        "@SWITCH_MOON@": _readable_on(r["color_switch_knob"], r["color_text"], r["color_on_accent"]),
         "@BORDER@": r["color_border_strong"],
         "@SEP@": r["color_border"],
         "@FIELD_BORDER@": r["color_field_border"],
