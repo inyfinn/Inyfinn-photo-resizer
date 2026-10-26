@@ -19,6 +19,15 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.9",
+        "2026-10-26",
+        [
+            "TIFF z przezroczystym tłem (np. element z Photoshopa w CMYK) po konwersji do PNG, WebP, AVIF albo TIFF zostaje przezroczysty. Wcześniej program kładł go na czarnym tle.",
+            "Krawędzie takiego elementu są czyste, bez ciemnej obwódki. Do JPEG i innych formatów bez przezroczystości tło jest białe, jak dotąd.",
+            "TIFF w RGB z przezroczystością program brał wcześniej za CMYK i psuł mu kolory. Teraz czyta go poprawnie.",
+        ],
+    ),
+    (
         "2.6.8",
         "2026-10-20",
         [

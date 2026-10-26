@@ -73,20 +73,20 @@ def _cmyk_profile_to_srgb(cmyk: Image.Image, icc_bytes: bytes | None) -> Image.I
         return cmyk.convert("RGB")
 
 
-def _composite_on_black(rgb: Image.Image, alpha) -> Image.Image:
+def _unpremultiply(color, alpha):
+    """TIFF ExtraSamples=1 (associated alpha): kolor jest przemnożony przez alfę — cofamy to."""
     import numpy as np
 
-    if alpha is None:
-        return rgb
-    a = np.asarray(alpha)
-    if a.ndim != 2:
-        return rgb
-    if int(a.min()) >= 255:
-        return rgb
-    bg = Image.new("RGB", rgb.size, (0, 0, 0))
-    mask = Image.fromarray(a, mode="L")
-    bg.paste(rgb, mask=mask)
-    return bg
+    a = alpha.astype(np.float32)[..., None]
+    out = np.where(a > 0, color.astype(np.float32) * 255.0 / np.maximum(a, 1.0), 0.0)
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+
+
+def _is_associated_alpha(page) -> bool:
+    try:
+        return int(page.extrasamples[0]) == 1
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return False
 
 
 def _trim_transparent(im: Image.Image) -> Image.Image:
@@ -99,24 +99,28 @@ def _trim_transparent(im: Image.Image) -> Image.Image:
     return im
 
 
-def _cmyk_array_to_rgb(data, *, icc_bytes: bytes | None = None) -> Image.Image:
-    """CMYK (+ opcjonalny kanał alfa) → RGB, jak changeMode(RGB) w Photoshop."""
+def _cmyk_array_to_rgb(
+    data, *, icc_bytes: bytes | None = None, associated: bool = False
+) -> Image.Image:
+    """CMYK (+ opcjonalny kanał alfa) → RGB/RGBA, jak changeMode(RGB) w Photoshop.
+
+    Przezroczystość zostaje (RGBA) — spłaszczenie robi dopiero zapis do formatu bez alfy.
+    """
     import numpy as np
 
-    cmyk = data[:, :, :4]
+    cmyk = np.ascontiguousarray(data[:, :, :4])
+    alpha = data[:, :, 4] if data.shape[2] >= 5 else None
+    if alpha is not None and associated:
+        cmyk = _unpremultiply(cmyk, alpha)
     im = Image.fromarray(cmyk, mode="CMYK")
     rgb = _cmyk_profile_to_srgb(im, icc_bytes)
     im.close()
-    if data.shape[2] >= 5:
-        alpha = data[:, :, 4]
-        rgba = rgb.convert("RGBA")
-        rgba.putalpha(Image.fromarray(alpha, mode="L"))
-        rgba = _trim_transparent(rgba)
-        out = Image.new("RGB", rgba.size, (0, 0, 0))
-        out.paste(rgba, mask=rgba.split()[-1])
-        rgba.close()
-        return out
-    return rgb
+    if alpha is None:
+        return rgb
+    rgba = rgb.convert("RGBA")
+    rgb.close()
+    rgba.putalpha(Image.fromarray(np.ascontiguousarray(alpha), mode="L"))
+    return _trim_transparent(rgba)
 
 
 def _tifffile_page_to_pil(page) -> Image.Image:
@@ -140,18 +144,25 @@ def _tifffile_page_to_pil(page) -> Image.Image:
         raise OSError(f"Nieobsługiwany TIFF: ndim={data.ndim}")
 
     ch = data.shape[2]
+    associated = _is_associated_alpha(page)
 
-    if photo == _PHOTO_CMYK or ch in (4, 5):
-        return _cmyk_array_to_rgb(data, icc_bytes=icc_bytes)
+    if photo == _PHOTO_CMYK:
+        return _cmyk_array_to_rgb(data, icc_bytes=icc_bytes, associated=associated)
 
-    if ch == 4:
-        im = Image.fromarray(data, mode="RGBA")
-        im = _trim_transparent(im)
-        rgb = im.convert("RGB")
-        im.close()
-        return rgb
+    if ch >= 4:
+        rgb, alpha = data[:, :, :3], data[:, :, 3]
+        if associated:
+            rgb = _unpremultiply(rgb, alpha)
+        rgba = np.dstack([rgb, alpha])
+        return _trim_transparent(Image.fromarray(np.ascontiguousarray(rgba), mode="RGBA"))
     if ch == 3:
         return Image.fromarray(data, mode="RGB")
+    if ch == 2:
+        gray, alpha = data[:, :, :1], data[:, :, 1]
+        if associated:
+            gray = _unpremultiply(gray, alpha)
+        la = np.dstack([gray[:, :, 0], alpha])
+        return _trim_transparent(Image.fromarray(np.ascontiguousarray(la), mode="LA")).convert("RGBA")
     if ch == 1:
         return Image.fromarray(data[:, :, 0], mode="L").convert("RGB")
 
