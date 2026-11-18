@@ -1,7 +1,7 @@
 # Inyfinn Photo Resizer — dokumentacja deweloperska
 
 Natywna aplikacja Windows (Python 3.12 · PySide6 · libvips · pngquant · gifsicle).  
-**Wersja:** 2.6.8 · **Korzeń projektu:** wyłącznie `InyfinnPhotoResizer.exe` (launcher).
+**Wersja:** 2.6.11 · **Korzeń projektu:** wyłącznie `InyfinnPhotoResizer.exe` (launcher).
 
 Dokumentacja i logi są **tylko tutaj** (`BIN/dev/`), nie w korzeniu.
 
@@ -15,6 +15,23 @@ Dokumentacja i logi są **tylko tutaj** (`BIN/dev/`), nie w korzeniu.
 | Dev | `pip install -e ".[dev]"` → `inyfinn-photo-resizer` |
 
 ---
+
+## Zdjęcia dla Rossmanna (i innych sieci): komplet w 4 krokach, 2.6.11
+
+Dla handlowca, bez grafika:
+
+1. Przeciągnij do okna wizki produktu z folderu `4-WIZKI\INTERNET-PREZENTACJE-RGB` (FRONT i TYŁ w PNG).
+2. W polu **Sieć** wybierz **Rossmann**.
+3. Sprawdź **EAN produktu** i zielone „Dobrze: …”. Przy każdym pliku jest jego rola (Główne, Tył, Front…) i gotowa nazwa, np. `5903548004897_g.png`. Kopie tej samej strony (FRONT-S, FRONT.jpg, -SKLEP) program sam oznacza „Pomiń” i bierze większy plik PNG. Czerwony napis przy pliku = popraw rolę z listy.
+4. Kliknij **Konwertuj**. Gotowe pliki trafią obok wizek albo do wybranego folderu.
+
+Program sam: wycina tło (gdy plik go ma), przycina do krawędzi produktu, ustawia wymiar (krótszy bok co najmniej 1200 px, dłuższy najwyżej 3800 px), zapisuje PNG w sRGB do 5 MB (kompresja, a dopiero gdy to nie wystarczy, mniejszy wymiar) i mówi, co zrobił.
+
+**Skąd program bierze EAN** (w tej kolejności, tak samo jak skrypty Photoshopa): plik tekstowy w `1-MATERIAŁY` o nazwie `<indeks> - EAN<13 cyfr>.txt`, np. `6300754 - EAN5903548004897.txt`, karta wprowadzenia `.xlsx` w `1-MATERIAŁY` (tylko karta z indeksem tego produktu), kod kreskowy na zdjęciu TYŁ. Gdy źródła się różnią, program pokazuje oba numery i każe wybrać. EAN zawsze można poprawić ręcznie; program sprawdza cyfrę kontrolną.
+
+**Presety pudełkowe** (ALDI 1920, dm 2000, Amazon / Allegro 1200, Amazon 3000): cały produkt wyśrodkowany na kwadracie, tło przezroczyste (PNG) albo białe (JPG). Od 2.6.11 nic z produktu nie jest obcinane (wcześniej „cover” ucinał górę i dół wysokiej wizki).
+
+Dla programistów: presety są w `core/retail_presets.py` (jedno źródło), eksport wg specyfikacji w `core/retail_export.py`, EAN i role w `core/ean.py`, panel w `app/widgets/retail_names.py`. Plik dla skryptów Photoshopa: `python -m inyfinn_resizer.core.retail_presets --json <plik>` (z `BIN\dev\src`), schemat w `presets_json()`; test zgodności `tests/test_rossmann_ean.py::test_presets_json_matches_source`.
 
 ## Lista rozszerzeń (`FormatMultiCombo`) — poprawka 20.10.2026, do wydania po 2.6.6
 

@@ -6,11 +6,6 @@ from dataclasses import dataclass, replace
 
 from inyfinn_resizer.core.job import FormatOptions, ResizeOptions, TransformOptions
 from inyfinn_resizer.core.size_presets import (
-    PRESET_BOX_1200,
-    PRESET_BOX_1920,
-    PRESET_BOX_2000,
-    PRESET_BOX_2500,
-    PRESET_BOX_3000,
     PRESET_LONG_1200,
     PRESET_LONG_2400,
     PRESET_ORIGINAL,
@@ -59,6 +54,15 @@ class RetailPreset:
     keep_dates: bool = True
     overwrite_prompt: bool = True
     parallel: bool = True
+    # Eksport wg specyfikacji (core/retail_export.py); 0 = bez limitu.
+    trim_to_content: bool = False
+    alpha_floor: int = 8  # alfa poniżej progu = tło (mgiełka widoczna w trybie ciemnym sklepu)
+    min_shortest_px: int = 0
+    max_longest_px: int = 0
+    max_file_mb: float = 0.0
+    canvas_px: int = 0  # kwadrat N×N px: cały produkt wyśrodkowany, dopełnienie przezroczyste (PNG) / białe (JPG)
+    dpi: int = 0
+    naming: str = ""  # "ean_role" = <EAN>_<rola>.png (core/ean.py)
 
 
 RETAIL_PRESETS: list[RetailPreset] = [
@@ -66,14 +70,18 @@ RETAIL_PRESETS: list[RetailPreset] = [
         id="aldi_cms",
         label="ALDI — sklep online",
         tooltip=(
-            "PNG 1920×1920 px, produkt bez tła, max ~2 MB. "
+            "PNG 1920×1920 px, cały produkt na środku, tło przezroczyste, max ~2 MB. "
             "Źródło: ALDI_Wymagania dotyczące zdjęć 2025.08.18.pdf (format CMS online)."
         ),
         source="ALDI_Wymagania dotyczące zdjęć 2025.08.18.pdf",
         output_format="png",
         quality=82,
-        size_preset=PRESET_BOX_1920,
-        remove_background=True,
+        size_preset=PRESET_ORIGINAL,
+        remove_background=False,  # tło usuwa retail_export tylko, gdy plik nie ma przezroczystości
+        # cały produkt w kadrze: kadr do treści, potem wyśrodkowany na kwadracie (nigdy obcięty)
+        trim_to_content=True,
+        canvas_px=1920,
+        max_file_mb=2.0,
     ),
     RetailPreset(
         id="aldi_print",
@@ -93,29 +101,39 @@ RETAIL_PRESETS: list[RetailPreset] = [
         id="dm",
         label="dm.pl",
         tooltip=(
-            "PNG lub JPEG ze ścieżką — tu: PNG 2000×2000 px, tło przezroczyste, max 5 MB, 300 dpi. "
+            "PNG 2000×2000 px, cały produkt na środku, tło przezroczyste, max 5 MB, 300 dpi. "
             "Źródło: dm-pl-Wytyczne dla plików multimedialnych lipiec 2024.pdf."
         ),
         source="dm-pl-Wytyczne dla plików multimedialnych lipiec 2024.pdf",
         output_format="png",
         quality=88,
-        size_preset=PRESET_BOX_2000,
-        remove_background=True,
+        size_preset=PRESET_ORIGINAL,
+        remove_background=False,
+        # cały produkt w kadrze: kadr do treści, potem wyśrodkowany na kwadracie (nigdy obcięty)
+        trim_to_content=True,
+        canvas_px=2000,
+        max_file_mb=5.0,
+        dpi=300,
     ),
     RetailPreset(
         id="rossmann",
         label="Rossmann",
         tooltip=(
-            "PNG lub WebP, produkt bez tła, min. 1200 px, max 2500 px, max 5 MB. "
-            "Źródło: Rossmann_Zdjęcia - nowa specyfikacja dla dostawców.pdf."
+            "PNG bez tła, kadr do krawędzi produktu, krótszy bok min. 1200 px, dłuższy max 3800 px, "
+            "max 5 MB, nazwy EAN_g / EAN_t. "
+            "Źródło: Rossmann specyfikacja techniczna zdjęcia (2026)."
         ),
-        source="Rossmann_Zdjęcia - nowa specyfikacja dla dostawców.pdf",
-        output_format="webp",
-        quality=84,
-        size_preset=PRESET_BOX_2500,
-        remove_background=True,
-        min_longest_enabled=True,
-        min_longest_px=1200,
+        source="Rossmann specyfikacja techniczna zdjęcia (2026).pdf",
+        output_format="png",
+        quality=90,
+        size_preset=PRESET_ORIGINAL,
+        remove_background=False,  # tło usuwa retail_export tylko, gdy plik nie ma przezroczystości
+        trim_to_content=True,
+        min_shortest_px=1200,
+        max_longest_px=3800,
+        max_file_mb=5.0,
+        dpi=72,
+        naming="ean_role",
     ),
     RetailPreset(
         id="lidl",
@@ -135,28 +153,34 @@ RETAIL_PRESETS: list[RetailPreset] = [
         id="amazon_allegro",
         label="Amazon / Allegro",
         tooltip=(
-            "PNG bez tła, 1200×1200 px (fallback gdy brak renderów 10000 px). "
+            "PNG bez tła, 1200×1200 px, cały produkt na środku (fallback gdy brak renderów 10000 px). "
             "Źródło: MOKATE_amazon-allegro.docx."
         ),
         source="MOKATE_amazon-allegro.docx",
         output_format="png",
         quality=90,
-        size_preset=PRESET_BOX_1200,
-        remove_background=True,
+        size_preset=PRESET_ORIGINAL,
+        remove_background=False,
+        # cały produkt w kadrze: kadr do treści, potem wyśrodkowany na kwadracie (nigdy obcięty)
+        trim_to_content=True,
+        canvas_px=1200,
     ),
     RetailPreset(
         id="amazon_main",
         label="Amazon — zdjęcie główne",
         tooltip=(
-            "JPEG min. 3000×3000 px, tło białe RGB 255,255,255. "
+            "JPEG 3000×3000 px, cały produkt na środku, tło białe RGB 255,255,255. "
             "Źródło: eCommerce Listing Guidelines Best Practices - Nutripharm - March24.pptx."
         ),
         source="eCommerce Listing Guidelines Best Practices - Nutripharm - March24.pptx",
         output_format="jpeg",
         quality=92,
-        size_preset=PRESET_BOX_3000,
+        size_preset=PRESET_ORIGINAL,
         remove_background=False,
         jpeg_matte_mode="white",
+        # cały produkt w kadrze: kadr do treści, potem wyśrodkowany na kwadracie (nigdy obcięty)
+        trim_to_content=True,
+        canvas_px=3000,
     ),
     RetailPreset(
         id="auchan",
@@ -248,3 +272,48 @@ def default_format_opts_for_retail(preset: RetailPreset) -> FormatOptions:
         png_max_colors=preset.png_max_colors,
         jpeg_matte_mode=preset.jpeg_matte_mode,
     )
+
+SCHEMA_VERSION = 1
+
+
+def presets_json() -> dict:
+    """Jedno źródło presetów dla innych programów (skrypty JSX Photoshopa): presety, role zdjęć, wzorzec nazwy."""
+    from dataclasses import asdict
+
+    from inyfinn_resizer import __version__
+    from inyfinn_resizer.core.ean import NAME_PATTERNS, ROLE_LABELS, ROLE_WORDS
+
+    presets = []
+    for p in RETAIL_PRESETS:
+        resize, _ = apply_size_preset(p.size_preset)
+        presets.append({
+            **asdict(p),
+            "resize": {k: getattr(v, "value", v) for k, v in asdict(resize).items()},
+        })
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "app_version": __version__,
+        "generated_from": "inyfinn_resizer/core/retail_presets.py",
+        "naming": NAME_PATTERNS,
+        "roles": [
+            {"role": role, "label": ROLE_LABELS[role], "words": list(words)} for words, role in ROLE_WORDS
+        ],
+        "role_labels": ROLE_LABELS,
+        "presets": presets,
+    }
+
+
+def write_presets_json(path) -> None:
+    import json
+    from pathlib import Path
+
+    Path(path).write_text(json.dumps(presets_json(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) != 3 or sys.argv[1] != "--json":
+        raise SystemExit("Użycie: python -m inyfinn_resizer.core.retail_presets --json <plik.json>")
+    write_presets_json(sys.argv[2])
+    print(f"Zapisano {sys.argv[2]}")

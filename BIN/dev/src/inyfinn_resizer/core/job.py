@@ -151,6 +151,7 @@ class JobSpec:
     rename: RenameRule = field(default_factory=RenameRule)
     preserve_folder_structure: bool = True
     ask_before_overwrite: bool = True
+    retail_id: str = ""  # preset sieci z eksportem wg specyfikacji (core/retail_export.py)
 
 
 @dataclass
@@ -208,6 +209,7 @@ def job_to_dict(job: JobSpec) -> dict[str, Any]:
         "input_path": str(job.input_path),
         "output_path": str(job.output_path),
         "output_format": job.output_format,
+        "retail_id": job.retail_id,
         "format_opts": {
             "quality": fo.quality,
             "lossless": fo.lossless,
@@ -308,6 +310,7 @@ def job_from_dict(data: dict[str, Any]) -> JobSpec:
         input_path=Path(data["input_path"]),
         output_path=Path(data["output_path"]),
         output_format=data.get("output_format", "webp"),
+        retail_id=data.get("retail_id", ""),
         format_opts=_from_mapping(FormatOptions, fo),
         resize=ResizeOptions(
             mode=resize_mode,

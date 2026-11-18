@@ -7,6 +7,9 @@ Zestawy (4. argument):
 - ``v267``: wygląd 2.6.7 — tryb prosty (pusty, z 3 plikami, wąski 960 px), tryb zaawansowany (rozwinięty, dwie karty
   zwinięte, wąski 960 px), Ustawienia (góra i przewinięte), Opcje zaawansowane;
 - ``v268``: wygląd 2.6.8 — białe pole na pliki, zdanie o zapisie, ustawienia GIF, pytanie o zajęte nazwy.
+- ``v2611``: preset Rossmann z EAN i nazwami plików (tryb prosty i zaawansowany), okno 900×700 i 1366×728.
+  Ekran 1366×768 bez pokazywania okien: ``QT_QPA_PLATFORM=offscreen:configfile=screen1366.json`` (plik obok tego skryptu,
+  w ``scripts/``; uruchamiaj z folderu ``scripts``, bo ścieżka musi być względna: dwukropek w ``C:`` psuje opcję platformy).
 
 Motyw: pełne id (``dobra-kaloria-zielen-ciemny``) albo skrót (``zielen-ciemny``, ``krem-jasny``, ``zielen-jasny``, ``krem-ciemny``).
 Nieznana nazwa kończy program błędem (wcześniej cicho dawała jasny domyślny, więc „ciemne” zrzuty wychodziły jasne).
@@ -179,6 +182,24 @@ STATES_V268: list[tuple[str, str, dict]] = [
     ("savechoice", "pytanie-zapis", {}),
 ]
 
+# 2.6.11: Rossmann na prawdziwych wizkach (tylko odczyt), szerokość minimalna i ekran 1366×768
+_ROSSMANN_DIR = Path(
+    "X:/Marketing/- POLSKA/01 - PRODUKTY/00-DK/02-KULKI/CZARNA-PORZECZKA—[owocowe]/DOY/"
+    "2026-02-24-6300753-MAGNEZ-&-ŻELAZO-65g/4-WIZKI/INTERNET-PREZENTACJE-RGB"
+)
+_ROSSMANN_FILES = [
+    _ROSSMANN_DIR / "DK-DOY-KULKI-CZARNA-PORZECZKA-65-G-MAGNEZ-ŻELAZO-6300753-FRONT.png",
+    _ROSSMANN_DIR / "DK-DOY-KULKI-CZARNA-PORZECZKA-65-G-MAGNEZ-ŻELAZO-6300753-TYŁ.png",
+    _ROSSMANN_DIR / "DK-DOY-KULKI-CZARNA-PORZECZKA-65-G-MAGNEZ-ŻELAZO-6300753-FRONT-S.png",
+]
+STATES_V2611: list[tuple[str, str, dict]] = [
+    ("simple", "prosty-rossmann-900", {"retail": "rossmann", "product": True, "size": (900, 700)}),
+    ("simple", "prosty-rossmann-1366", {"retail": "rossmann", "product": "all", "size": (1366, 728)}),
+    ("main", "zaawansowany-rossmann-900", {"retail": "rossmann", "product": True, "size": (900, 700)}),
+    ("main", "zaawansowany-rossmann-1366", {"retail": "rossmann", "product": "all", "size": (1366, 728)}),
+    ("main", "zaawansowany-bez-sieci-900", {"files": True, "size": (900, 700)}),
+]
+
 
 def main() -> int:
     # capture_ui.py [iteracja] [folder_wyjściowy] [motyw,motyw,...] [zestaw: stare|v267]
@@ -187,7 +208,7 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     iteration = sys.argv[1] if len(sys.argv) > 1 else "final"
     themes = sys.argv[3].split(",") if len(sys.argv) > 3 else list(THEMES)
-    sets = {"v267": STATES_V267, "v268": STATES_V268}
+    sets = {"v267": STATES_V267, "v268": STATES_V268, "v2611": STATES_V2611}
     states = sets.get(sys.argv[4], STATES_OLD) if len(sys.argv) > 4 else STATES_OLD
 
     app = QApplication(sys.argv[:1])
@@ -235,6 +256,14 @@ def main() -> int:
                 print(f"WARN format {fmt}: {type(exc).__name__}: {exc}", file=sys.stderr)
         if opts.get("files") and isinstance(widget, MainWindow):
             _fill_files(widget)
+        if opts.get("product") and isinstance(widget, MainWindow):
+            # cały folder wizek (FRONT, TYŁ, -S, .jpg, -SKLEP): duplikaty program rozstrzyga sam
+            for path in sorted(_ROSSMANN_DIR.glob("*.*")) if opts.get("product") == "all" else _ROSSMANN_FILES:
+                widget._add_path_to_queue(path)
+            widget._update_queue_label()
+            widget._refresh_simple_file_list()
+        if opts.get("retail") and isinstance(widget, MainWindow):
+            widget.retail_preset_combo.setCurrentIndex(widget.retail_preset_combo.findData(opts["retail"]))
         if opts.get("simple_out") == "source" and isinstance(widget, MainWindow):
             widget._simple_output_dir = _sample_files()[0].parent
             widget._refresh_simple_output()
@@ -244,6 +273,9 @@ def main() -> int:
         _repolish(widget)
         widget.show()
         app.processEvents()
+        if opts.get("size") and isinstance(widget, MainWindow):
+            widget.resize(*opts["size"])
+            app.processEvents()
         width = opts.get("width")
         if width and isinstance(widget, MainWindow):
             widget.resize(width, widget.height())

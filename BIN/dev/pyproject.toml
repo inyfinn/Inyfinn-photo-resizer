@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inyfinn-resizer"
-version = "2.6.10"
+version = "2.6.11"
 description = "Native batch image converter and compressor — FastStone-style desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,8 @@ dependencies = [
     "rembg>=2.0.76",
     "pymatting>=1.1.14",
     "onnxruntime-directml>=1.19",
+    "openpyxl>=3.1",  # EAN z karty wprowadzenia (Excel)
+    "zxing-cpp>=2.3",  # EAN z kodu kreskowego na wizce TYŁ (Apache-2.0, ok. 1,8 MB)
 ]
 
 [project.optional-dependencies]

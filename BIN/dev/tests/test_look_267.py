@@ -147,8 +147,9 @@ def test_simple_quality_has_its_own_row_with_label_and_value(make_window):  # no
     make, app, _ = make_window
     win = make(BIG, mode="simple")
     grid = win._simple_format_grid
-    labels = [lbl.text() for lbl, _f in grid._rows if lbl is not None]
-    assert labels == ["Format", "Jakość"]
+    # 2.6.11: przed formatem stoi „Sieć” i (ukryty bez presetu sieci) wiersz bez etykiety z opisem presetu i EAN
+    labels = [lbl.text() for lbl, f in grid._rows if lbl is not None and not f.isHidden()]
+    assert labels == ["Sieć", "Format", "Jakość"]
     pills_bottom = win.simple_format_pills.mapTo(win, QPoint(0, win.simple_format_pills.height())).y()
     slider_top = win.simple_quality_slider.mapTo(win, QPoint(0, 0)).y()
     assert slider_top >= pills_bottom - 4  # suwak pod pigułkami, w osobnym rzędzie

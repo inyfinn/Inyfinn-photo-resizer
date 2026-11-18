@@ -11,7 +11,7 @@ param(
     [string]$Stamp = ""
 )
 $ErrorActionPreference = "Stop"
-$Dev = 'D:\Marketing\- POLSKA\99 - WYMIANA\Krzysztof\--- Moj obszar pracy\Inyfinn Image resizer\BIN\dev'
+$Dev = Split-Path -Parent $PSScriptRoot   # BIN\dev (skrypt lezy w BIN\dev\scripts); dziala na D:, X: i kazdym klonie
 $Bin = Split-Path -Parent $Dev
 $App = Split-Path -Parent $Bin
 $py = Join-Path $Dev '.venv\Scripts\python.exe'

@@ -9,6 +9,8 @@ from PySide6.QtGui import QColor, QFont, QKeySequence, QPen, QShortcut
 from PySide6.QtWidgets import QAbstractItemView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 _ZONE_W = 26  # szerokość strefy ✕ po prawej stronie komórki
+# 2.6.11: wiersz z własnym widżetem (rola pliku sieci) rysuje własny ✕; delegat go wtedy nie rysuje
+OWN_REMOVE_ROLE = int(Qt.ItemDataRole.UserRole) + 7
 
 
 def remove_zone(cell: QRect) -> QRect:
@@ -36,6 +38,8 @@ class RemoveButtonDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
         super().paint(painter, option, index)
+        if index.data(OWN_REMOVE_ROLE):
+            return
         zone = remove_zone(option.rect)
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)

@@ -44,18 +44,21 @@ _COVER = {"1:1": 0.0, "3:4": 25.0, "4:3": 25.0, "16:9": 43.75}
 _NO_CROP = {k: 0.0 for k in ASPECTS}
 
 EXPECTED: dict[str, dict[str, object]] = {
-    "aldi_cms": {"crop": _COVER, "size": {k: (1920, 1920) for k in ASPECTS}, "fmt": "png", "bg": True},
+    # 2.6.11: presety pudełkowe sieci nie obcinają produktu: kwadrat z całym produktem robi core/retail_export.py
+    # (contain_on_canvas, test_rossmann_ean.py::test_canvas_presets_keep_whole_product); preset wymiaru = oryginał.
+    "aldi_cms": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "png", "bg": False},
     "aldi_print": {
         "crop": _NO_CROP,
         "size": {"1:1": (2400, 2400), "3:4": (1800, 2400), "4:3": (2400, 1800), "16:9": (2400, 1350)},
         "fmt": "jpeg",
         "bg": False,
     },
-    "dm": {"crop": _COVER, "size": {k: (2000, 2000) for k in ASPECTS}, "fmt": "png", "bg": True},
-    "rossmann": {"crop": _COVER, "size": {k: (2500, 2500) for k in ASPECTS}, "fmt": "webp", "bg": True},
+    "dm": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "png", "bg": False},
+    # 2026: kadr do treści i limity robi core/retail_export.py (test_rossmann_ean.py), preset wymiaru = oryginał.
+    "rossmann": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "png", "bg": False},
     "lidl": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "jpeg", "bg": False},
-    "amazon_allegro": {"crop": _COVER, "size": {k: (1200, 1200) for k in ASPECTS}, "fmt": "png", "bg": True},
-    "amazon_main": {"crop": _COVER, "size": {k: (3000, 3000) for k in ASPECTS}, "fmt": "jpeg", "bg": False},
+    "amazon_allegro": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "png", "bg": False},
+    "amazon_main": {"crop": _NO_CROP, "size": dict(ASPECTS), "fmt": "jpeg", "bg": False},
     "auchan": {
         "crop": _NO_CROP,
         "size": {"1:1": (1200, 1200), "3:4": (900, 1200), "4:3": (1200, 900), "16:9": (1200, 675)},
@@ -132,12 +135,11 @@ def test_preset_crop_percentage(preset_id: str, aspect: str) -> None:
     assert row.cropped_pct == pytest.approx(expected, abs=1.5)
 
 
-def test_box_presets_use_cover_mode() -> None:
-    """Kwadratowe presety sieci to FIT_BOX (cover) — przycinają, a nie dopełniają tłem."""
-    box_ids = {pid for pid, exp in EXPECTED.items() if exp["crop"] is _COVER}
+def test_retail_presets_never_use_cover_mode() -> None:
+    """2.6.11: żaden preset sieci nie jest FIT_BOX (cover ucina produkt); kwadrat = canvas_px w retail_export."""
     for preset in RETAIL_PRESETS:
         resize = retail_snapshot_from_preset(preset)["resize"]
-        assert (resize.mode == ResizeMode.FIT_BOX) == (preset.id in box_ids)
+        assert resize.mode != ResizeMode.FIT_BOX, preset.id
 
 
 def test_vips_cover_crops_like_pillow() -> None:
@@ -150,8 +152,10 @@ def test_vips_cover_crops_like_pillow() -> None:
 
     from inyfinn_resizer.core.transforms.image_ops import apply_resize, apply_scale_postprocess
 
-    preset = next(p for p in RETAIL_PRESETS if p.id == "aldi_cms")
-    resize = retail_snapshot_from_preset(preset)["resize"]
+    from inyfinn_resizer.core.size_presets import PRESET_BOX_1920, apply_size_preset
+
+    # zwykły preset rozmiaru „pudełko 1920” zostaje cover (z wyborem kotwicy kadru); presety sieci już nie
+    resize, _ = apply_size_preset(PRESET_BOX_1920)
     w, h = ASPECTS["16:9"]
     src = _gradient_image(w, h)
     vimg = pyvips.Image.new_from_memory(src.tobytes(), w, h, 3, "uchar")

@@ -19,6 +19,19 @@ from inyfinn_resizer.app.widgets.layout_helpers import SECTION_GAP
 # Najnowsza wersja pierwsza. Aktualizuj przy każdym wydaniu.
 CHANGELOG: list[tuple[str, str, list[str]]] = [
     (
+        "2.6.11",
+        "2026-11-18",
+        [
+            "Preset Rossmann wg specyfikacji 2026: PNG bez tła, kadr dokładnie do krawędzi produktu, krótszy bok min. 1200 px, dłuższy max 3800 px, plik do 5 MB (najpierw kompresja, dopiero potem mniejszy wymiar).",
+            "Nazwy plików dla Rossmanna: EAN_g.png (front), EAN_t.png (tył). EAN program wpisuje sam: z karty wprowadzenia w 1-MATERIAŁY, z pliku z EAN w nazwie albo z kodu kreskowego na zdjęciu tyłu. Pole EAN można poprawić.",
+            "Sieć wybierzesz też w trybie prostym (pole „Sieć”). Przy każdym zdjęciu widać jego rolę (główne, tył, front, boki...) i gotową nazwę; rolę zmienisz z listy, a dwa pliki z tą samą rolą program pokazuje od razu.",
+            "ALDI, dm i Amazon: cały produkt mieści się w kwadracie (wcześniej góra i dół wysokiej wizki były ucinane).",
+            "Pasek u góry jest niższy, przyciski i lista sieci mają tę samą wysokość.",
+            "Kopie tej samej strony (FRONT-S, FRONT.jpg, -SKLEP) program pomija sam i bierze większy plik PNG; w trybie prostym rolę i gotową nazwę widać w wierszu listy plików.",
+            "Zdjęcie JPG bez przezroczystości: zanim ruszy konwersja dla sieci, program proponuje pobranie modelu usuwania tła.",
+        ],
+    ),
+    (
         "2.6.10",
         "2026-10-26",
         [

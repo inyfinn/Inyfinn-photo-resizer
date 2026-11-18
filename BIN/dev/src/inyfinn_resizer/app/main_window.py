@@ -171,6 +171,20 @@ from inyfinn_resizer.core.presets import (
     save_preset,
     settings_to_dict,
 )
+from inyfinn_resizer.app.widgets.removable_items import OWN_REMOVE_ROLE
+from inyfinn_resizer.app.widgets.retail_names import RetailNamesPanel, file_row
+from inyfinn_resizer.core.retail_export import needs_background_removal
+from inyfinn_resizer.core.ean import (
+    ROLE_LABELS,
+    SKIP_ROLE,
+    resolve_roles,
+    detect_ean,
+    ean13_valid,
+    find_product_dir,
+    output_name,
+    role_collisions,
+    role_from_name,
+)
 from inyfinn_resizer.core.retail_presets import (
     RETAIL_NONE,
     RETAIL_PRESETS,
@@ -199,6 +213,13 @@ from inyfinn_resizer.workers.wiz_worker import WizThread, WizWorker
 
 DEFAULT_WINDOW_WIDTH = 1280  # preferowana szerokość startowa (przycinana do ekranu)
 DEFAULT_WINDOW_HEIGHT = 920  # tymczasowa wysokość z konstruktora i skryptów zrzutów; prawdziwą wylicza _fit_window
+def _plural(n: int, one: str, few: str, many: str) -> str:
+    if n == 1:
+        return one
+    return few if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else many
+
+
+HEADER_CONTROL_H = 32  # 2.6.11: pasek górny niższy i równy (jak DAM): lista sieci i przyciski tej samej wysokości
 MIN_WINDOW_WIDTH = 900  # 2.6.7: okno da się zwęzić do ~900 px (siatki się przestawiają); minimum wynika z treści
 MIN_WINDOW_HEIGHT = 700  # j.w. (2.6.5: nigdy większe niż dostępna wysokość ekranu)
 RIGHT_PANEL_MIN_WIDTH = 700  # start przed pomiarem; 2.6.7: prawdziwe minimum liczy się z treści kart (siatki się zwężają)
@@ -762,6 +783,7 @@ class MainWindow(QMainWindow):
             self.retail_preset_combo.addItem(preset.label, preset.id)
             self.retail_preset_combo.setItemData(idx, preset.tooltip, Qt.ToolTipRole)
         self.retail_preset_combo.currentIndexChanged.connect(self._on_retail_preset_changed)
+        self.retail_preset_combo.setFixedHeight(HEADER_CONTROL_H)
         strip_lay.addWidget(self.retail_preset_combo, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.restore_retail_btn = QPushButton("Przywróć preset")
         self.restore_retail_btn.setObjectName("btnSecondary")
@@ -771,12 +793,13 @@ class MainWindow(QMainWindow):
         # 2.6.5: napis (wersalikami) nigdy nie jest ściskany — przy braku miejsca ustępuje lista sieci, nie przycisk.
         self.restore_retail_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         mark_quiet(self.restore_retail_btn)  # S13: obok jest „Tryb prosty” — jedyny przycisk z obrysem w pasku
+        self.restore_retail_btn.setFixedHeight(HEADER_CONTROL_H)
         self.restore_retail_btn.clicked.connect(self._restore_retail_preset)
         strip_lay.addWidget(self.restore_retail_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
         self._mode_btn = QPushButton("Zaawansowany tryb")
         self._mode_btn.setObjectName("btnSecondary")
         self._mode_btn.setToolTip("Przełącz między trybem prostym a zaawansowanym")
-        self._mode_btn.setMinimumHeight(BTN_H)
+        self._mode_btn.setFixedHeight(HEADER_CONTROL_H)
         self._mode_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._mode_btn.clicked.connect(self._toggle_ui_mode)
         strip_lay.addWidget(self._mode_btn, 0, Qt.AlignRight | Qt.AlignVCenter)
@@ -803,7 +826,30 @@ class MainWindow(QMainWindow):
         for key, act in getattr(self, "_mode_actions", {}).items():
             act.setChecked(key == mode)
 
+    def _on_simple_retail_changed(self, _index: int) -> None:
+        idx = self.retail_preset_combo.findData(self.simple_retail_combo.currentData())
+        self.retail_preset_combo.setCurrentIndex(max(0, idx))  # reszta w _on_retail_preset_changed
+
+    def _refresh_simple_retail_rows(self) -> None:
+        """Tryb prosty: przy presecie z eksportem wg specyfikacji zamiast formatu i jakości opis i panel EAN."""
+        if not hasattr(self, "_simple_quality_row"):
+            return
+        combo = self.simple_retail_combo
+        idx = combo.findData(self._active_retail_preset_id)
+        if combo.currentIndex() != max(0, idx):
+            combo.blockSignals(True)
+            combo.setCurrentIndex(max(0, idx))
+            combo.blockSignals(False)
+        preset = retail_preset_by_id(self._active_retail_preset_id)
+        grid = self._simple_format_grid
+        grid.set_row_visible(self.simple_format_pills, preset is None)
+        grid.set_row_visible(self._simple_quality_row, preset is None)
+        grid.set_row_visible(self._simple_retail_box, preset is not None)
+        if preset is not None:  # opis z presetu (jedno źródło), bez nazwy pliku specyfikacji
+            self._simple_retail_hint.setText(preset.tooltip.split(" Źródło:")[0])
+
     def _build_ui(self) -> None:
+        self._build_retail_panel()
         central = QWidget()
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
@@ -822,6 +868,7 @@ class MainWindow(QMainWindow):
         self._view_stack.addWidget(advanced_body)         # index 1 — tryb zaawansowany
         self._view_stack.setCurrentIndex(0 if self._ui_mode == "simple" else 1)
         root.addWidget(self._view_stack, stretch=1)
+        self._place_retail_panel()
         self._conversion_overlay = ConversionOverlay(central)
         self._conversion_overlay.hide()
         self._conversion_overlay.abort_requested.connect(self._on_overlay_abort)
@@ -958,6 +1005,32 @@ class MainWindow(QMainWindow):
         self._simple_format_lay = fmt_lay
         fmt_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel", vgap=SIMPLE_ROW_GAP[0])
         self._simple_format_grid = fmt_grid
+        # Sieć handlowa (ten sam wybór co lista w pasku trybu zaawansowanego). Preset z eksportem wg specyfikacji
+        # (Rossmann) sam ustala format i wymiary, więc pigułki formatu i suwak jakości wtedy znikają.
+        self.simple_retail_combo = style_dropdown(QComboBox())
+        self.simple_retail_combo.setObjectName("simpleRetailCombo")
+        mark_large(self.simple_retail_combo)
+        self.simple_retail_combo.addItem("Bez sieci: zwykła konwersja", RETAIL_NONE)
+        for preset in RETAIL_PRESETS:
+            idx = self.simple_retail_combo.count()
+            self.simple_retail_combo.addItem(preset.label, preset.id)
+            self.simple_retail_combo.setItemData(idx, preset.tooltip, Qt.ToolTipRole)
+        self.simple_retail_combo.setToolTip("Zdjęcia dla sieci handlowej: program sam ustawi format, wymiary i nazwy")
+        self.simple_retail_combo.currentIndexChanged.connect(self._on_simple_retail_changed)
+        fmt_grid.add_row("Sieć", self.simple_retail_combo)
+        retail_box = QWidget()
+        retail_lay = QVBoxLayout(retail_box)
+        retail_lay.setContentsMargins(0, 0, 0, 0)
+        retail_lay.setSpacing(12)
+        self._simple_retail_hint = QLabel()
+        self._simple_retail_hint.setObjectName("hintLabel")
+        self._simple_retail_hint.setWordWrap(True)
+        retail_lay.addWidget(self._simple_retail_hint)
+        self._retail_slot_simple = QVBoxLayout()
+        self._retail_slot_simple.setContentsMargins(0, 0, 0, 0)
+        retail_lay.addLayout(self._retail_slot_simple)
+        self._simple_retail_box = retail_box
+        fmt_grid.add_row("", retail_box)  # bez etykiety: opis stoi pod listą „Sieć”, EAN i nazwy pod nim
         video_note = "\nFilm z listy i tak zapisze się jako GIF."
         self.simple_format_pills = PillGroup([[
             (SIMPLE_FORMAT_ORIGINAL, "Jak oryginał", "Ten sam format co oryginał. PNG bez tła zostaje PNG bez tła." + video_note),
@@ -974,13 +1047,15 @@ class MainWindow(QMainWindow):
         self.simple_quality_slider.setValue(start_q)
         self.simple_quality_label = QLabel(str(start_q))
         self.simple_quality_slider.valueChanged.connect(self._on_simple_quality_changed)
-        fmt_grid.add_row("Jakość", slider_control(
+        self._simple_quality_row = slider_control(
             self.simple_quality_slider, self.simple_quality_label,
             value_width=44,
             tooltip="Jakość kompresji (1–100). Im niżej, tym mniejszy plik. Poniżej 70% PNG schodzi na PNG-8, "
                     "przezroczystość zostaje.",
-        ))
+        )
+        fmt_grid.add_row("Jakość", self._simple_quality_row)
         fmt_lay.addWidget(fmt_grid)
+        self._refresh_simple_retail_rows()
 
         # Film → GIF — rząd pojawia się dopiero, gdy na liście jest film
         video_grid = FormGrid(label_w=SIMPLE_LABEL_W, label_name="simpleLabel", vgap=SIMPLE_ROW_GAP[0])
@@ -1123,6 +1198,7 @@ class MainWindow(QMainWindow):
         self._apply_header_for_mode()
         if hasattr(self, "_view_stack"):
             self._view_stack.setCurrentIndex(0 if simple else 1)
+            self._place_retail_panel()
         if simple:
             self._sync_simple_from_state()
         if mark_dirty:
@@ -1148,11 +1224,31 @@ class MainWindow(QMainWindow):
         self.simple_file_list.clear()
         foto_icon = self._row_icon(icon_image_file)
         film_icon = self._row_icon(icon_video_file)
-        for p in self._queue:
-            item = QListWidgetItem(film_icon if is_video_file(p) else foto_icon, p.name)
+        # Preset sieci z nazwami EAN_rola: w wierszu pliku rola do wyboru i gotowa nazwa (jedna lista, S30)
+        rows = getattr(self, "_retail_rows", {}) if self._ean_naming_preset() is not None else {}
+        order = list(self._queue)
+        if rows:  # najpierw pliki, które zapiszemy, pominięte duplikaty na końcu
+            order.sort(key=lambda q: rows.get(q, (q, ""))[1] == SKIP_ROLE)
+        for p in order:
+            row = rows.get(p)
+            item = QListWidgetItem(film_icon if is_video_file(p) else foto_icon, "" if row else p.name)
             item.setData(Qt.UserRole, str(p))
             item.setToolTip(str(p))
             self.simple_file_list.addItem(item)
+            if row is not None:
+                item.setIcon(QIcon())
+                item.setData(OWN_REMOVE_ROLE, True)
+                widget = file_row(
+                    *row, on_role=self._on_role_changed, compact=True,
+                    on_remove=lambda q: QTimer.singleShot(0, lambda: self._remove_paths([q])),
+                )
+                widget.ensurePolished()  # wysokość listy rozwijanej z QSS, inaczej wiersz ucina jej dół
+                for child in widget.findChildren(QWidget):
+                    child.ensurePolished()
+                hint = widget.sizeHint()
+                # + 14 px: QSS simpleFileList::item ma padding 7 px góra i dół, który zjada wysokość widżetu wiersza
+                item.setSizeHint(QSize(hint.width(), max(hint.height(), BTN_H + 14) + 14))
+                self.simple_file_list.setItemWidget(item, widget)
         self.simple_queue_label.setText(self.queue_label.text())
         empty = not self._queue
         self._simple_empty.setVisible(empty)
@@ -1359,13 +1455,33 @@ class MainWindow(QMainWindow):
         fmt_opts = self._simple_format_opts()
         resize = ResizeOptions(mode=ResizeMode.NONE, scale_percent=100.0, min_longest_enabled=False)
         transforms = TransformOptions()
+        spec = self._export_preset()
+        snap = self._retail_preset_snapshot
+        if spec is not None:
+            if not self._check_ean_naming(self._queue) or not self._retail_bg_ready(self._queue):
+                return
+            output_format = spec.output_format
+            transforms = TransformOptions(bg_model=spec.bg_model)  # tło tylko dla plików bez przezroczystości
+        elif snap is not None:  # preset sieci bez eksportu wg specyfikacji: jego format, wymiar i jakość
+            output_format = snap["output_format"]
+            resize = snap["resize"]
+            transforms = snap["transforms"]
+            fmt_opts = replace(fmt_opts, quality=snap["quality"], jpeg_matte_mode=snap["jpeg_matte_mode"])
 
         jobs: list[JobSpec] = []
+        skipped = 0
         for inp in self._queue:
             fmt = output_format or output_format_for_input(inp)
             if is_video_file(inp):
+                if spec is not None:
+                    continue  # film nie jest zdjęciem produktu dla sieci
                 fmt = "gif"  # film zapisujemy jako animację, niezależnie od wybranej pigułki
+            if self._ean_naming_preset() is not None and self._role_for(inp) == SKIP_ROLE:
+                skipped += 1
+                continue  # duplikat tej samej strony produktu
             out = self._simple_output_path(inp, fmt, dest_dir)
+            if self._ean_naming_preset() is not None:
+                out = out.with_name(self._retail_output_name(inp, fmt))
             jobs.append(JobSpec(
                 input_path=inp,
                 output_path=out,
@@ -1374,7 +1490,9 @@ class MainWindow(QMainWindow):
                 transforms=transforms,
                 metadata=self._metadata,
                 format_opts=fmt_opts,
+                retail_id=spec.id if spec is not None else "",
             ))
+        self._skipped_dupes = skipped
         jobs = self._resolve_save_conflicts(jobs)
         if jobs is None:
             return
@@ -1472,6 +1590,7 @@ class MainWindow(QMainWindow):
         meta_row.addWidget(sort_lbl)
         meta_row.addWidget(self.sort_combo)
         list_layout.addLayout(meta_row)
+
 
         # 2.6.5: przyciski mają napisy wersalikami (szersze) — jeden rząd, a gdy lewa kolumna jest za wąska,
         # dwa rzędy po dwa; ikony bez napisów dopiero w ostateczności (_update_tool_buttons_for_width).
@@ -1685,6 +1804,17 @@ class MainWindow(QMainWindow):
             self._cards[key] = card
             root.addWidget(card)
             return card, grid
+
+        # —— EAN i nazwy plików (tylko preset sieci z nazwami EAN_rola, np. Rossmann) ——
+        # Panel wspólny z trybem prostym (_place_retail_panel); prawa kolumna, bo lewa jest za wąska na role plików.
+        self._retail_card = SectionCard(
+            "retail_names", "EAN i nazwy plików", tooltip="EAN produktu i rola każdego zdjęcia: z nich powstają nazwy plików",
+        )
+        self._retail_slot_adv = QVBoxLayout()
+        self._retail_slot_adv.setContentsMargins(0, 0, 0, 0)
+        self._retail_card.body_layout.addLayout(self._retail_slot_adv)
+        self._retail_card.setVisible(False)
+        root.addWidget(self._retail_card)
 
         # —— Format i jakość ——
         card_fmt, self._format_grid = make_card(
@@ -2084,6 +2214,7 @@ class MainWindow(QMainWindow):
             self._active_retail_preset_id = RETAIL_NONE
             self._retail_preset_snapshot = None
             self.restore_retail_btn.setEnabled(False)
+            self._refresh_ean(force=True)
             return
         preset = retail_preset_by_id(str(preset_id))
         if preset is None:
@@ -2092,8 +2223,194 @@ class MainWindow(QMainWindow):
         self._retail_preset_snapshot = retail_snapshot_from_preset(preset)
         self._apply_settings_snapshot(self._retail_preset_snapshot)
         self.restore_retail_btn.setEnabled(True)
+        self._refresh_ean(force=True)
+        self._refresh_simple_save_info()
         log_event("Preset sieci", preset.label)
         self.statusBar().showMessage(f"Preset: {preset.label}", 4000)
+
+    def _ean_naming_preset(self):
+        preset = retail_preset_by_id(self._active_retail_preset_id)
+        return preset if preset is not None and preset.naming == "ean_role" else None
+
+    def _export_preset(self):
+        """Preset sieci z eksportem wg specyfikacji (kadr do treści, limity) albo ``None``."""
+        preset = retail_preset_by_id(self._active_retail_preset_id)
+        return preset if preset is not None and preset.trim_to_content else None
+
+    def _build_retail_panel(self) -> None:
+        self._ean_product_dir: Path | None = None
+        self._ean_value = ""
+        self._ean_verdict = ("", "ok", [])
+        self._file_roles: dict[Path, str] = {}
+        panel = RetailNamesPanel()
+        panel.ean_edited.connect(self._on_ean_edited)
+        panel.ean_chosen.connect(self._on_ean_chosen)
+        panel.role_changed.connect(self._on_role_changed)
+        panel.setVisible(False)
+        self._retail_panel = panel
+
+    def _place_retail_panel(self) -> None:
+        """Jeden panel EAN: w trybie prostym pod presetem sieci, w zaawansowanym w karcie „Lista plików”."""
+        panel = getattr(self, "_retail_panel", None)
+        if panel is None:
+            return
+        slot = self._retail_slot_simple if self._ui_mode == "simple" else self._retail_slot_adv
+        slot.addWidget(panel)
+        panel.set_rows_visible(self._ui_mode != "simple")  # tryb prosty: role w wierszach listy plików u góry
+        self._show_retail_panel(self._ean_naming_preset() is not None)
+
+    def _show_retail_panel(self, active: bool) -> None:
+        self._retail_panel.setVisible(active)
+        if hasattr(self, "_retail_card"):  # karta powstaje razem z prawą kolumną
+            self._retail_card.setVisible(active)
+        if active and self._ui_mode == "simple" and hasattr(self, "_simple_scroll"):
+            # Tryb prosty: po wyborze sieci pokaż EAN i nazwy plików (na niskim ekranie są poniżej listy plików)
+            QTimer.singleShot(60, lambda: self._simple_scroll.ensureWidgetVisible(self._retail_panel, 0, 24))
+
+    def _image_queue(self) -> list[Path]:
+        return [p for p in self._queue if not is_video_file(p)]
+
+    def _resolved_roles(self) -> dict[Path, tuple[str, str]]:
+        """Rola i notka każdego zdjęcia z listy: ręczne role zostają, duplikaty tej samej strony program rozstrzyga sam."""
+        images = self._image_queue()
+        key = (tuple(images), tuple(sorted((str(p), r) for p, r in self._file_roles.items())))
+        if getattr(self, "_roles_cache_key", None) != key:
+            self._roles_cache_key = key
+            self._roles_cache = resolve_roles(images, self._file_roles)
+        return self._roles_cache
+
+    def _role_for(self, path: Path) -> str:
+        hit = self._resolved_roles().get(path)
+        return hit[0] if hit else self._file_roles.get(path, role_from_name(path.name))
+
+    def _refresh_ean(self, *, force: bool = False) -> None:
+        """Wpisuje EAN z folderu produktu (karta Excel, plik z EAN, kod kreskowy) i odświeża nazwy plików."""
+        panel = getattr(self, "_retail_panel", None)
+        if panel is None:
+            return
+        active = self._ean_naming_preset() is not None
+        self._show_retail_panel(active)
+        if hasattr(self, "_simple_retail_hint"):
+            self._refresh_simple_retail_rows()
+        if not active:
+            return
+        images = self._image_queue()
+        product = find_product_dir(images[0]) if images else None
+        if force or product != self._ean_product_dir:
+            self._ean_product_dir = product
+            if images:
+                self._apply_ean_result(detect_ean(images))
+        self._refresh_retail_files()
+
+    def _apply_ean_result(self, res) -> None:
+        self._ean_value = res.ean
+        if res.conflict:
+            other = next(f for f in res.findings if f.ean != res.ean)
+            text = (f"Sprawdź EAN: {res.source} wychodzi {res.ean}, a {other.source} {other.ean}. "
+                    "Wybierz właściwy albo wpisz go ręcznie.")
+            self._ean_verdict = (text, "warn", [(res.ean, f"Użyj {res.ean}"), (other.ean, f"Użyj {other.ean}")])
+        elif res.ean:
+            self._ean_verdict = (f"Dobrze: EAN {res.source.split(' (')[0]}.", "ok", [])
+        else:
+            self._ean_verdict = ("Nie znalazłem EAN w folderze produktu: wpisz go ręcznie.", "bad", [])
+        self._retail_panel.verdict.setToolTip("\n".join([f"{f.ean} {f.source}" for f in res.findings] + res.notes))
+        self._retail_panel.set_ean(self._ean_value, *self._ean_verdict)
+
+    def _on_ean_chosen(self, ean: str) -> None:
+        self._ean_value = ean
+        self._ean_verdict = ("Dobrze: EAN wybrany przez Ciebie.", "ok", [])
+        self._retail_panel.set_ean(ean, *self._ean_verdict)
+        self._refresh_retail_files()
+
+    def _on_ean_edited(self, text: str) -> None:
+        self._ean_value = text.strip()
+        if ean13_valid(self._ean_value):
+            self._ean_verdict = ("Dobrze: EAN wpisany ręcznie.", "ok", [])
+        elif len(self._ean_value) < 13:
+            self._ean_verdict = (f"EAN ma 13 cyfr, wpisano {len(self._ean_value)}.", "bad", [])
+        else:
+            self._ean_verdict = ("Źle: ostatnia cyfra (kontrolna) się nie zgadza. Sprawdź numer z kodu kreskowego.",
+                                 "bad", [])
+        self._retail_panel.set_ean(self._ean_value, *self._ean_verdict)
+        self._refresh_retail_files()
+
+    def _on_role_changed(self, path: Path, role: str) -> None:
+        self._file_roles[path] = role
+        # odśwież po powrocie do pętli zdarzeń: lista rozwijana, która wysłała sygnał, zostanie usunięta
+        QTimer.singleShot(0, self._refresh_retail_files)
+
+    def _retail_problems(self, inputs: list[Path]) -> dict[Path, str]:
+        """Problem przy pliku: brak roli albo ta sama rola co inny plik (puste = dobrze)."""
+        roles = {p: self._role_for(p) for p in inputs}
+        problems: dict[Path, str] = {}
+        for role, paths in role_collisions(roles).items():
+            for p in paths:
+                if not role:
+                    problems[p] = "Wybierz, co pokazuje to zdjęcie (front, tył...)."
+                else:
+                    label = ROLE_LABELS.get(role, role)
+                    n = len(paths)
+                    many = f"{n} pliki mają" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f"{n} plików ma"
+                    problems[p] = f"{many} rolę „{label[:1].upper() + label[1:]}”: zmień rolę jednego z nich."
+        return problems
+
+    def _refresh_retail_files(self) -> None:
+        images = self._image_queue()
+        self._file_roles = {p: r for p, r in self._file_roles.items() if p in images}
+        problems = self._retail_problems(images)
+        resolved = self._resolved_roles()
+        ean = self._ean_value if ean13_valid(self._ean_value) else "EAN"
+        rows = []
+        for p in images:
+            role, note = resolved.get(p, ("", ""))
+            target = "nie zapiszę" if role == SKIP_ROLE else output_name(ean, role or "?")
+            rows.append((p, role, target, problems.get(p, ""), note))
+        rows.sort(key=lambda r: r[1] == SKIP_ROLE)  # najpierw pliki do zapisu, pominięte duplikaty na końcu
+        skipped = sum(1 for r in rows if r[1] == SKIP_ROLE)
+        saved = len(rows) - skipped
+        summary = f"Zapiszę {saved} {_plural(saved, 'plik', 'pliki', 'plików')}"
+        if skipped:
+            summary += (f", pominę {skipped} {_plural(skipped, 'duplikat', 'duplikaty', 'duplikatów')} "
+                        "(mniejsze kopie tych samych stron).")
+        else:
+            summary += "."
+        self._retail_rows = {r[0]: r for r in rows}
+        self._retail_panel.set_files(rows, summary if rows else "")
+        if self._ui_mode == "simple":
+            self._refresh_simple_file_list()
+
+    def _check_ean_naming(self, inputs: list[Path]) -> bool:
+        """Przed konwersją: poprawny EAN i każdy plik z inną rolą (bez cichego nadpisywania)."""
+        if self._ean_naming_preset() is None:
+            return True
+        if not ean13_valid(self._ean_value):
+            show_warning(self, "EAN", "Wpisz poprawny EAN (13 cyfr) w polu „EAN produktu”.")
+            return False
+        problems = self._retail_problems([p for p in inputs if not is_video_file(p)])
+        if problems:
+            lines = [f"{p.name}: {msg}" for p, msg in problems.items()]
+            show_warning(self, "Nazwy plików", "\n".join(lines))
+            return False
+        return True
+
+    def _retail_bg_ready(self, inputs: list[Path]) -> bool:
+        """Preset sieci bez tła + plik bez przezroczystości (np. JPG): model usuwania tła musi być pobrany
+        PRZED konwersją (pytanie z przyciskiem pobrania, jak „Usuń tło” w trybie zaawansowanym)."""
+        spec = self._export_preset()
+        if spec is None or spec.output_format == "jpeg":
+            return True
+        naming = self._ean_naming_preset() is not None
+        need = [p for p in inputs if not is_video_file(p) and not (naming and self._role_for(p) == SKIP_ROLE)
+                and needs_background_removal(p)]
+        if not need:
+            return True
+        names = ", ".join(p.name for p in need[:3]) + (" …" if len(need) > 3 else "")
+        reason = (f"{_plural(len(need), 'Plik', 'Pliki', 'Pliki')} {names} "
+                  f"{'nie ma' if len(need) == 1 else 'nie mają'} przezroczystego tła, a {spec.label} chce zdjęć bez tła.\n\n")
+        return self._validate_bg_removal_ready(spec.bg_model, reason)
+
+    def _retail_output_name(self, inp: Path, fmt: str) -> str:
+        return output_name(self._ean_value, self._role_for(inp), output_extension(fmt))
 
     def _restore_retail_preset(self) -> None:
         if not self._retail_preset_snapshot:
@@ -2400,12 +2717,13 @@ class MainWindow(QMainWindow):
             fmts = [f for f in fmts if f in ALPHA_OUTPUT_FORMATS] or ["png"]
         return fmts
 
-    def _validate_bg_removal_ready(self) -> bool:
-        if not self._transforms.remove_background:
+    def _validate_bg_removal_ready(self, model: str | None = None, reason: str = "") -> bool:
+        """``model`` podany = sprawdź ten model bez względu na „Usuń tło” (preset sieci wycina tło sam)."""
+        if model is None and not self._transforms.remove_background:
             return True
         from inyfinn_resizer.core.transforms import rmbg_models
 
-        model = self._transforms.bg_model or "birefnet-general"
+        model = model or self._transforms.bg_model or "birefnet-general"
         if model not in rmbg_models.MODELS:
             show_warning(self, "Usuń tło", f"Nieobsługiwany model usuwania tła: {model}")
             return False
@@ -2417,7 +2735,7 @@ class MainWindow(QMainWindow):
         if not ask_yes_no(
             self,
             "Usuń tło — pobranie modelu",
-            f"Usuwanie tła w trybie „{spec.label}” potrzebuje modelu, "
+            reason + f"Usuwanie tła w trybie „{spec.label}” potrzebuje modelu, "
             f"który trzeba jednorazowo pobrać ({spec.size_mb} MB).\n\n"
             "Pobrać teraz? Po pobraniu konwersja ruszy automatycznie.",
         ):
@@ -3000,6 +3318,7 @@ class MainWindow(QMainWindow):
             self._add_path_to_queue(path)
 
     def _update_queue_label(self) -> None:
+        self._refresh_ean()
         n_files = len(self._queue)
         n_folders = len(self._folder_queue)
         if hasattr(self, "update_output_btn"):
@@ -3144,13 +3463,24 @@ class MainWindow(QMainWindow):
         self._format_opts.quality = self.quality_slider.value()
 
         jobs = []
+        spec = self._export_preset()
+        retail_id = spec.id if spec is not None else ""
+        if spec is not None:
+            formats = [spec.output_format]  # specyfikacja sieci ma jeden format (Rossmann: PNG)
+        ean_naming = self._ean_naming_preset() is not None
+        self._skipped_dupes = 0
         for fmt in formats:
             for inp in queue:
                 if use_output:
                     out_dir = self._output_dir_for_input(inp, queue, explicit_out)
                 else:
                     out_dir = inp.parent
-                if self._rename.enabled:
+                if ean_naming and self._role_for(inp) == SKIP_ROLE:
+                    self._skipped_dupes += 1
+                    continue  # duplikat tej samej strony produktu
+                if ean_naming:
+                    out = out_dir / self._retail_output_name(inp, fmt)
+                elif self._rename.enabled:
                     name = preview_rename([inp], self._rename, fmt)[0][1]
                     if segregate:
                         sub = output_extension(fmt).lstrip(".").lower() or fmt.lower()
@@ -3172,6 +3502,7 @@ class MainWindow(QMainWindow):
                     transforms=self._transforms,
                     metadata=self._metadata,
                     format_opts=self._format_opts,
+                    retail_id=retail_id,
                 ))
         return jobs
 
@@ -3196,6 +3527,8 @@ class MainWindow(QMainWindow):
         if not self._validate_bg_removal_ready():
             return
         if not self._prepare_output_for_convert(inputs):
+            return
+        if not self._check_ean_naming(inputs) or not self._retail_bg_ready(inputs):
             return
         jobs = self._build_jobs(inputs=inputs)
         # Bez folderu wyjściowego pytamy zawsze, z folderem tylko przy „Pytaj przed nadpisaniem” (S82).
@@ -3401,7 +3734,10 @@ class MainWindow(QMainWindow):
             f"OK {ok}/{len(results)}, błędy {err}, {elapsed:.1f}s",
             status="OK" if err == 0 else "WARN",
         )
-        self.statusBar().showMessage(f"Gotowe — {ok}/{len(results)} plików w {elapsed:.1f} s")
+        skipped = getattr(self, "_skipped_dupes", 0)
+        tail = f", pominięte duplikaty: {skipped}" if skipped else ""
+        self.statusBar().showMessage(f"Gotowe \u2014 {ok}/{len(results)} plików w {elapsed:.1f} s{tail}")
+        self._skipped_dupes = 0
         dlg = ResultsDialog(results, elapsed, self)
         dlg.exec()
 

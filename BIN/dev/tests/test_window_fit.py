@@ -820,6 +820,9 @@ def test_advanced_right_column_is_a_grey_panel_of_white_cards(make_window):
     panel = win._settings_body
     assert panel.objectName() == "cardPanel" and panel.layout().contentsMargins().left() >= 6
     cards = panel.findChildren(SectionCard)
+    # 2.6.11: karta „EAN i nazwy plików” stoi pierwsza, ale widać ją tylko przy presecie sieci z nazwami EAN
+    assert cards[0].key == "retail_names" and cards[0].isHidden()
+    cards = [c for c in cards if not c.isHidden()]
     assert [c.key for c in cards] == ["format", "background", "dimensions", "save"]
     for card in cards:
         titles = [lbl for lbl in card.findChildren(QLabel, "sectionCardTitle") if lbl.isVisible()]

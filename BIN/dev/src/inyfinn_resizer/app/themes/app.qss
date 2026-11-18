@@ -156,6 +156,37 @@ QLabel#hintLabel, QLabel#dropHint, QLabel#saveInfo {
     font-size: 14px;
 }
 
+/* 2.6.11: werdykt EAN i nazw plików sieci (panel RetailNamesPanel) */
+QLabel#retailVerdict {
+    font-size: 14px;
+    font-weight: 700;
+    background: transparent;
+}
+QLabel#retailVerdict[state="ok"] {
+    color: @FG_ACCENT@;
+}
+QLabel#retailVerdict[state="warn"] {
+    color: @FG_TEXT@;
+}
+QLabel#retailVerdict[state="bad"] {
+    color: @DANGER@;
+}
+QLabel#retailNote {
+    color: @FG_MUTED@;
+    font-size: 14px;
+    background: transparent;
+}
+QLabel#retailFileName {
+    color: @FG_MUTED@;
+    font-size: 14px;
+    background: transparent;
+}
+QLabel#retailTarget {
+    color: @FG_TEXT@;
+    font-weight: 700;
+    background: transparent;
+}
+
 QLabel#queueCount {
     font-size: 16px;
     font-weight: 700;
@@ -337,6 +368,15 @@ QWidget#menuStrip {
     background-color: @MENU_STRIP_BG@;
     border: none;
     border-bottom: @MENU_STRIP_BORDER@;
+}
+
+/* 2.6.11: pasek górny jak w DAM: kontrolki 32 px, napis 14 px, bez wersalików */
+QWidget#menuStrip QPushButton, QWidget#menuStrip QComboBox {
+    min-height: 32px;
+    max-height: 32px;
+    font-size: 14px;
+    padding-top: 0;
+    padding-bottom: 0;
 }
 
 QLabel#menuPresetLabel {

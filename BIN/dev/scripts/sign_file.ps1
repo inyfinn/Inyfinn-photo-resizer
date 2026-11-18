@@ -4,6 +4,8 @@
   Podpisuje EXE/instalator Authenticode (SHA256).
 
   1) INYFINN_CODESIGN_PFX + INYFINN_CODESIGN_PASS — certyfikat komercyjny (OV/EV).
+  1a) INYFINN_CODESIGN_THUMBPRINT — istniejący certyfikat z CurrentUser\My (z kluczem prywatnym), np. cert Inyfinn
+      używany przez DAM. Nic nie jest tworzone ani dodawane do magazynów; wymagany status podpisu: Valid.
   2) W przeciwnym razie trwały self-signed CN=Inyfinn Photo Resizer w CurrentUser\My
      + publiczny cert w TrustedPublisher (ta stacja: SmartScreen nie krzyczy „Nieznany wydawca”).
 
@@ -85,14 +87,33 @@ function Invoke-SignTool([string]$Target, [string]$PfxPath, [string]$Password) {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Get-ThumbprintCert {
+    $thumb = ($env:INYFINN_CODESIGN_THUMBPRINT -replace '\s', '').ToUpper()
+    if (-not $thumb) {
+        return $null
+    }
+    $found = Get-Item -LiteralPath "Cert:\CurrentUser\My\$thumb" -ErrorAction SilentlyContinue
+    if (-not $found -or -not $found.HasPrivateKey) {
+        Write-Error "INYFINN_CODESIGN_THUMBPRINT=${thumb}: brak certyfikatu z kluczem prywatnym w CurrentUser\My (nic nie tworzę)"
+    }
+    return $found
+}
+
 $cert = Get-CommercialCert
 $usedLocal = $false
+$usedThumb = $false
+if (-not $cert) {
+    $cert = Get-ThumbprintCert
+    $usedThumb = [bool]$cert
+}
 if (-not $cert) {
     $cert = Get-OrCreateLocalCodeCert
     $usedLocal = $true
 }
 
-Install-LocalTrust $cert
+if (-not $usedThumb) {
+    Install-LocalTrust $cert   # cert z odcisku jest już zaufany na tej stacji: magazynów nie ruszamy
+}
 
 $workPath = $FilePath
 $tempCopy = $null
@@ -140,5 +161,5 @@ if ($okStatus -notcontains $check.Status.ToString()) {
     Write-Error "Podpis nieważny ($($check.Status)): $FilePath - $($check.StatusMessage)"
 }
 
-$kind = if ($usedLocal) { "lokalny Inyfinn (TrustedPublisher na tej stacji)" } else { "PFX" }
+$kind = if ($usedLocal) { "lokalny Inyfinn (TrustedPublisher na tej stacji)" } elseif ($usedThumb) { "odcisk $($cert.Thumbprint)" } else { "PFX" }
 Write-Host "Podpisano ($kind, $($check.Status)): $FilePath"

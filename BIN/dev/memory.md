@@ -2,9 +2,24 @@
 
 > Pamięć operacyjna agenta Monday. Przy awarii: ten plik + `README.md` + `process.md` (wszystko w `BIN/dev/`).
 
-**Ostatnia aktualizacja:** 2026-10-20 · **Wersja aplikacji:** 2.6.8
+**Ostatnia aktualizacja:** 2026-11-18 · **Wersja aplikacji:** 2.6.11
 
 ---
+
+## Presety sieci 2.6.11 (Rossmann 2026, EAN, contain): CZYTAJ PRZED ZMIANĄ PRESETÓW
+
+- Jedno źródło: `core/retail_presets.py` (`RetailPreset`). Pola eksportu: `trim_to_content`, `alpha_floor` (8), `min_shortest_px`, `max_longest_px`, `max_file_mb`, `canvas_px`, `dpi`, `naming`. Gdy `trim_to_content=True`, plik robi `core/retail_export.export_retail` (nie stary tor vips/rembg); `JobSpec.retail_id` niesie id presetu przez pulę procesów (`job_to_dict`).
+- Skrypty JSX (EKSPORT WIZEK, MASOWY EKSPORT) czytają JSON z `python -m inyfinn_resizer.core.retail_presets --json <plik>`. Zmiana pola = regeneruj JSON i daj znać torowi skryptów. Test `test_presets_json_matches_source`.
+- Presety sieci nigdy nie obcinają produktu: kwadrat = `canvas_px` (contain). Zwykłe presety rozmiaru „pudełko” zostają cover z kotwicą kadru (to celowe, test `test_vips_cover_crops_like_pillow`).
+- pngquant zapisuje chunki `sRGB` + `gAMA` (profil ICC wypada, kolory już są w sRGB). PNG po pngquant jest paletowy (P + tRNS); decyzja usera 18.11.2026: tak zostaje.
+- EAN, kolejność (decyzja kierownika 18.11.2026, tak samo w JSX): plik `<indeks> - EAN….txt`, karta `.xlsx`, kod kreskowy; sprawdzane wszystkie, niezgodność = „Sprawdź”. Duplikaty roli (FRONT, FRONT-S, FRONT.jpg): `core/ean.resolve_roles` zostawia PNG o największej liczbie pikseli, reszta `skip` („Pomiń”, notka szara); remis i kolizja ustawiona ręcznie = czerwony błąd. pngquant w `retail_export` pracuje na kopii w krótkim folderze tymczasowym (nie otwiera ścieżek > 260 znaków).
+- Build 2.6.11 (18.11.2026, komputer domowy): `BIN\dev\.venv` z Pythona 3.12.10, wersje przypięte do tego, co było w `_internal` 2.6.10 (PySide6 6.11.1, numpy 2.4.6, scipy 1.18.0, rembg 2.0.76, pymatting 1.1.15...), PyInstaller 6.22.3. **onnxruntime:** 2.6.10 miał w paczce CPU `onnxruntime` 1.20.1 (`onnxruntime.dll` i `pybind` identyczne z kołem CPU), a z `onnxruntime-directml` tylko leżący obok `DirectML.dll`; DirectML w EXE nigdy nie działał. 2.6.11 tak samo: po `pip install -e .[dev]` dograne koło `onnxruntime==1.20.1 --no-deps`. Włączenie GPU to osobna decyzja (testy na kilku komputerach).
+- **Podpis od 2.6.11:** `sign_file.ps1` czyta `INYFINN_CODESIGN_THUMBPRINT` (cert z `CurrentUser\My` z kluczem, nic nie tworzy, wymaga statusu Valid). 2.6.11 podpisany certem Inyfinn z DAM: `CN=Inyfinn, O=Inyfinn, C=PL`, odcisk `6BD4B828410788571CD2CA53DF7444F93077E617` (na komputerze domowym w `CurrentUser\Root` i `TrustedPublisher`, więc Valid). 2.6.10 i wcześniejsze: self-signed `CN=Inyfinn Photo Resizer` (`8CFFB1AF…`) z komputera w pracy. Komputer w pracy: zaimportuj ten sam cert DAM (PFX) do `CurrentUser\My`, ustaw `$env:INYFINN_CODESIGN_THUMBPRINT = '6BD4B828410788571CD2CA53DF7444F93077E617'` przed `package_release_safe.ps1`; bez zmiennej skrypt robi to co dawniej (szuka/tworzy `CN=Inyfinn Photo Resizer`). Auto-update sprawdza tylko SHA256 (`digest`), wydawcy nie.
+- `package_release_safe.ps1` uruchamiaj bez przekierowania wyjścia wewnątrz PowerShella (`*>` / `2>`): PowerShell 5.1 zamienia stderr PyInstallera w błąd i przy `ErrorActionPreference=Stop` przerywa build po przeniesieniu `BIN\_internal` do `_old`. Log zbieraj z zewnątrz (`powershell -File ... > log 2>&1`). `$Dev` liczony z `$PSScriptRoot`.
+- Build 2.6.10: komputer w pracy, `D:\Marketing\…\BIN\dev\.venv` na Pythonie 3.12; `.venv` nie przechodzi przez Synology (kropka), na `X:` go nie ma. `package_release_safe.ps1` ma `$Dev` na sztywno na `D:\`, sam pisze `BIN\WERSJA.txt`. Przed buildem 2.6.11: `pip install zxing-cpp openpyxl` w `.venv`.
+- EAN: karta `.xlsx` liczy się tylko z indeksem produktu w nazwie albo treści (w folderze czarnej porzeczki leżały karty produktu 6300726). Plik `<indeks> - EAN<13 cyfr>.txt` w `1-MATERIAŁY`. Kod kreskowy: zxing-cpp (Apache-2.0, ~1,8 MB, `hiddenimports` w obu `*.spec`).
+- Testy pod Pythonem 3.14 bez pełnego środowiska: `test_background_removal` (brak rembg) i `test_tiff_alpha` (brak tifffile) padają na imporcie; `test_window_fit` przy całym pliku zwalnia, bo każdy `apply_theme` przerysowuje wszystkie okna z poprzednich testów (patrz process.md 2026-11-18).
+- Zrzuty bez pokazywania okien: `QT_QPA_PLATFORM=offscreen:configfile=screen1366.json` (ścieżka względna) + `capture_ui.py <it> <folder> zielen-jasny,zielen-ciemny v2611`; domyślny ekran offscreen ma 800×800, przez to okno wychodziło węższe niż minimum i wyglądało na ucięte.
 
 ## UWAGI.txt — zgłoszenia od zespołu (od 2026-09-18)
 

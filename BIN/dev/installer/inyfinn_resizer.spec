@@ -130,6 +130,8 @@ a = Analysis(
         "piexif",
         "watchdog",
         "inyfinn_resizer",
+        "zxingcpp",
+        "openpyxl",
         "numpy",
         "tifffile",
         "imagecodecs",

@@ -852,3 +852,52 @@
 **Tymczasowe:** w scratchpadzie sesji `resizer-268\tmp\pytest-of-krzysztof.wieczorek` (755 plików, ok. 1,8 MB, katalogi pytesta z dwóch pełnych przebiegów) — kosz odmówił (za długa ścieżka); do usunięcia po przyjęciu zrzutów. Reszta posprzątana.
 
 **Źródła:** `ds-dobra-kaloria`: `ZALECENIA-USERA.md` S79–S83, `IDENTYFIKACJA-WIZUALNA.md` rozdz. 10, `components.md` rozdz. 25.10, 26.1, 26.8, 26.9; kod: `core/compressors/gif.py` (`compress_gif`, `FRAME_PRESETS`), `core/pipeline.py` (`unique_conv_path`).
+
+## 2026-11-18: 2.6.11, preset Rossmann 2026 + EAN w nazwach plików
+
+**Komenda/Akcja:** nowa specyfikacja Rossmanna (PDF 2026): PNG bez tła, kadr do krawędzi produktu, krótszy bok min. 1200 px, dłuższy max 3800 px, max 5 MB, nazwy `EAN_g` / `EAN_t`.
+
+**Log/Status:**
+1. `core/retail_presets.py`: nowe ogólne pola `RetailPreset` (`trim_to_content`, `min_shortest_px`, `max_longest_px`, `max_file_mb`, `dpi`, `naming`); Rossmann: PNG, wymiar = oryginał, `remove_background=False` (tło usuwa eksport tylko, gdy plik nie ma przezroczystości).
+2. `core/retail_export.py` (nowy): alfa < 8 zerowana (mgiełka tła widoczna w trybie ciemnym), kadr do prostokąta widocznych pikseli, wymiar (krótszy >= 1200, dłuższy <= 3800, przy konflikcie wygrywa 3800 + komunikat), PNG z profilem sRGB, > 5 MB: pngquant (`apply_pngquant max_kb`), dopiero potem mniejszy wymiar (nie poniżej 1200 krótszego). Komunikaty po polsku w `JobResult.message`.
+3. `core/ean.py` (nowy): suma kontrolna EAN-13, folder produktu (w górę do folderu z `1-MATERIAŁY`), indeks z nazwy folderu (7 cyfr), źródła: karta Excel w `1-MATERIAŁY` (tylko gdy nazwa albo treść karty zawiera indeks produktu), plik `*EAN*.txt` (numer w nazwie albo treści), kod kreskowy z wizki TYŁ (zxing-cpp). Role z nazw: FRONT -> g, TYŁ -> t, BOK-L/BOK-P, SPÓD, WIERZCH. Kolizje ról zgłaszane przed konwersją.
+4. `core/job.py` + `core/pipeline.py`: `JobSpec.retail_id` (też w `job_to_dict`/`job_from_dict`, bo batch idzie przez pulę procesów); `process_job` przy presecie z `trim_to_content` woła `export_retail`.
+5. `app/main_window.py`: w karcie „Lista plików” wiersz „EAN produktu” + werdykt („Dobrze: EAN z kodu kreskowego na zdjęciu tyłu”, przy niezgodnych źródłach „Sprawdź: ...”), widoczny tylko przy presecie z nazwami EAN; tryb zaawansowany buduje nazwy `<EAN>_<rola>.png`.
+6. Zależności: `openpyxl`, `zxing-cpp` (Apache-2.0, ok. 1,8 MB) w `pyproject.toml` i `hiddenimports` obu `*.spec`. Testy: `tests/test_rossmann_ean.py` (7), `test_retail_presets_crop.py` zaktualizowany pod nowy Rossmann.
+7. Pilot (kulki malina 6300754, czarna porzeczka 6300753): 4 pliki, EAN wykryte same; porzeczka ma w `1-MATERIAŁY` karty innego produktu (6300726, EAN 5903548004941), program je pomija i bierze EAN z kodu kreskowego.
+
+**Uwaga:** po pngquant PNG jest paletowy (tryb P z przezroczystością 8 bit), nie RGBA truecolor; RGBA z tych samych pikseli waży ok. 11 MB.
+
+## 2026-11-18 (2): 2.6.11, presety sieci w trybie prostym, role plików, contain, jedno źródło dla JSX
+
+**Komenda/Akcja:** zadanie 2 od kierownika: JSON presetów dla skryptów Photoshopa, Rossmann w trybie prostym, rola pliku w oknie, pasek górny, ciemny styl na zrzutach, przyczyna wiszącego pytest, presety pudełkowe bez obcinania produktu.
+
+**Log/Status:**
+1. `core/retail_presets.py`: `presets_json()`, `write_presets_json()`, `python -m inyfinn_resizer.core.retail_presets --json <plik>` (schema_version 1: naming, roles, role_labels, presets z polami `RetailPreset` + `resize`). Nowe pola `alpha_floor` (8) i `canvas_px`. `core/ean.py`: `NAME_PATTERNS`.
+2. Presety pudełkowe sieci (aldi_cms 1920, dm 2000, amazon_allegro 1200, amazon_main 3000) przez `export_retail` z `contain_on_canvas`: kadr do treści, cały produkt na środku kwadratu, tło przezroczyste (PNG) albo białe (JPEG 4:4:4). Dowód na malinie FRONT 3208×3508: dawny cover ucinał 93 px źródła z góry i 99 z dołu produktu. aldi_cms max 2 MB, dm 5 MB i 300 dpi (z tooltipów). Zwykłe presety rozmiaru „pudełko” zostają cover (kotwica kadru jest celowa).
+3. `app/widgets/retail_names.py` (nowy): panel EAN + werdykt (QSS `retailVerdict[state]`, kolory z ról motywu: `@FG_ACCENT@`, `@DANGER@`) + wiersz na plik (nazwa, lista ról, nazwa wynikowa, problem). Jeden panel przenoszony między trybami: tryb prosty pod polem „Sieć”, tryb zaawansowany w karcie „EAN i nazwy plików” na górze prawej kolumny. Kolizje ról i brak roli widać przy pliku; konwersja i tak sprawdza.
+4. Tryb prosty: pole „Sieć” (to samo co lista w pasku), każdy preset działa (eksport wg specyfikacji albo format, wymiar i jakość z presetu), pigułki formatu i suwak jakości chowają się, w ich miejscu opis z tooltipu presetu. Po wyborze sieci widok przewija się do EAN.
+5. Pasek górny: lista sieci, „Przywróć preset” i przełącznik trybu po 32 px (`HEADER_CONTROL_H`, QSS `#menuStrip`), napis 14 px.
+6. `scripts/capture_ui.py`: zestaw `v2611` (Rossmann na prawdziwych wizkach, 900×700 i 1366×728). Przyczyna „uciętej prawej kolumny” na zrzutach z zadania 1: offscreen ma ekran 800×800, okno było węższe niż minimum 900; teraz ekran z pliku `screen1366.json`. Ciemny motyw: nakładany po zbudowaniu okna (jak w `capture_ui.py`), nie przed.
+7. pytest: `test_tiff_alpha.py` (brak `tifffile`) i `test_background_removal.py` (brak `rembg`) padają przez środowisko Pythona 3.14, nie przez kod. `test_window_fit.py` wisi w całym pliku także na kopii 2.6.10: faulthandler pokazuje `apply_theme` → `app.setStyleSheet`, które przerysowuje wszystkie okna z poprzednich testów (fixture ich nie niszczy), więc każdy kolejny test jest wolniejszy. Ten sam efekt w całym zestawie naraz (kopia 2.6.10 też nie kończy w 590 s), więc pomiar: każdy plik testów w osobnym procesie, `test_window_fit.py` test po teście. Wynik 2.6.11: 543 passed, 5 failed (`test_background_removal`, brak rembg), `test_tiff_alpha` nie zbiera się (brak tifffile); 548 testów zebranych (2.6.10: 534).
+8. Testy: `tests/test_rossmann_ean.py` (+JSON, +cały produkt w kadrze dla 4 presetów), `tests/test_retail_ui_2611.py` (tryb prosty: EAN, kolizja, zmiana roli, nazwy zadań), `test_retail_presets_crop.py` pod contain.
+
+## 2026-11-18 (3): 2.6.11, duplikaty ról, jedna lista w trybie prostym, model tła przed konwersją, EAN najpierw z pliku .txt
+
+**Log/Status:**
+1. `core/ean.py`: `resolve_roles()` + `SKIP_ROLE`: z automatycznych duplikatów roli zostaje PNG o największej liczbie pikseli (potem większy plik), reszta „Pomiń” z notką „wybrano większy plik: …”; remis zostaje kolizją. `role_collisions` pomija „Pomiń”. Kolejność EAN: plik `<indeks> - EAN….txt`, karta `.xlsx`, kod kreskowy (decyzja kierownika, zgodnie z JSX).
+2. `app/widgets/retail_names.py`: `file_row()` (wiersz pliku, także jednoliniowy z własnym ✕), pozycja „Pomiń”, szara notka (`QLabel#retailNote`), podsumowanie „Zapiszę N plików, pominę M duplikatów”. `removable_items.OWN_REMOVE_ROLE`: delegat nie rysuje ✕ pod wierszem z widżetem.
+3. Tryb prosty: rola i gotowa nazwa w wierszu listy plików (najpierw pliki do zapisu, pominięte na końcu), panel pokazuje już tylko EAN i podsumowanie. Pliki „Pomiń” nie idą do konwersji, pasek stanu po konwersji: „pominięte duplikaty: M”.
+4. `_retail_bg_ready`: preset sieci bez tła + plik bez przezroczystości (JPG) = pytanie o pobranie modelu PRZED konwersją (`_validate_bg_removal_ready(model, reason)`), w obu trybach.
+5. `core/retail_export._pngquant`: kopia w `tempfile.TemporaryDirectory`, bo pngquant nie otwiera ścieżek > 260 znaków (zgłoszenie workera JSX).
+6. Build 2.6.10 (z `build/work/.../Analysis-00.toc`): komputer pracy, `D:\Marketing\…\BIN\dev\.venv` na `Python312` z profilu użytkownika, 26.10.2026 17:00.
+
+## 2026-11-18 (4): build i wydanie 2.6.11 (komputer domowy)
+
+**Log/Status:**
+1. `BIN\dev\.venv`: Python 3.12.10 (`%LOCALAPPDATA%\Programs\Python\Python312`), `pip install -e .[dev] pyinstaller` z ograniczeniami do wersji z `_internal` 2.6.10 (PySide6 6.11.1, numpy 2.4.6, scipy 1.18.0, numba 0.66.0, llvmlite 0.48.0, rembg 2.0.76, pymatting 1.1.15, pooch 1.9.0, imageio 2.37.3, onnxruntime-directml 1.20.1) + koło CPU `onnxruntime==1.20.1 --no-deps` (2.6.10 miał w paczce CPU onnxruntime, sprawdzone SHA256 `onnxruntime.dll` i `pybind`). PyInstaller 6.22.3, hooks-contrib 2026.10.
+2. Testy w venv plik po pliku: 476 passed w 36 plikach, `test_window_fit.py` 72/72 test po teście; razem 548 passed, 0 failed.
+3. `scripts/package_release_safe.ps1`: `$Dev = Split-Path -Parent $PSScriptRoot` zamiast sztywnego `D:\…`. `scripts/sign_file.ps1`: `INYFINN_CODESIGN_THUMBPRINT` (cert z `CurrentUser\My`, bez tworzenia). Podpis certem DAM `CN=Inyfinn, O=Inyfinn, C=PL` (`6BD4B828…`), status Valid (decyzja kierownika, wariant B; szczegóły w memory.md).
+4. Pierwsze uruchomienie z `*>` do pliku przerwało build (PowerShell 5.1: stderr PyInstallera jako błąd przy `ErrorActionPreference=Stop`) po przeniesieniu `BIN\_internal` do `build\_old-20261118-1`; drugie uruchomienie (log zbierany z zewnątrz) przeszło. Build, instalator i ZIP ze `-Stamp 20261118-1`, `TEMP` przestawiony na scratchpad sesji (nic w `%TEMP%`).
+5. `_internal` 2.6.11 kontra 2.6.10: 995 plików, 594,5 MB (było 1636, 618,5 MB). Ubyło: pandas, lxml, cryptography, dateutil, tzdata, `_sqlite3` (pakiety spoza zależności programu, które leżały w starym venv). Doszło: `zxingcpp`, biblioteki UCRT `api-ms-win-*`, `libcrypto-3`. Nowsze wersje imagecodecs i pillow-heif (inny zestaw `.pyd` / DLL; brak dist-info w 2.6.10, więc nie da się przypiąć). openpyxl, `core.ean`, `retail_export`, `retail_names` w PYZ.
+6. EXE 20,2 MB (podpis Valid), setup `InyfinnPhotoResizer-2.6.11-setup.exe` 165 MB (Valid), ZIP `release\InyfinnPhotoResizer-v2.6.11.zip` 238,8 MB. `BIN\WERSJA.txt` = 2.6.11 (pisze go etap build). Smoke: zbudowany EXE startuje, okno „Inyfinn Photo Resizer 2.6.11” z polem „Sieć”, zamknięty normalnie (kod 0).

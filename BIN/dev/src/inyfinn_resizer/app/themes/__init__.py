@@ -258,6 +258,7 @@ def _tokens(r: dict[str, str], *, window: str, panel: str, panel_alt: str, field
         "@UPDATE_TOAST_LATER_BORDER@": r["color_border_strong"],
         "@OVERLAY_SCRIM@": scrim,
         "@OVERLAY_ABORT_COLOR@": r["color_danger"],
+        "@DANGER@": r["color_danger"],
         "@OVERLAY_ABORT_BORDER@": r["color_border_strong"],
         "@OVERLAY_ABORT_HOVER_BG@": r["color_danger_soft"],
         "@OVERLAY_ABORT_PRESSED@": hover,

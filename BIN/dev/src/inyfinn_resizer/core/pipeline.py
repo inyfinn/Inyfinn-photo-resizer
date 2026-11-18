@@ -37,6 +37,7 @@ from inyfinn_resizer.core.transforms.background_removal import (
     remove_background,
 )
 from inyfinn_resizer.core.image_loader import open_image
+from inyfinn_resizer.core.retail_export import export_retail
 from inyfinn_resizer.core.video import convert_video, is_video_file
 from inyfinn_resizer.core.transforms.rgb_bitmap import rgb_bitmap, vips_rgb_bitmap
 from inyfinn_resizer.core.transforms.pillow_ops import apply_resize_pil, apply_scale_postprocess_pil, apply_transforms_pil
@@ -584,6 +585,7 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
         rename=job.rename,
         preserve_folder_structure=job.preserve_folder_structure,
         ask_before_overwrite=job.ask_before_overwrite,
+        retail_id=job.retail_id,
     )
     result.job = job
 
@@ -638,6 +640,17 @@ def process_job(job: JobSpec, *, overwrite: bool = True) -> JobResult:
             and not job.transforms.remove_background
             and _animated_frame_count(inp) > 1
         )
+        from inyfinn_resizer.core.retail_presets import retail_preset_by_id
+
+        spec = retail_preset_by_id(job.retail_id) if job.retail_id else None
+        if spec is not None and spec.trim_to_content:
+            notes = export_retail(inp, staging, spec, bg_model=job.transforms.bg_model)
+            if in_place:
+                os.replace(staging, out)
+            result.new_bytes = out.stat().st_size
+            result.status = JobStatus.OK
+            result.message = " ".join(notes) or "OK"
+            return result
         if job.transforms.remove_background:
             _save_pillow_rgba(job, staging)
         elif fmt == "gif" and inp.suffix.lower() == ".gif" and not _has_pixel_changes(job):
